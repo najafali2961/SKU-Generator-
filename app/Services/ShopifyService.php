@@ -17,11 +17,7 @@ class ShopifyService
 
     public function graph(string $query, array $variables = []): array
     {
-        Log::info('[ShopifyService] GraphQL request', [
-            'shop' => $this->shop->name ?? 'unknown',
-            'query_preview' => substr(preg_replace('/\s+/', ' ', $query), 0, 250),
-            'variables' => $variables,
-        ]);
+
 
         try {
             $response = $this->shop->api()->graph($query, $variables);
