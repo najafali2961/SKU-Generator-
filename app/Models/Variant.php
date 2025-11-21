@@ -6,9 +6,23 @@ use Illuminate\Database\Eloquent\Model;
 
 class Variant extends Model
 {
-    protected $fillable = ['product_id', 'shopify_variant_id', 'title', 'sku', 'option1', 'option2', 'option3', 'price', 'inventory_quantity'];
+    protected $fillable = [
+        'product_id',
+        'shopify_variant_id',
+        'title',
+        'sku',
+        'option1',
+        'option2',
+        'option3',
+        'price',
+        'inventory_quantity'
+    ];
 
-    protected $casts = ['sku' => 'string'];
+    protected $casts = [
+        'sku' => 'string',
+        'price' => 'decimal:2',
+        'inventory_quantity' => 'integer',
+    ];
 
     public function product()
     {

@@ -88,8 +88,6 @@ GRAPHQL;
             Log::error("[PRODUCT-UPDATE] Shopify Errors", ['productId' => $shopifyId, 'errors' => $errors]);
             return false;
         }
-
-        Log::info("[PRODUCT-UPDATE] OK", ['productId' => $shopifyId]);
         return true;
     }
 
@@ -207,11 +205,6 @@ GRAPHQL;
             ]);
             return false;
         }
-
-        Log::info("[SKU-UPDATE] Bulk update successful", [
-            'product_id' => $localProductId,
-            'updated_variants' => count($bulkVariants)
-        ]);
 
         return true;
     }

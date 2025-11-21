@@ -93,31 +93,35 @@ GRAPHQL;
             }
 
             $products = $response['body']['data']['products']['edges'] ?? [];
-            $pageInfo = $response['body']['data']['products']['pageInfo'];
+            $pageInfo = $response['body']['data']['products']['pageInfo'] ?? null;
 
             foreach ($products as $edge) {
                 $node = $edge['node'];
 
-                // FIX: Convert GID → numeric
                 $shopifyId = intval(basename($node['id']));
 
-                // FIX: Convert ResponseAccess → arrays
-                $imageEdges = json_decode(json_encode($node['images']['edges'] ?? []), true);
-                $variantEdges = json_decode(json_encode($node['variants']['edges'] ?? []), true);
+                // SAFE images
+                $images = [];
+                $imageEdges = $node['images']['edges'] ?? [];
+                if (is_array($imageEdges)) {
+                    foreach ($imageEdges as $img) {
+                        if (!isset($img['node'])) continue;
+                        $images[] = [
+                            'src' => $img['node']['src'] ?? null,
+                            'alt' => $img['node']['altText'] ?? null,
+                        ];
+                    }
+                }
 
-                // Images
-                $images = array_map(
-                    fn($img) => [
-                        'src' => $img['node']['src'] ?? null,
-                        'alt' => $img['node']['altText'] ?? null
-                    ],
-                    $imageEdges
-                );
-
-                // Tags
-                $tags = is_string($node['tags'])
-                    ? array_filter(array_map('trim', explode(',', $node['tags'])))
-                    : (array)$node['tags'];
+                // SAFE tags
+                $tags = [];
+                if (isset($node['tags'])) {
+                    if (is_string($node['tags'])) {
+                        $tags = array_filter(array_map('trim', explode(',', $node['tags'])));
+                    } elseif (is_array($node['tags'])) {
+                        $tags = $node['tags'];
+                    }
+                }
 
                 // Save product
                 $product = Product::updateOrCreate(
@@ -133,12 +137,15 @@ GRAPHQL;
                     ]
                 );
 
-                // CLEAR old variants
+                // Delete old variants
                 Variant::where('product_id', $product->id)->delete();
 
-                // Save variants
+                // Variants
+                $variantEdges = $node['variants']['edges'] ?? [];
+
                 foreach ($variantEdges as $vEdge) {
                     $v = $vEdge['node'];
+                    $options = $v['selectedOptions'] ?? [];
 
                     Variant::create([
                         'product_id' => $product->id,
@@ -147,14 +154,14 @@ GRAPHQL;
                         'sku' => $v['sku'] ?? '',
                         'price' => $v['price'] ?? 0,
                         'inventory_quantity' => $v['inventoryQuantity'] ?? 0,
-                        'option1' => $v['selectedOptions'][0]['value'] ?? null,
-                        'option2' => $v['selectedOptions'][1]['value'] ?? null,
-                        'option3' => $v['selectedOptions'][2]['value'] ?? null,
+                        'option1' => $options[0]['value'] ?? null,
+                        'option2' => $options[1]['value'] ?? null,
+                        'option3' => $options[2]['value'] ?? null,
                     ]);
                 }
             }
 
-            $after = $pageInfo['hasNextPage'] ? $pageInfo['endCursor'] : null;
+            $after = $pageInfo && $pageInfo['hasNextPage'] ? $pageInfo['endCursor'] : null;
         } while ($after);
 
         Log::info("🎉 Completed product + variant sync for install: {$shop->myshopify_domain}");

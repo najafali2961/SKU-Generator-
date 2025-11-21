@@ -34,7 +34,6 @@ class GenerateSkuBatchJob implements ShouldQueue
 
         $variants = Variant::with('product')->whereIn('id', $this->variantIds)->get();
         if ($variants->isEmpty()) {
-            Log::info("[SKU BATCH] No variants to process in this batch.");
             return;
         }
 
@@ -51,8 +50,6 @@ class GenerateSkuBatchJob implements ShouldQueue
 
             $shopify->updateVariantSkus((int)$productId, $skuMap);
         }
-
-        Log::info("[SKU BATCH] Completed batch. Variants processed: " . count($variants));
     }
 
     private function generateSku(int $counter): string

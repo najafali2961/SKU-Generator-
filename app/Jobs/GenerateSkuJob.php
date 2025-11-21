@@ -49,16 +49,15 @@ class GenerateSkuJob implements ShouldQueue
 
         $variants = $query->orderBy('id')->get();
         $total = $variants->count();
-        Log::info("Total variants to process: {$total}");
+
 
         if ($total === 0) {
-            Log::info("No variants found. Exiting.");
+
             return;
         }
 
         $batchSize = $this->settings['batch_size'] ?? 100;
         $variants->chunk($batchSize)->each(function ($chunk, $batchIndex) use ($shop) {
-            Log::info("Dispatching batch #" . ($batchIndex + 1) . " with " . count($chunk) . " variants");
             GenerateSkuBatchJob::dispatch($shop->id, $this->settings, $chunk->pluck('id')->toArray());
         });
 

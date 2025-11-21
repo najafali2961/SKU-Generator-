@@ -74,12 +74,7 @@ class ProductsUpdateJob implements ShouldQueue
                 $sku = $v['sku'] ?? null;
                 $variantId = $v['id'] ?? null;
 
-                // Log every variant being processed
-                Log::info("[VARIANT PROCESSING]", [
-                    'shopify_variant_id' => $variantId,
-                    'sku' => $sku,
-                    'product_id' => $product->id
-                ]);
+
 
                 try {
                     // Only check duplicates if SKU exists
@@ -112,12 +107,6 @@ class ProductsUpdateJob implements ShouldQueue
                         ['shopify_variant_id' => $variantId, 'product_id' => $product->id],
                         $variantPayload
                     );
-
-                    // Log success for variant update
-                    Log::info("[VARIANT UPDATED]", [
-                        'shopify_variant_id' => $variantId,
-                        'sku' => $sku
-                    ]);
                 } catch (\Throwable $ve) {
                     Log::error("[ERROR] Variant update failed", [
                         'shopify_variant_id' => $variantId,
