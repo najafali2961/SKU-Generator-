@@ -171,7 +171,7 @@ export default function SkuPreviewTable({
                                                     {p.vendor}
                                                 </p>
                                             </div>
-                                            <code className="font-mono text-lg font-bold text-red-600">
+                                            <code className="font-mono text-sm font-bold text-red-600">
                                                 {p.new_sku}
                                             </code>
                                         </div>
@@ -239,7 +239,7 @@ export default function SkuPreviewTable({
                                             className="object-cover w-16 h-16 shadow-md rounded-xl"
                                         />
                                     ) : (
-                                        <div className="flex items-center justify-center w-16 h-16 bg-gray-100 rounded-xl">
+                                        <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-xl">
                                             <Box className="w-10 h-10 text-gray-400" />
                                         </div>
                                     )}
@@ -263,7 +263,7 @@ export default function SkuPreviewTable({
                                         <p className="text-xs tracking-wider text-gray-500 uppercase">
                                             New
                                         </p>
-                                        <code className="font-mono text-xl font-bold text-indigo-600">
+                                        <code className="font-mono text-lg font-bold text-indigo-600">
                                             {p.new_sku}
                                         </code>
                                     </div>
@@ -346,7 +346,7 @@ export default function SkuPreviewTable({
                     <div className="flex flex-wrap items-center gap-3">
                         <button
                             onClick={() => setSelected(new Set())}
-                            className="px-3 py-1.5 text-sm font-medium transition-all bg-white/20 hover:bg-white/30 rounded-lg hover:scale-105"
+                            className="px-3 py-1.5 text-xs font-medium transition-all bg-white/20 hover:bg-white/30 rounded-lg hover:scale-105"
                         >
                             Clear Selection
                         </button>
@@ -354,7 +354,7 @@ export default function SkuPreviewTable({
                             onClick={() =>
                                 setSelected(new Set(preview.map((p) => p.id)))
                             }
-                            className="px-3 py-1.5 text-sm font-medium transition-all bg-white/20 hover:bg-white/30 rounded-lg hover:scale-105"
+                            className="px-3 py-1.5 text-xs font-medium transition-all bg-white/20 hover:bg-white/30 rounded-lg hover:scale-105"
                         >
                             Select All Visible
                         </button>
@@ -362,14 +362,14 @@ export default function SkuPreviewTable({
 
                     {/* Right section */}
                     <div className="flex items-center gap-3 sm:gap-4">
-                        <div className="text-sm font-semibold">
+                        <div className="text-xs font-semibold">
                             {selected.size} selected
                         </div>
 
                         <button
                             onClick={() => applySKUs("selected")}
                             disabled={selected.size === 0 || applying}
-                            className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-white transition-all rounded-lg shadow-md bg-gradient-to-r from-emerald-500 to-teal-600 hover:shadow-emerald-500/50 disabled:opacity-60 hover:scale-105 disabled:hover:scale-100"
+                            className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-white transition-all rounded-lg shadow-md bg-gradient-to-r from-emerald-500 to-teal-600 hover:shadow-emerald-500/50 disabled:opacity-60 hover:scale-105 disabled:hover:scale-100"
                         >
                             {applying ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -382,7 +382,7 @@ export default function SkuPreviewTable({
                         <button
                             onClick={() => applySKUs("all_matching")}
                             disabled={applying}
-                            className="px-3 py-2 text-sm font-bold text-white transition-all rounded-lg shadow-md bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 hover:shadow-purple-500/50 disabled:opacity-60 hover:scale-105"
+                            className="px-3 py-2 text-xs font-bold text-white transition-all rounded-lg shadow-md bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 hover:shadow-purple-500/50 disabled:opacity-60 hover:scale-105"
                         >
                             Apply All Matching
                         </button>

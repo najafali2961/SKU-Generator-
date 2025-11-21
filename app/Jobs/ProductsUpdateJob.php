@@ -30,8 +30,6 @@ class ProductsUpdateJob implements ShouldQueue
     {
         try {
             $shopDomain = ShopDomain::fromNative($this->shopDomain)->toNative();
-            Log::info("[JOB START] ProductsUpdateJob for shop: {$shopDomain}");
-
             $shop = User::where('name', $shopDomain)->first();
             if (!$shop) {
                 Log::warning("[STEP] Shop not found", ['shopDomain' => $shopDomain]);
@@ -130,8 +128,6 @@ class ProductsUpdateJob implements ShouldQueue
                     ]);
                 }
             }
-
-            Log::info("[JOB END] ProductsUpdateJob for shop: {$shopDomain}");
         } catch (\Throwable $e) {
             Log::error("[ERROR] ProductsUpdateJob failed", [
                 'error' => $e->getMessage(),
