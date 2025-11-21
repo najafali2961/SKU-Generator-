@@ -24,7 +24,7 @@ Route::middleware(['verify.shopify'])->group(function () {
     Route::get('/sku-generator', [SkuController::class, 'index']);
     Route::post('/sku-generator/preview', [SkuController::class, 'preview']);
     Route::post('/sku-generator/apply', [SkuController::class, 'apply']);
-    Route::post('/sku-generator/progress', [SkuController::class, 'progress']);
+    Route::get('/sku-generator/progress', [SkuController::class, 'progress']);
 });
 
 
