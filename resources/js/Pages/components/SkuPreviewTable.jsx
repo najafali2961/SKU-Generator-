@@ -340,13 +340,13 @@ export default function SkuPreviewTable({
 
             {/* Action Bar – Compact & Decent */}
 
-            <div className="p-3 text-white bg-gradient-to-r from-black via-gray-900 to-black rounded-b-xl">
+            <div className="p-3 text-black bg-gradient-to-r from-indigo-50/50 to-purple-50/30 border-gray-200/50 rounded-b-xl">
                 <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
                     {/* Left buttons */}
                     <div className="flex flex-wrap items-center gap-3">
                         <button
                             onClick={() => setSelected(new Set())}
-                            className="px-3 py-1.5 text-xs font-medium transition-all bg-white/20 hover:bg-white/30 rounded-lg hover:scale-105"
+                            className="px-3 py-1.5 text-xs font-medium transition-all bg-black/20 hover:bg-white/30 rounded-lg hover:scale-105"
                         >
                             Clear Selection
                         </button>
@@ -354,7 +354,7 @@ export default function SkuPreviewTable({
                             onClick={() =>
                                 setSelected(new Set(preview.map((p) => p.id)))
                             }
-                            className="px-3 py-1.5 text-xs font-medium transition-all bg-white/20 hover:bg-white/30 rounded-lg hover:scale-105"
+                            className="px-3 py-1.5 text-xs font-medium transition-all bg-black/20 hover:bg-white/30 rounded-lg hover:scale-105"
                         >
                             Select All Visible
                         </button>
@@ -382,7 +382,7 @@ export default function SkuPreviewTable({
                         <button
                             onClick={() => applySKUs("all_matching")}
                             disabled={applying}
-                            className="px-3 py-2 text-xs font-bold text-white transition-all rounded-lg shadow-md bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 hover:shadow-purple-500/50 disabled:opacity-60 hover:scale-105"
+                            className="px-3 py-2 text-xs font-bold text-white transition-all rounded-lg shadow-md bg-gradient-to-r from-amber-500 to-orange-600 hover:shadow-purple-500/50 disabled:opacity-60 hover:scale-105"
                         >
                             Apply All Matching
                         </button>
