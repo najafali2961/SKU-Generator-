@@ -11,6 +11,7 @@ class Variant extends Model
         'shopify_variant_id',
         'title',
         'sku',
+        'barcode',
         'option1',
         'option2',
         'option3',
@@ -29,5 +30,9 @@ class Variant extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+    public function barcode()
+    {
+        return $this->hasOne(Barcode::class, 'variant_id', 'shopify_variant_id');
     }
 }

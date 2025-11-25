@@ -13,69 +13,116 @@ class BarcodeController extends Controller
     public function index()
     {
         $shop = Auth::user();
-        $variants = Variant::with('product')
-            ->whereHas('product', fn($q) => $q->where('user_id', $shop->id))
-            ->take(20)
+
+        $variants = Variant::with(['product', 'barcode'])
+            ->whereHas('product', function ($q) use ($shop) {
+                $q->where('user_id', $shop->id);
+            })
+            ->latest()
+            ->take(50)
             ->get();
 
         return Inertia::render('BarcodeGenerator', [
-            'barcodes' => [
-                'data' => $variants->map(fn($v) => [
-                    'id' => $v->id,
-                    'barcode_value' => $v->barcode?->barcode_value,
-                    'format' => $v->barcode?->format ?? 'UPC',
-                    'image_url' => $v->image ?? $v->product?->image,
-                    'product' => $v->product ? [
-                        'title' => $v->product->title,
-                    ] : null,
-                    'is_duplicate' => $v->barcode?->is_duplicate ?? false,
-                ])->toArray()
-            ]
+            'initialData' => $variants->map(function ($v) {
+                return [
+                    'id'                 => $v->id,
+                    'shopify_variant_id' => $v->shopify_variant_id,
+                    'product_title'      => $v->product?->title ?? 'Unknown Product',
+                    'variant_title'      => $v->title,
+                    'sku'                => $v->sku,
+                    'barcode_value'      => $v->barcode?->barcode_value,
+                    'format'             => $v->barcode?->format ?? 'UPC',
+                    'image_url'          => $v->image ?? ($v->product?->images[0]['src'] ?? null),
+                    'is_duplicate'       => $v->barcode?->is_duplicate ?? false,
+                    'is_empty'           => empty($v->barcode?->barcode_value) || str_starts_with($v->barcode?->barcode_value ?? '', 'AUTO-'),
+                    'is_auto'            => str_starts_with($v->barcode?->barcode_value ?? '', 'AUTO-'),
+                ];
+            })->values(),
         ]);
     }
 
     public function preview(Request $request)
     {
         $shop = Auth::user();
-        $page = max(1, (int) $request->page, 1);
-        $perPage = 25;
+        if (!$shop) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
-        $query = Variant::with('product')
+        $perPage = 25;
+        $page = max(1, (int) $request->input('page', 1));
+
+        $query = Variant::with(['product', 'barcode'])
             ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
 
+        // Filters
         if ($request->filled('vendor')) {
             $query->whereHas('product', fn($q) => $q->where('vendor', 'like', "%{$request->vendor}%"));
         }
+
         if ($request->filled('type')) {
             $query->whereHas('product', fn($q) => $q->where('product_type', 'like', "%{$request->type}%"));
         }
 
-        $allVariants = $query->get();
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(
+                fn($q) =>
+                $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('sku', 'like', "%{$search}%")
+                    ->orWhereHas('barcode', fn($bq) => $bq->where('barcode_value', 'like', "%{$search}%"))
+            );
+        }
 
-        $barcodeMap = Barcode::whereIn('variant_id', $allVariants->pluck('id'))
-            ->pluck('barcode_value', 'variant_id')
-            ->toArray();
+        $variants = $query->get();
 
-        // detect duplicates
-        $counts = array_count_values(array_filter(array_values($barcodeMap)));
-        $duplicates = array_keys(array_filter($counts, fn($c) => $c > 1));
+        // Collect barcode values and detect duplicates
+        $barcodeValues = [];
+        $realBarcodes = [];
 
-        $preview = $allVariants->map(fn($v) => [
-            'id' => $v->id,
-            'barcode_value' => $barcodeMap[$v->id] ?? null,
-            'format' => $v->barcode?->format ?? 'UPC',
-            'image_url' => $v->image ?? $v->product?->image,
-            'product' => $v->product ? ['title' => $v->product->title] : null,
-            'is_duplicate' => in_array($barcodeMap[$v->id] ?? null, $duplicates),
-        ]);
+        foreach ($variants as $v) {
+            $value = $v->barcode?->barcode_value ?? null;
+            $barcodeValues[$v->shopify_variant_id] = $value;
+
+            if ($value && !str_starts_with($value, 'AUTO-') && trim($value) !== '') {
+                $realBarcodes[] = $value;
+            }
+        }
+
+        $duplicateValues = array_keys(array_filter(array_count_values($realBarcodes), fn($c) => $c > 1));
+
+        $preview = $variants->map(function ($v) use ($duplicateValues) {
+            $value = $v->barcode; // Use variant's barcode field directly
+            $isEmpty = empty($value) || str_starts_with($value, 'AUTO-');
+
+            return [
+                'id'                 => $v->id,
+                'shopify_variant_id' => $v->shopify_variant_id,
+                'variant_title'      => $v->title,
+                'sku'                => $v->sku,
+                'vendor'             => $v->product?->vendor ?? null,
+                'barcode_value'      => $value,
+                'old_barcode'        => null, // optional if you track old barcode elsewhere
+                'format'             => 'UPC', // or dynamically if you store format
+                'image_url'          => $v->image,
+                'is_duplicate'       => !$isEmpty && in_array($value, $duplicateValues),
+                'is_empty'           => $isEmpty,
+                'is_auto'            => str_starts_with($value ?? '', 'AUTO-'),
+            ];
+        });
+
 
         $total = $preview->count();
-        $paginated = $preview->slice(($page - 1) * $perPage, $perPage)->values();
+        $paginated = $preview->forPage($page, $perPage)->values();
 
         return response()->json([
             'data' => $paginated,
             'total' => $total,
-            'duplicates' => $duplicates,
+            'summary' => [
+                'total' => $total,
+                'unique' => count(array_unique($realBarcodes)),
+                'duplicates' => count($duplicateValues),
+                'empty_or_auto' => $variants->filter(fn($v) => empty($v->barcode?->barcode_value) || str_starts_with($v->barcode?->barcode_value ?? '', 'AUTO-'))->count(),
+            ],
         ]);
     }
 }

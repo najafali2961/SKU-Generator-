@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Product;
 use App\Models\Variant;
+use App\Models\Barcode; // <-- Make sure this is imported
 use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -32,7 +33,10 @@ class FetchProductPageJob implements ShouldQueue
     public function handle(): void
     {
         $shop = User::find($this->shopId);
-        if (!$shop) return;
+        if (!$shop) {
+            Log::error("Shop not found in FetchProductPageJob: {$this->shopId}");
+            return;
+        }
 
         try {
             $response = $shop->api()->graph(
@@ -82,14 +86,14 @@ class FetchProductPageJob implements ShouldQueue
                 ['first' => 250, 'after' => $this->afterCursor]
             );
         } catch (\Exception $e) {
-            Log::error("GraphQL failed in page job: " . $e->getMessage());
+            Log::error("GraphQL failed in FetchProductPageJob: " . $e->getMessage());
             $this->fail($e);
             return;
         }
 
         $edges = $response['body']['data']['products']['edges'] ?? [];
         if (empty($edges)) {
-            Log::warning("No products returned for cursor: {$this->afterCursor}");
+            Log::info("No products returned for cursor: {$this->afterCursor}");
             return;
         }
 
@@ -102,9 +106,9 @@ class FetchProductPageJob implements ShouldQueue
             }
 
             try {
-                $shopifyId = intval(basename($node['id'] ?? ''));
+                $shopifyId = intval(basename($node['id']));
 
-                // === SAFE TAGS ===
+                // === TAGS ===
                 $rawTags = $node['tags'] ?? [];
                 if ($rawTags instanceof \Gnikyt\BasicShopifyAPI\ResponseAccess) {
                     $rawTags = $rawTags->toArray();
@@ -113,7 +117,7 @@ class FetchProductPageJob implements ShouldQueue
                     ? array_filter($rawTags)
                     : (is_string($rawTags) ? array_filter(array_map('trim', explode(',', $rawTags))) : []);
 
-                // === SAFE PRODUCT IMAGES ===
+                // === PRODUCT IMAGES ===
                 $productImages = [];
                 $imageEdges = $node['images']['edges'] ?? [];
                 if ($imageEdges instanceof \Gnikyt\BasicShopifyAPI\ResponseAccess) {
@@ -134,18 +138,18 @@ class FetchProductPageJob implements ShouldQueue
                 $product = Product::updateOrCreate(
                     ['shopify_id' => $shopifyId, 'user_id' => $shop->id],
                     [
-                        'title' => $node['title'] ?? 'Untitled Product',
+                        'title'            => $node['title'] ?? 'Untitled Product',
                         'description_html' => $node['bodyHtml'] ?? null,
-                        'status' => $node['status'] ?? 'draft',
-                        'vendor' => $node['vendor'] ?? null,
-                        'product_type' => $node['productType'] ?? null,
-                        'tags' => $tags,
-                        'images' => $productImages,
-                        'updated_at' => now(),
+                        'status'           => $node['status'] ?? 'draft',
+                        'vendor'           => $node['vendor'] ?? null,
+                        'product_type'     => $node['productType'] ?? null,
+                        'tags'             => $tags,
+                        'images'           => $productImages,
+                        'updated_at'       => now(),
                     ]
                 );
 
-                // === SAFE VARIANTS ===
+                // === VARIANTS & BARCODES ===
                 $variantsData = [];
                 $variantEdges = $node['variants']['edges'] ?? [];
                 if ($variantEdges instanceof \Gnikyt\BasicShopifyAPI\ResponseAccess) {
@@ -160,13 +164,15 @@ class FetchProductPageJob implements ShouldQueue
 
                     if (empty($v['id'])) continue;
 
-                    // Extract selected options
+                    $shopifyVariantId = intval(basename($v['id']));
+
+                    // Selected options (Option 1, 2, 3)
                     $options = collect($v['selectedOptions'] ?? [])
                         ->pluck('value')
                         ->pad(3, null)
                         ->toArray();
 
-                    // === VARIANT IMAGE (with fallback to first product image) ===
+                    // Variant image with fallback
                     $variantImage = null;
                     $variantImageAlt = null;
 
@@ -179,30 +185,31 @@ class FetchProductPageJob implements ShouldQueue
                         $variantImageAlt = $img['altText'] ?? null;
                     }
 
-                    // Fallback: Use first product image if variant has no image
                     if (!$variantImage && !empty($productImages[0]['src'])) {
                         $variantImage = $productImages[0]['src'];
                         $variantImageAlt = $productImages[0]['alt'];
                     }
 
                     $variantsData[] = [
-                        'product_id' => $product->id,
-                        'shopify_variant_id' => intval(basename($v['id'])),
-                        'title' => $v['title'] ?? 'Default Title',
-                        'sku' => $v['sku'] ?? '',
-                        'price' => (float) ($v['price'] ?? 0),
-                        'inventory_quantity' => (int) ($v['inventoryQuantity'] ?? 0),
-                        'option1' => $options[0] ?? null,
-                        'option2' => $options[1] ?? null,
-                        'option3' => $options[2] ?? null,
-                        'image' => $variantImage,
-                        'image_alt' => $variantImageAlt,
-                        'updated_at' => now(),
-                        'created_at' => now(),
+                        'product_id'          => $product->id,
+                        'shopify_variant_id'  => $shopifyVariantId,
+                        'title'               => $v['title'] ?? 'Default Title',
+                        'sku'                 => $v['sku'] ?? '',
+                        'price'               => (float) ($v['price'] ?? 0),
+                        'inventory_quantity'  => (int) ($v['inventoryQuantity'] ?? 0),
+                        'option1'             => $options[0] ?? null,
+                        'option2'             => $options[1] ?? null,
+                        'option3'             => $options[2] ?? null,
+                        'image'               => $variantImage,
+                        'image_alt'           => $variantImageAlt,
+                        'updated_at'          => now(),
+                        'created_at'          => now(),
                     ];
                 }
 
+                // === UPSERT VARIANTS + BARCODES IN BULK ===
                 if (!empty($variantsData)) {
+                    // 1. Upsert Variants
                     Variant::upsert(
                         $variantsData,
                         ['product_id', 'shopify_variant_id'],
@@ -219,13 +226,43 @@ class FetchProductPageJob implements ShouldQueue
                             'updated_at'
                         ]
                     );
+
+                    // Inside your variant loop, after upserting variants:
+
+                    $barcodeInserts = array_map(function ($vData) {
+                        return [
+                            'variant_id'     => $vData['shopify_variant_id'],  // ← Shopify ID goes here
+                            'product_id'     => $vData['product_id'],
+                            'barcode_value'  => !empty($vData['sku'])
+                                ? $vData['sku']
+                                : 'AUTO-' . $vData['shopify_variant_id'],
+                            'format'         => 'UPC',
+                            'image_url'      => null,
+                            'is_duplicate'   => false,
+                            'created_at'     => now(),
+                            'updated_at'     => now(),
+                        ];
+                    }, $variantsData);
+
+                    Barcode::upsert(
+                        $barcodeInserts,
+                        ['variant_id'], // unique by Shopify variant ID
+                        [
+                            'product_id',
+                            'barcode_value',
+                            'format',
+                            'image_url',
+                            'is_duplicate',
+                            'updated_at'
+                        ]
+                    );
                 }
             } catch (\Throwable $e) {
-                Log::error("Failed to save product {$shopifyId}: " . $e->getMessage());
+                Log::error("Failed to save product {$shopifyId}: " . $e->getMessage() . "\n" . $e->getTraceAsString());
                 continue;
             }
         }
 
-        Log::info("Successfully processed page after cursor: {$this->afterCursor}");
+        Log::info("Successfully processed product page after cursor: {$this->afterCursor} for shop {$shop->myshopify_domain}");
     }
 }

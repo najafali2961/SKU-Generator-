@@ -1,155 +1,116 @@
-// resources/js/Pages/BarcodeGenerator.jsx
-import React, { useState, useCallback } from "react";
-import { Card, Page, Toast } from "@shopify/polaris";
+import React, { useState, useEffect } from "react";
+import { Page, Frame, Toast, Loading } from "@shopify/polaris";
 import axios from "axios";
-import { router } from "@inertiajs/react";
 
 import BarcodeHeader from "./components/barcode/Header";
 import BarcodeSidebar from "./components/barcode/BarcodeSidebar";
 import BarcodePreviewTable from "./components/barcode/BarcodePreviewTable";
 
-export default function BarcodeGenerator({
-    products = [],
-    barcodes = { data: [] },
-}) {
+export default function BarcodeGenerator({ initialData = [] }) {
     const [form, setForm] = useState({
         format: "UPC",
-        prefix: "",
-        length: 12,
-        checksum: true,
-        enforce_length: true,
-        numeric_only: true,
-        auto_fill: true,
-        validate_standard: true,
-        allow_qr_text: false,
-        isbn_group: "978",
-        ean_country: "50",
         search: "",
         vendor: "",
         type: "",
-        collections: [],
     });
 
-    const handleChange = (field, value) =>
-        setForm((prev) => ({ ...prev, [field]: value }));
-
+    const [barcodes, setBarcodes] = useState([]);
+    const [total, setTotal] = useState(0);
+    const [page, setPage] = useState(1);
+    const [loading, setLoading] = useState(false);
     const [selected, setSelected] = useState(new Set());
-    const [file, setFile] = useState(null);
-    const [fileName, setFileName] = useState("");
+    const [summary, setSummary] = useState({
+        total: 0,
+        unique: 0,
+        duplicates: 0,
+        empty_or_auto: 0,
+    });
+
     const [toast, setToast] = useState({
         active: false,
         message: "",
         error: false,
     });
-    const [page, setPage] = useState(1);
-    const [duplicates, setDuplicates] = useState([]);
-    const [duplicateGroups, setDuplicateGroups] = useState({});
 
-    const handleDrop = useCallback((_drop, accepted) => {
-        if (accepted.length) {
-            setFile(accepted[0]);
-            setFileName(accepted[0].name);
-        }
-    }, []);
-
-    const removeFile = () => {
-        setFile(null);
-        setFileName("");
+    const showToast = (message, error = false) => {
+        setToast({ active: true, message, error });
     };
+
+    const fetchBarcodes = async () => {
+        setLoading(true);
+        try {
+            const res = await axios.post("/barcode-generator/preview", {
+                ...form,
+                page,
+            });
+            setBarcodes(res.data.data);
+            setTotal(res.data.total);
+            setSummary(res.data.summary);
+        } catch (err) {
+            console.error(err);
+            showToast("Failed to load barcodes", true);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchBarcodes();
+    }, [page, form]);
 
     const generate = async () => {
-        const fd = new FormData();
-        Object.keys(form).forEach((key) => fd.append(key, form[key]));
-        if (selected.size)
-            fd.append("product_ids", JSON.stringify(Array.from(selected)));
-        if (file) fd.append("csv_file", file);
-
         try {
-            const r = await axios.post("/barcode/generate", fd);
-            setToast({
-                active: true,
-                message: `Generated ${r.data.barcodes.length} barcodes!`,
-                error: false,
-            });
-            router.reload({ only: ["barcodes"] });
+            const fd = new FormData();
+            Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+            if (selected.size > 0) {
+                fd.append("selected", JSON.stringify([...selected]));
+            }
+
+            const res = await axios.post("/barcode/generate", fd);
+            showToast(`Generated ${res.data.count} barcode(s)!`);
+            fetchBarcodes();
         } catch {
-            setToast({
-                active: true,
-                message: "Failed to generate",
-                error: true,
-            });
+            showToast("Failed to generate barcodes", true);
         }
     };
-
-    const checkDuplicates = async () => {
-        try {
-            const res = await axios.post("/barcode/check-duplicates", {
-                codes: barcodes.data.map((b) => b.barcode_value),
-            });
-            setDuplicates(res.data.duplicates || []);
-            setDuplicateGroups(res.data.duplicateGroups || {});
-            setToast({
-                active: true,
-                message:
-                    res.data.duplicates?.length || 0
-                        ? `${res.data.duplicates.length} duplicates found!`
-                        : "No duplicates!",
-                error: (res.data.duplicates?.length || 0) > 0,
-            });
-        } catch {
-            setToast({ active: true, message: "Check failed", error: true });
-        }
-    };
-
-    const exportPDF = () => window.open("/barcode/export?format=pdf", "_blank");
 
     return (
-        <Page fullWidth>
-            {toast.active && (
-                <Toast
-                    content={toast.message}
-                    error={toast.error}
-                    onDismiss={() => setToast({ active: false })}
-                />
-            )}
-
-            <div className="grid grid-cols-1 gap-6 p-4">
-                {/* Header Full Width */}
-                <div className="col-span-1">
-                    <BarcodeHeader
-                        onGenerate={generate}
-                        onScan={() => console.log("scan-camera")}
-                        onExport={exportPDF}
+        <Frame>
+            {loading && <Loading />}
+            <Page fullWidth title="Barcode Generator">
+                {toast.active && (
+                    <Toast
+                        content={toast.message}
+                        error={toast.error}
+                        onDismiss={() => setToast({ ...toast, active: false })}
+                        duration={4500}
                     />
-                </div>
+                )}
 
-                {/* Sidebar + Preview Table */}
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-                    {/* Sidebar (Left) */}
-                    <aside className="lg:col-span-4">
-                        <BarcodeSidebar
-                            form={form}
-                            handleChange={handleChange}
-                        />
-                    </aside>
+                <div className="p-4">
+                    <BarcodeHeader onGenerate={generate} />
 
-                    {/* Barcode Preview (Right) */}
-                    <main className="lg:col-span-8">
-                        <BarcodePreviewTable
-                            barcodes={barcodes.data}
-                            loading={false}
-                            form={form}
-                            handleChange={handleChange}
-                            page={page}
-                            setPage={setPage}
-                            duplicates={duplicates}
-                            duplicateGroups={duplicateGroups}
-                            selected={selected}
-                            setSelected={setSelected}
-                        />
-                    </main>
+                    <div className="grid grid-cols-1 gap-6 mt-6 lg:grid-cols-12">
+                        <aside className="lg:col-span-4">
+                            <BarcodeSidebar form={form} setForm={setForm} />
+                        </aside>
+
+                        <main className="lg:col-span-8">
+                            <BarcodePreviewTable
+                                barcodes={barcodes}
+                                total={total}
+                                page={page}
+                                setPage={setPage}
+                                loading={loading}
+                                selected={selected}
+                                setSelected={setSelected}
+                                summary={summary}
+                                refresh={fetchBarcodes}
+                            />
+                        </main>
+                    </div>
                 </div>
-            </div>
-        </Page>
+            </Page>
+        </Frame>
     );
 }

@@ -3,8 +3,9 @@
 namespace App\Jobs;
 
 use App\Models\Product;
-use App\Models\User;
 use App\Models\Variant;
+use App\Models\Barcode;
+use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -30,106 +31,105 @@ class ProductsUpdateJob implements ShouldQueue
     {
         try {
             $shopDomain = ShopDomain::fromNative($this->shopDomain)->toNative();
-            $shop = User::where('name', $shopDomain)->first();
-            if (!$shop) {
-                Log::warning("[STEP] Shop not found", ['shopDomain' => $shopDomain]);
-                return;
-            }
+            $shop = User::where('name', $shopDomain)->firstOrFail();
 
-            $data = json_decode(json_encode($this->data), true);
-            if (!$data) {
-                Log::warning("[STEP] Payload empty or invalid", ['data' => $this->data]);
-                return;
-            }
-
+            $data = is_array($this->data) ? $this->data : json_decode(json_encode($this->data), true);
             $productId = $data['id'] ?? null;
-            if (!$productId) {
-                Log::warning("[STEP] Missing Shopify product ID");
-                return;
-            }
+            if (!$productId) return;
 
-            // ---------- PRODUCT UPDATE ----------
-            $productPayload = [
-                'title' => $data['title'] ?? '',
-                'description_html' => $data['body_html'] ?? null,
-                'status' => strtoupper($data['status'] ?? 'DRAFT'),
-                'vendor' => $data['vendor'] ?? null,
-                'product_type' => $data['product_type'] ?? null,
-                'tags' => $this->normalizeTags($data['tags'] ?? null),
-                'images' => collect($data['images'] ?? [])
-                    ->map(fn($i) => [
-                        'src' => $i['src'] ?? null,
-                        'alt' => $i['alt'] ?? null,
-                    ])
-                    ->toArray(),
-            ];
-
+            // Update Product
             $product = Product::updateOrCreate(
                 ['shopify_id' => $productId, 'user_id' => $shop->id],
-                $productPayload
+                [
+                    'title'            => $data['title'] ?? '',
+                    'description_html' => $data['body_html'] ?? null,
+                    'status'           => strtoupper($data['status'] ?? 'draft'),
+                    'vendor'           => $data['vendor'] ?? null,
+                    'product_type'     => $data['product_type'] ?? null,
+                    'tags'             => $this->normalizeTags($data['tags'] ?? []),
+                    'images'           => collect($data['images'] ?? [])->map(fn($i) => [
+                        'src' => $i['src'] ?? null,
+                        'alt' => $i['alt'] ?? null,
+                    ])->toArray(),
+                    'updated_at'       => now(),
+                ]
             );
 
-            // ---------- VARIANTS UPDATE ----------
+            $variantInserts = [];
+            $barcodeInserts  = [];
+
             foreach ($data['variants'] ?? [] as $v) {
-                $sku = $v['sku'] ?? null;
-                $variantId = $v['id'] ?? null;
+                $shopifyVariantId = $v['id'] ?? null;
+                if (!$shopifyVariantId) continue;
 
+                $realBarcode = trim($v['barcode'] ?? '');
+                $sku         = $v['sku'] ?? '';
 
+                $finalBarcodeValue = !empty($realBarcode)
+                    ? $realBarcode
+                    : (!empty($sku) ? $sku : 'AUTO-' . $shopifyVariantId);
 
-                try {
-                    // Only check duplicates if SKU exists
-                    if ($sku && $variantId) {
-                        $existing = Variant::where('sku', $sku)
-                            ->where('shopify_variant_id', '<>', $variantId)
-                            ->first();
+                // Variant upsert
+                $variantInserts[] = [
+                    'product_id'         => $product->id,
+                    'shopify_variant_id' => $shopifyVariantId,
+                    'title'              => $v['title'] ?? 'Default Title',
+                    'sku'                => $sku,
+                    'barcode'            => $realBarcode, // real barcode saved here
+                    'price'              => (float)($v['price'] ?? 0),
+                    'inventory_quantity' => (int)($v['inventory_quantity'] ?? 0),
+                    'option1'            => $v['option1'] ?? null,
+                    'option2'            => $v['option2'] ?? null,
+                    'option3'            => $v['option3'] ?? null,
+                    'image'              => $v['image']['src'] ?? null,
+                    'image_alt'          => $v['image']['alt'] ?? null,
+                    'updated_at'         => now(),
+                    'created_at'         => now(),
+                ];
 
-                        if ($existing) {
-                            Log::warning("[DUPLICATE SKU] Another variant exists with same SKU", [
-                                'sku' => $sku,
-                                'current_variant_id' => $variantId,
-                                'existing_variant_id' => $existing->id
-                            ]);
-                        }
-                    }
-
-                    $variantPayload = [
-                        'product_id' => $product->id,
-                        'title' => $v['title'] ?? '',
-                        'sku' => $sku,
-                        'price' => $v['price'] ?? 0,
-                        'inventory_quantity' => $v['inventory_quantity'] ?? 0,
-                        'option1' => $v['option1'] ?? null,
-                        'option2' => $v['option2'] ?? null,
-                        'option3' => $v['option3'] ?? null,
-                    ];
-
-                    Variant::updateOrCreate(
-                        ['shopify_variant_id' => $variantId, 'product_id' => $product->id],
-                        $variantPayload
-                    );
-                } catch (\Throwable $ve) {
-                    Log::error("[ERROR] Variant update failed", [
-                        'shopify_variant_id' => $variantId,
-                        'product_id' => $product->id,
-                        'sku' => $sku,
-                        'error' => $ve->getMessage(),
-                        'trace' => $ve->getTraceAsString(),
-                    ]);
-                }
+                // Barcode upsert
+                $barcodeInserts[] = [
+                    'variant_id'     => $shopifyVariantId,
+                    'product_id'     => $product->id,
+                    'barcode_value'  => $finalBarcodeValue,
+                    'format'         => 'UPC',
+                    'image_url'      => null,
+                    'is_duplicate'   => false,
+                    'updated_at'     => now(),
+                    'created_at'     => now(),
+                ];
             }
+
+            // Bulk upsert — super fast & safe
+            if ($variantInserts) {
+                Variant::upsert(
+                    $variantInserts,
+                    ['shopify_variant_id'],
+                    ['title', 'sku', 'barcode', 'price', 'inventory_quantity', 'option1', 'option2', 'option3', 'image', 'image_alt', 'updated_at']
+                );
+            }
+
+            if ($barcodeInserts) {
+                Barcode::upsert(
+                    $barcodeInserts,
+                    ['variant_id'],
+                    ['product_id', 'barcode_value', 'format', 'image_url', 'is_duplicate', 'updated_at']
+                );
+            }
+
+            Log::info("ProductsUpdateJob completed", ['product_id' => $productId]);
         } catch (\Throwable $e) {
-            Log::error("[ERROR] ProductsUpdateJob failed", [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
+            Log::error("ProductsUpdateJob failed", ['error' => $e->getMessage()]);
             throw $e;
         }
     }
 
-    private function normalizeTags($raw)
+    private function normalizeTags($raw): array
     {
-        if (!$raw) return [];
-        if (is_string($raw)) return array_map('trim', explode(',', $raw));
-        return (array) $raw;
+        if (empty($raw)) return [];
+        if (is_string($raw)) {
+            return array_filter(array_map('trim', explode(',', $raw)));
+        }
+        return array_filter((array) $raw);
     }
 }

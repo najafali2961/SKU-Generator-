@@ -1,6 +1,4 @@
-// resources/js/Pages/components/barcode/BarcodePreviewTable.jsx
-
-import React, { useState } from "react";
+import React from "react";
 import {
     Card,
     IndexTable,
@@ -22,41 +20,36 @@ import {
 import {
     SearchIcon,
     HashtagIcon,
-    AlertCircleIcon,
     CheckCircleIcon,
+    AlertCircleIcon,
 } from "@shopify/polaris-icons";
 
 const PAGE_SIZE = 25;
 
-export default function BarcodePreviewTable({
+export default function VariantBarcodeTable({
     barcodes = [],
+    total = 0,
+    page = 1,
+    setPage = () => {},
+    selected = new Set(),
+    setSelected = () => {},
     loading = false,
-
-    // filtering
-    form = {},
-    handleChange,
-
-    // paging
-    page,
-    setPage,
-
-    // duplicates
     duplicates = [],
     duplicateGroups = {},
-
-    // selection
-    selected,
-    setSelected,
+    applyBarcodes = () => {},
+    applying = false,
+    form = { search: "", vendor: "", type: "" },
+    handleChange = () => {},
 }) {
-    const [activeTab, setActiveTab] = useState("all");
-    const totalPages = Math.ceil(barcodes.length / PAGE_SIZE);
+    const [activeTab, setActiveTab] = React.useState("all");
+    const totalPages = Math.ceil(total / PAGE_SIZE);
 
     const tabs = [
         {
             id: "all",
             content: (
                 <>
-                    All <Badge status="info">{barcodes.length}</Badge>
+                    All <Badge status="info">{total}</Badge>
                 </>
             ),
         },
@@ -80,7 +73,7 @@ export default function BarcodePreviewTable({
     const handleSelectionChange = (type, toggle, id) => {
         if (type === "all") {
             setSelected(
-                toggle ? new Set(currentBarcodes().map((b) => b.id)) : new Set()
+                toggle ? new Set(barcodes.map((b) => b.id)) : new Set()
             );
         } else if (id !== undefined) {
             setSelected((prev) => {
@@ -91,40 +84,52 @@ export default function BarcodePreviewTable({
         }
     };
 
-    // paginate
     const currentBarcodes = () => {
         const start = (page - 1) * PAGE_SIZE;
         return barcodes.slice(start, start + PAGE_SIZE);
     };
 
-    const rows =
+    const rowMarkup =
         activeTab === "all"
-            ? currentBarcodes().map((b, index) => (
+            ? currentBarcodes().map((v, idx) => (
                   <IndexTable.Row
-                      id={b.id}
-                      key={b.id}
-                      position={index}
-                      selected={selected.has(b.id)}
+                      key={v.id}
+                      id={v.id}
+                      position={idx}
+                      selected={selected.has(v.id)}
                   >
                       <IndexTable.Cell>
-                          <Thumbnail source={b.image_url} size="small" />
+                          <Thumbnail source={v.image_url} size="small" />
                       </IndexTable.Cell>
 
                       <IndexTable.Cell>
-                          <BlockStack gap="0">
-                              <Text fontWeight="bold">{b.barcode_value}</Text>
-                              <Text tone="subdued">{b.format}</Text>
-                          </BlockStack>
+                          <Text fontWeight="medium">
+                              {v.variant_title || "—"}
+                          </Text>
+                          <Text variant="bodySm" tone="subdued">
+                              {v.sku || "—"}
+                          </Text>
+                          <Text variant="bodySm" tone="subdued">
+                              {v.vendor || "—"}
+                          </Text>
                       </IndexTable.Cell>
 
                       <IndexTable.Cell>
-                          {b.product ? b.product.title : "—"}
+                          <Text fontWeight="medium">
+                              {v.barcode_value || "—"}
+                          </Text>
+                          <Text variant="bodySm" tone="subdued">
+                              {v.old_barcode || "—"}
+                          </Text>
+                          <Text variant="bodySm" tone="subdued">
+                              {v.format || "UPC"}
+                          </Text>
                       </IndexTable.Cell>
 
                       <IndexTable.Cell>
-                          {!b.barcode_value ? (
+                          {!v.barcode_value ? (
                               <Badge tone="warning">Empty</Badge>
-                          ) : b.is_duplicate ? (
+                          ) : v.is_duplicate ? (
                               <Badge tone="critical" icon={AlertCircleIcon}>
                                   Duplicate
                               </Badge>
@@ -139,9 +144,11 @@ export default function BarcodePreviewTable({
             : Object.entries(duplicateGroups).map(([code, items]) => (
                   <IndexTable.Row key={code} id={`dup-${code}`} disabled>
                       <IndexTable.Cell colSpan={4}>
-                          <BlockStack gap="300">
-                              {/* Duplicate header */}
-                              <InlineStack align="space-between">
+                          <BlockStack gap="400">
+                              <InlineStack
+                                  align="space-between"
+                                  blockAlign="center"
+                              >
                                   <InlineStack gap="200">
                                       <Icon
                                           source={HashtagIcon}
@@ -151,10 +158,9 @@ export default function BarcodePreviewTable({
                                           {code}
                                       </Text>
                                       <Badge tone="critical">
-                                          {items.length} Conflicts
+                                          {items.length} conflicts
                                       </Badge>
                                   </InlineStack>
-
                                   <Button
                                       size="slim"
                                       onClick={() =>
@@ -163,17 +169,16 @@ export default function BarcodePreviewTable({
                                           )
                                       }
                                   >
-                                      Select All
+                                      Select Group
                                   </Button>
                               </InlineStack>
 
-                              {/* Items */}
                               <BlockStack gap="200">
-                                  {items.map((b) => {
-                                      const active = selected.has(b.id);
+                                  {items.map((v) => {
+                                      const active = selected.has(v.id);
                                       return (
                                           <Box
-                                              key={b.id}
+                                              key={v.id}
                                               padding="300"
                                               background={
                                                   active
@@ -190,32 +195,28 @@ export default function BarcodePreviewTable({
                                                           handleSelectionChange(
                                                               "single",
                                                               !active,
-                                                              b.id
+                                                              v.id
                                                           )
                                                       }
                                                   />
-
                                                   <Thumbnail
-                                                      source={b.image_url}
+                                                      source={v.image_url}
                                                       size="small"
                                                   />
-
                                                   <BlockStack>
-                                                      <Text fontWeight="bold">
-                                                          {b.barcode_value}
+                                                      <Text fontWeight="medium">
+                                                          {v.barcode_value ||
+                                                              "—"}
                                                       </Text>
                                                       <Text
-                                                          tone="subdued"
                                                           variant="bodySm"
+                                                          tone="subdued"
                                                       >
-                                                          {b.format}
+                                                          {v.format || "UPC"}
                                                       </Text>
                                                   </BlockStack>
-
                                                   <Text tone="subdued">
-                                                      {b.product
-                                                          ? b.product.title
-                                                          : "—"}
+                                                      {v.variant_title || "—"}
                                                   </Text>
                                               </InlineStack>
                                           </Box>
@@ -229,21 +230,19 @@ export default function BarcodePreviewTable({
 
     return (
         <Card>
-            {/* Tabs */}
             <Tabs
                 tabs={tabs}
                 selected={tabs.findIndex((t) => t.id === activeTab)}
                 onSelect={handleTabChange}
             >
-                <BlockStack gap="300">
-                    {/* FILTER BAR */}
+                <BlockStack gap="400">
                     <Box padding="400" background="bg-surface-active">
-                        <InlineStack gap="300" align="start">
-                            <Box minWidth="420">
+                        <InlineStack gap="300" align="start" wrap={false}>
+                            <Box minWidth="320">
                                 <TextField
-                                    placeholder="Search barcodes or products..."
+                                    placeholder="Search variants, SKU or barcode..."
                                     prefix={<Icon source={SearchIcon} />}
-                                    value={form.search}
+                                    value={form?.search || ""}
                                     onChange={(v) => handleChange("search", v)}
                                     clearButton
                                     onClearButtonClick={() =>
@@ -251,44 +250,38 @@ export default function BarcodePreviewTable({
                                     }
                                 />
                             </Box>
-
-                            <Box minWidth="260">
+                            <Box minWidth="160">
                                 <TextField
-                                    label="Vendor"
                                     labelHidden
-                                    value={form.vendor}
                                     placeholder="Vendor"
+                                    value={form?.vendor || ""}
                                     onChange={(v) => handleChange("vendor", v)}
                                 />
                             </Box>
-
-                            <Box minWidth="260">
+                            <Box minWidth="160">
                                 <TextField
-                                    label="Type"
                                     labelHidden
-                                    value={form.type}
                                     placeholder="Type"
+                                    value={form?.type || ""}
                                     onChange={(v) => handleChange("type", v)}
                                 />
                             </Box>
-
-                            <Box paddingInlineStart="200">
-                                <Text tone="subdued" variant="bodySm">
+                            <Box paddingInlineStart="400">
+                                <Text variant="bodySm" tone="subdued">
                                     {selected.size} selected
                                 </Text>
                             </Box>
                         </InlineStack>
                     </Box>
 
-                    {/* Table */}
                     <IndexTable
                         resourceName={{
-                            singular: "barcode",
-                            plural: "barcodes",
+                            singular: "variant",
+                            plural: "variants",
                         }}
                         itemCount={
                             activeTab === "all"
-                                ? barcodes.length
+                                ? total
                                 : Object.keys(duplicateGroups).length
                         }
                         selectedItemsCount={selected.size}
@@ -297,8 +290,8 @@ export default function BarcodePreviewTable({
                             activeTab === "all"
                                 ? [
                                       { title: "Image" },
-                                      { title: "Barcode" },
-                                      { title: "Product" },
+                                      { title: "Variant / SKU / Vendor" },
+                                      { title: "New / Old Barcode / Format" },
                                       { title: "Status" },
                                   ]
                                 : [{ title: "Duplicate Groups" }]
@@ -323,11 +316,10 @@ export default function BarcodePreviewTable({
                                 </InlineStack>
                             </Box>
                         ) : (
-                            rows
+                            rowMarkup
                         )}
                     </IndexTable>
 
-                    {/* Pagination */}
                     {activeTab === "all" && totalPages > 1 && (
                         <Box padding="400">
                             <InlineStack align="space-between">
@@ -350,7 +342,6 @@ export default function BarcodePreviewTable({
                         </Box>
                     )}
 
-                    {/* Bottom Bar */}
                     <Box
                         padding="400"
                         background="bg-surface-secondary"
@@ -366,7 +357,7 @@ export default function BarcodePreviewTable({
                                         setSelected(
                                             new Set(
                                                 currentBarcodes().map(
-                                                    (b) => b.id
+                                                    (v) => v.id
                                                 )
                                             )
                                         )
@@ -375,32 +366,24 @@ export default function BarcodePreviewTable({
                                     Select Page
                                 </Button>
                             </InlineStack>
-
-                            <InlineStack gap="400">
+                            <InlineStack gap="400" align="end">
                                 <Button
                                     primary
-                                    disabled={selected.size === 0}
-                                    onClick={() =>
-                                        console.log(
-                                            "apply selected",
-                                            Array.from(selected)
-                                        )
-                                    }
+                                    loading={applying}
+                                    disabled={selected.size === 0 || applying}
+                                    onClick={() => applyBarcodes("selected")}
                                 >
-                                    Download Selected
+                                    Apply Selected
                                 </Button>
-
                                 <Button
                                     tone="critical"
-                                    disabled={selected.size === 0}
+                                    loading={applying}
+                                    disabled={applying}
                                     onClick={() =>
-                                        console.log(
-                                            "delete selected",
-                                            Array.from(selected)
-                                        )
+                                        applyBarcodes("all_matching")
                                     }
                                 >
-                                    Delete Selected
+                                    Apply All Matching
                                 </Button>
                             </InlineStack>
                         </InlineStack>
