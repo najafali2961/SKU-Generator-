@@ -15,7 +15,9 @@ class Variant extends Model
         'option2',
         'option3',
         'price',
-        'inventory_quantity'
+        'inventory_quantity',
+        'image',        // ← add this
+        'image_alt',
     ];
 
     protected $casts = [

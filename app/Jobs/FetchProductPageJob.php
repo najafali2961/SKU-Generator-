@@ -64,6 +64,10 @@ class FetchProductPageJob implements ShouldQueue
                               sku
                               price
                               inventoryQuantity
+                              image {
+                                src
+                                altText
+                              }
                               selectedOptions {
                                 value
                               }
@@ -92,7 +96,6 @@ class FetchProductPageJob implements ShouldQueue
         foreach ($edges as $edge) {
             $node = $edge['node'] ?? [];
 
-            // Skip invalid nodes
             if (empty($node['id'])) {
                 Log::warning("Skipping product with no ID");
                 continue;
@@ -110,8 +113,8 @@ class FetchProductPageJob implements ShouldQueue
                     ? array_filter($rawTags)
                     : (is_string($rawTags) ? array_filter(array_map('trim', explode(',', $rawTags))) : []);
 
-                // === SAFE IMAGES ===
-                $images = [];
+                // === SAFE PRODUCT IMAGES ===
+                $productImages = [];
                 $imageEdges = $node['images']['edges'] ?? [];
                 if ($imageEdges instanceof \Gnikyt\BasicShopifyAPI\ResponseAccess) {
                     $imageEdges = $imageEdges->toArray();
@@ -121,7 +124,7 @@ class FetchProductPageJob implements ShouldQueue
                     if ($imgNode instanceof \Gnikyt\BasicShopifyAPI\ResponseAccess) {
                         $imgNode = $imgNode->toArray();
                     }
-                    $images[] = [
+                    $productImages[] = [
                         'src' => $imgNode['src'] ?? $imgNode['originalSrc'] ?? null,
                         'alt' => $imgNode['altText'] ?? null,
                     ];
@@ -137,7 +140,7 @@ class FetchProductPageJob implements ShouldQueue
                         'vendor' => $node['vendor'] ?? null,
                         'product_type' => $node['productType'] ?? null,
                         'tags' => $tags,
-                        'images' => $images,
+                        'images' => $productImages,
                         'updated_at' => now(),
                     ]
                 );
@@ -157,10 +160,30 @@ class FetchProductPageJob implements ShouldQueue
 
                     if (empty($v['id'])) continue;
 
+                    // Extract selected options
                     $options = collect($v['selectedOptions'] ?? [])
                         ->pluck('value')
                         ->pad(3, null)
                         ->toArray();
+
+                    // === VARIANT IMAGE (with fallback to first product image) ===
+                    $variantImage = null;
+                    $variantImageAlt = null;
+
+                    if (!empty($v['image'])) {
+                        $img = $v['image'];
+                        if ($img instanceof \Gnikyt\BasicShopifyAPI\ResponseAccess) {
+                            $img = $img->toArray();
+                        }
+                        $variantImage = $img['src'] ?? $img['originalSrc'] ?? null;
+                        $variantImageAlt = $img['altText'] ?? null;
+                    }
+
+                    // Fallback: Use first product image if variant has no image
+                    if (!$variantImage && !empty($productImages[0]['src'])) {
+                        $variantImage = $productImages[0]['src'];
+                        $variantImageAlt = $productImages[0]['alt'];
+                    }
 
                     $variantsData[] = [
                         'product_id' => $product->id,
@@ -172,6 +195,8 @@ class FetchProductPageJob implements ShouldQueue
                         'option1' => $options[0] ?? null,
                         'option2' => $options[1] ?? null,
                         'option3' => $options[2] ?? null,
+                        'image' => $variantImage,
+                        'image_alt' => $variantImageAlt,
                         'updated_at' => now(),
                         'created_at' => now(),
                     ];
@@ -181,11 +206,21 @@ class FetchProductPageJob implements ShouldQueue
                     Variant::upsert(
                         $variantsData,
                         ['product_id', 'shopify_variant_id'],
-                        ['title', 'sku', 'price', 'inventory_quantity', 'option1', 'option2', 'option3', 'updated_at']
+                        [
+                            'title',
+                            'sku',
+                            'price',
+                            'inventory_quantity',
+                            'option1',
+                            'option2',
+                            'option3',
+                            'image',
+                            'image_alt',
+                            'updated_at'
+                        ]
                     );
                 }
             } catch (\Throwable $e) {
-                // NEVER let one bad product kill the entire page
                 Log::error("Failed to save product {$shopifyId}: " . $e->getMessage());
                 continue;
             }

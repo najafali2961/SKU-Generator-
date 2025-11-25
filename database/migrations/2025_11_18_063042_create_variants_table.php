@@ -21,10 +21,10 @@ return new class extends Migration
             $table->string('option1')->nullable();
             $table->string('option2')->nullable();
             $table->string('option3')->nullable();
-
             $table->decimal('price', 10, 2)->nullable();
             $table->integer('inventory_quantity')->nullable();
-
+            $table->string('image')->nullable();
+            $table->string('image_alt')->nullable();
             $table->timestamps();
 
             $table->foreign('product_id')
