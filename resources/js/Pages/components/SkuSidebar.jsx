@@ -10,22 +10,10 @@ import {
     InlineStack,
     BlockStack,
     Icon,
-    Tag,
-    Scrollable,
 } from "@shopify/polaris";
-import {
-    HashtagIcon,
-    SettingsIcon,
-    FilterIcon,
-    PackageIcon,
-} from "@shopify/polaris-icons";
+import { HashtagIcon, SettingsIcon } from "@shopify/polaris-icons";
 
-export default function SkuSidebar({
-    form,
-    handleChange,
-    toggleCollection,
-    initialCollections,
-}) {
+export default function SkuSidebar({ form, handleChange }) {
     return (
         <aside className="lg:col-span-4">
             <BlockStack gap="400">
@@ -48,7 +36,6 @@ export default function SkuSidebar({
                                         handleChange("prefix", v.toUpperCase())
                                     }
                                     placeholder="PROD"
-                                    autoComplete="off"
                                 />
                                 <TextField
                                     label="Start Number"
@@ -57,7 +44,6 @@ export default function SkuSidebar({
                                         handleChange("auto_start", v)
                                     }
                                     placeholder="0001"
-                                    autoComplete="off"
                                 />
                             </FormLayout.Group>
 
@@ -81,7 +67,6 @@ export default function SkuSidebar({
                                         handleChange("suffix", v.toUpperCase())
                                     }
                                     placeholder="V2"
-                                    autoComplete="off"
                                 />
                             </FormLayout.Group>
 
@@ -127,7 +112,6 @@ export default function SkuSidebar({
                                     onChange={(v) =>
                                         handleChange("source_len", Number(v))
                                     }
-                                    autoComplete="off"
                                 />
                             </FormLayout.Group>
 
@@ -139,11 +123,11 @@ export default function SkuSidebar({
                                 }
                                 options={[
                                     {
-                                        label: "Source Before Number (e.g. AB-PROD-0001)",
+                                        label: "Before Number (AB-PROD-0001)",
                                         value: "before",
                                     },
                                     {
-                                        label: "Source After Number (e.g. PROD-0001-AB)",
+                                        label: "After Number (PROD-0001-AB)",
                                         value: "after",
                                     },
                                 ]}
@@ -192,77 +176,6 @@ export default function SkuSidebar({
                                 }
                             />
                         </BlockStack>
-                    </BlockStack>
-                </Card>
-
-                {/* Filters */}
-                <Card>
-                    <BlockStack gap="400">
-                        <InlineStack gap="200" align="start">
-                            <Icon source={FilterIcon} tone="base" />
-                            <Text variant="headingMd" as="h2">
-                                Filters
-                            </Text>
-                        </InlineStack>
-
-                        <TextField
-                            label="Vendor"
-                            placeholder="e.g. Nike"
-                            value={form.vendor}
-                            onChange={(v) => handleChange("vendor", v)}
-                            autoComplete="off"
-                        />
-
-                        <TextField
-                            label="Product Type"
-                            placeholder="e.g. T-Shirt"
-                            value={form.type}
-                            onChange={(v) => handleChange("type", v)}
-                            autoComplete="off"
-                        />
-
-                        {initialCollections.length > 0 && (
-                            <>
-                                <InlineStack
-                                    align="space-between"
-                                    blockAlign="center"
-                                >
-                                    <InlineStack gap="200">
-                                        <Icon
-                                            source={PackageIcon}
-                                            tone="subdued"
-                                        />
-                                        <Text fontWeight="semibold">
-                                            Collections
-                                        </Text>
-                                    </InlineStack>
-                                    <Tag>
-                                        {form.collections.length} selected
-                                    </Tag>
-                                </InlineStack>
-
-                                <Scrollable
-                                    shadow
-                                    style={{ height: "280px" }}
-                                    focusable
-                                >
-                                    <BlockStack gap="100">
-                                        {initialCollections.map((c) => (
-                                            <Checkbox
-                                                key={c.id}
-                                                label={c.title}
-                                                checked={form.collections.includes(
-                                                    c.id
-                                                )}
-                                                onChange={() =>
-                                                    toggleCollection(c.id)
-                                                }
-                                            />
-                                        ))}
-                                    </BlockStack>
-                                </Scrollable>
-                            </>
-                        )}
                     </BlockStack>
                 </Card>
             </BlockStack>

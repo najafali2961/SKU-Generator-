@@ -5,29 +5,24 @@ import {
     IndexTable,
     Text,
     Badge,
-    Button,
     TextField,
     EmptyState,
     Spinner,
     Icon,
     InlineStack,
-    ButtonGroup,
     BlockStack,
     Box,
     Tabs,
     Pagination,
+    Button,
     Thumbnail,
+    Popover,
+    ActionList,
 } from "@shopify/polaris";
-
 import {
     SearchIcon,
-    DuplicateIcon, // Copy
-    CheckSmallIcon, // Apply checkmark
-    HashtagIcon, // For duplicate group
-    ChevronLeftIcon,
-    ChevronRightIcon,
-    AlertCircleIcon, // Warning / duplicate
-    CheckCircleIcon, // Success
+    HashtagIcon,
+    CheckCircleIcon,
 } from "@shopify/polaris-icons";
 
 const PAGE_SIZE = 25;
@@ -49,7 +44,11 @@ export default function SkuPreviewTable({
     mediaUrl,
     form,
     handleChange,
+    initialCollections = [],
+    toggleCollection,
 }) {
+    const [collectionPopoverActive, setCollectionPopoverActive] =
+        React.useState(false);
     const totalPages = Math.ceil(total / PAGE_SIZE);
 
     const tabs = [
@@ -93,8 +92,8 @@ export default function SkuPreviewTable({
         activeTab === "all"
             ? preview.map((p) => (
                   <IndexTable.Row
-                      id={p.id}
                       key={p.id}
+                      id={p.id}
                       selected={selected.has(p.id)}
                       position={preview.indexOf(p)}
                   >
@@ -122,25 +121,21 @@ export default function SkuPreviewTable({
                           </Text>
                       </IndexTable.Cell>
                       <IndexTable.Cell>
-                          {p.is_duplicate && (
-                              <Badge tone="critical">Duplicate</Badge>
+                          {p.is_duplicate ? (
+                              <Badge tone="critical" icon={HashtagIcon}>
+                                  Duplicate
+                              </Badge>
+                          ) : (
+                              <Badge tone="success" icon={CheckCircleIcon}>
+                                  Unique
+                              </Badge>
                           )}
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                          <Button
-                              size="slim"
-                              icon={<Icon source={DuplicateIcon} />}
-                              onClick={() =>
-                                  navigator.clipboard.writeText(p.new_sku)
-                              }
-                              accessibilityLabel="Copy SKU"
-                          />
                       </IndexTable.Cell>
                   </IndexTable.Row>
               ))
             : Object.entries(duplicateGroups).map(([sku, items]) => (
                   <IndexTable.Row key={sku} id={`group-${sku}`} disabled>
-                      <IndexTable.Cell colSpan={6}>
+                      <IndexTable.Cell colSpan={5}>
                           <BlockStack gap="400">
                               <InlineStack
                                   align="space-between"
@@ -258,21 +253,84 @@ export default function SkuPreviewTable({
                 onSelect={handleTabChange}
             >
                 <BlockStack gap="400">
-                    {/* Search */}
-                    <Box padding="400">
-                        <TextField
-                            placeholder="Search products, vendors, SKUs..."
-                            value={form.search}
-                            onChange={(v) => handleChange("search", v)}
-                            prefix={<Icon source={SearchIcon} />}
-                            clearButton
-                            onClearButtonClick={() =>
-                                handleChange("search", "")
-                            }
-                        />
+                    {/* TOP BAR: Search + Filters */}
+                    <Box padding="400" background="bg-surface-active">
+                        <InlineStack gap="300" align="start" wrap={false}>
+                            <Box minWidth="320">
+                                <TextField
+                                    placeholder="Search products, vendors, SKUs..."
+                                    value={form.search}
+                                    onChange={(v) => handleChange("search", v)}
+                                    prefix={<Icon source={SearchIcon} />}
+                                    clearButton
+                                    onClearButtonClick={() =>
+                                        handleChange("search", "")
+                                    }
+                                />
+                            </Box>
+
+                            <Box minWidth="160">
+                                <TextField
+                                    label="Vendor"
+                                    labelHidden
+                                    placeholder="Vendor"
+                                    value={form.vendor}
+                                    onChange={(v) => handleChange("vendor", v)}
+                                />
+                            </Box>
+
+                            <Box minWidth="160">
+                                <TextField
+                                    label="Type"
+                                    labelHidden
+                                    placeholder="Product type"
+                                    value={form.type}
+                                    onChange={(v) => handleChange("type", v)}
+                                />
+                            </Box>
+
+                            {initialCollections.length > 0 && (
+                                <Popover
+                                    active={collectionPopoverActive}
+                                    onClose={() =>
+                                        setCollectionPopoverActive(false)
+                                    }
+                                    activator={
+                                        <Button
+                                            disclosure
+                                            onClick={() =>
+                                                setCollectionPopoverActive(
+                                                    !collectionPopoverActive
+                                                )
+                                            }
+                                        >
+                                            Collections{" "}
+                                            {form.collections.length > 0 &&
+                                                `(${form.collections.length})`}
+                                        </Button>
+                                    }
+                                >
+                                    <ActionList
+                                        items={initialCollections.map((c) => ({
+                                            content: c.title,
+                                            active: form.collections.includes(
+                                                c.id
+                                            ),
+                                            onAction: () =>
+                                                toggleCollection(c.id),
+                                        }))}
+                                    />
+                                </Popover>
+                            )}
+
+                            <Box paddingInlineStart="400">
+                                <Text variant="bodySm" tone="subdued">
+                                    {selected.size} selected
+                                </Text>
+                            </Box>
+                        </InlineStack>
                     </Box>
 
-                    {/* Table */}
                     <IndexTable
                         resourceName={{
                             singular: "variant",
@@ -293,7 +351,6 @@ export default function SkuPreviewTable({
                                       { title: "Old SKU" },
                                       { title: "New SKU" },
                                       { title: "Status" },
-                                      { title: "Actions" },
                                   ]
                                 : [{ title: "Duplicate Groups" }]
                         }
@@ -308,7 +365,7 @@ export default function SkuPreviewTable({
                                             tone="success"
                                         />
                                         <Text tone="success" fontWeight="bold">
-                                            Perfect!
+                                            Perfect! No duplicates found.
                                         </Text>
                                     </BlockStack>
                                 </EmptyState>
@@ -327,7 +384,6 @@ export default function SkuPreviewTable({
                         )}
                     </IndexTable>
 
-                    {/* Pagination */}
                     {activeTab === "all" && totalPages > 1 && (
                         <Box padding="400">
                             <InlineStack align="space-between">
@@ -350,7 +406,6 @@ export default function SkuPreviewTable({
                         </Box>
                     )}
 
-                    {/* Action Bar */}
                     <Box
                         padding="400"
                         background="bg-surface-secondary"
@@ -371,26 +426,15 @@ export default function SkuPreviewTable({
                                     Select All Visible
                                 </Button>
                             </InlineStack>
-
                             <InlineStack gap="400" align="end">
-                                <Text fontWeight="semibold">
-                                    {selected.size} selected
-                                </Text>
-
                                 <Button
                                     primary
                                     loading={applying}
                                     disabled={selected.size === 0 || applying}
                                     onClick={() => applySKUs("selected")}
-                                    icon={
-                                        applying ? undefined : (
-                                            <Icon source={CheckSmallIcon} />
-                                        )
-                                    }
                                 >
                                     Apply Selected
                                 </Button>
-
                                 <Button
                                     tone="critical"
                                     loading={applying}

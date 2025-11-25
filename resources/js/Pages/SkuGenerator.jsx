@@ -40,7 +40,6 @@ export default function SkuGenerator({ initialCollections = [] }) {
     const [applying, setApplying] = useState(false);
     const [progress, setProgress] = useState(0);
 
-    const scrollerRef = useRef(null);
     const debounceRef = useRef(null);
 
     const duplicates = preview.filter((p) => p.is_duplicate);
@@ -55,6 +54,16 @@ export default function SkuGenerator({ initialCollections = [] }) {
 
     const handleChange = (key, value) => {
         setForm((f) => ({ ...f, [key]: value }));
+        setPage(1);
+    };
+
+    const toggleCollection = (id) => {
+        setForm((f) => ({
+            ...f,
+            collections: f.collections.includes(id)
+                ? f.collections.filter((c) => c !== id)
+                : [...f.collections, id],
+        }));
         setPage(1);
     };
 
@@ -83,7 +92,6 @@ export default function SkuGenerator({ initialCollections = [] }) {
             });
             setPreview(res.data.preview || []);
             setTotal(res.data.total || 0);
-            if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
         } catch (e) {
             console.error(e);
         } finally {
@@ -150,6 +158,7 @@ export default function SkuGenerator({ initialCollections = [] }) {
                 r.map((c) => `"${(c + "").replace(/"/g, '""')}"`).join(",")
             )
             .join("\n");
+
         const blob = new Blob([csv], { type: "text/csv" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -163,28 +172,20 @@ export default function SkuGenerator({ initialCollections = [] }) {
     const mediaUrl = (p) => p.image || null;
 
     return (
-        <div className="min-h-screen text-sm bg-white">
+        <div className="min-h-screen bg-white">
             <div className="p-4 mx-auto max-w-7xl">
                 <SkuHeader
                     onQuick={handleQuick}
                     onPreset={handlePreset}
                     onExport={exportCSV}
                 />
-                <div className="grid gap-4 mt-6 lg:grid-cols-12">
-                    <SkuSidebar
-                        form={form}
-                        handleChange={handleChange}
-                        toggleCollection={(id) => {
-                            setForm((f) => ({
-                                ...f,
-                                collections: f.collections.includes(id)
-                                    ? f.collections.filter((c) => c !== id)
-                                    : [...f.collections, id],
-                            }));
-                        }}
-                        initialCollections={initialCollections}
-                    />
-                    <div className="space-y-4 lg:col-span-8">
+
+                <div className="grid gap-6 mt-6 lg:grid-cols-12">
+                    {/* Sidebar: Pattern + Rules */}
+                    <SkuSidebar form={form} handleChange={handleChange} />
+
+                    {/* Main Content */}
+                    <div className="space-y-6 lg:col-span-8">
                         <SkuPreviewTable
                             preview={preview}
                             total={total}
@@ -200,9 +201,10 @@ export default function SkuGenerator({ initialCollections = [] }) {
                             applySKUs={applySKUs}
                             applying={applying}
                             mediaUrl={mediaUrl}
-                            scrollerRef={scrollerRef}
                             form={form}
                             handleChange={handleChange}
+                            initialCollections={initialCollections}
+                            toggleCollection={toggleCollection}
                         />
                         <SkuProgressBar
                             applying={applying}
