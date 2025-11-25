@@ -27,8 +27,10 @@ Route::middleware(['verify.shopify'])->group(function () {
 
     ///barcode
     Route::get('/barcode-generator', [BarcodeController::class, 'index'])->name('barcode.index');
-    Route::post('/barcode-generator/preview', [BarcodeController::class, 'preview'])->name('barcode.preview');
-    Route::post('/barcode/generate', [BarcodeController::class, 'generate'])->name('barcode.generate');
+    Route::post('/barcode-generator/preview', [BarcodeController::class, 'preview']);
+    Route::post('/barcode/generate', [BarcodeController::class, 'generate']);
+    Route::post('/barcode-generator/apply', [BarcodeController::class, 'apply']);
+    Route::get('/barcode-generator/progress', [BarcodeController::class, 'progress']);
 });
 
 

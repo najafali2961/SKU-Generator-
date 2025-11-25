@@ -1,116 +1,174 @@
-import React, { useState, useEffect } from "react";
-import { Page, Frame, Toast, Loading } from "@shopify/polaris";
+import React, { useEffect, useState, useRef } from "react";
+import {
+    Page,
+    Layout,
+    Card,
+    BlockStack,
+    Text,
+    ProgressBar,
+} from "@shopify/polaris";
 import axios from "axios";
+import { router } from "@inertiajs/react";
 
-import BarcodeHeader from "./components/barcode/Header";
 import BarcodeSidebar from "./components/barcode/BarcodeSidebar";
 import BarcodePreviewTable from "./components/barcode/BarcodePreviewTable";
 
-export default function BarcodeGenerator({ initialData = [] }) {
+const DEBOUNCE_MS = 500;
+
+export default function BarcodeGenerator() {
     const [form, setForm] = useState({
         format: "UPC",
+        prefix: "",
+        length: 12,
+        checksum: true,
+        enforce_length: true,
+        numeric_only: true,
+        auto_fill: true,
+        validate_standard: true,
+        allow_qr_text: false,
+        isbn_group: "",
+        ean_country: "",
         search: "",
         vendor: "",
         type: "",
+        start_number: "000000000001",
     });
 
     const [barcodes, setBarcodes] = useState([]);
     const [total, setTotal] = useState(0);
-    const [page, setPage] = useState(1);
-    const [loading, setLoading] = useState(false);
+    const [duplicateGroups, setDuplicateGroups] = useState({});
     const [selected, setSelected] = useState(new Set());
-    const [summary, setSummary] = useState({
-        total: 0,
-        unique: 0,
-        duplicates: 0,
-        empty_or_auto: 0,
-    });
+    const [page, setPage] = useState(1);
+    const [activeTab, setActiveTab] = useState("all");
+    const [loading, setLoading] = useState(false);
+    const [applying, setApplying] = useState(false);
+    const [progress, setProgress] = useState(0);
 
-    const [toast, setToast] = useState({
-        active: false,
-        message: "",
-        error: false,
-    });
+    const debounceRef = useRef(null);
 
-    const showToast = (message, error = false) => {
-        setToast({ active: true, message, error });
+    const handleChange = (key, value) => {
+        setForm((prev) => ({ ...prev, [key]: value }));
+        setPage(1);
+        setSelected(new Set()); // Clear selection on change
     };
 
-    const fetchBarcodes = async () => {
-        setLoading(true);
-        try {
-            const res = await axios.post("/barcode-generator/preview", {
-                ...form,
-                page,
-            });
-            setBarcodes(res.data.data);
-            setTotal(res.data.total);
-            setSummary(res.data.summary);
-        } catch (err) {
-            console.error(err);
-            showToast("Failed to load barcodes", true);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const fetchPreview = async () => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    useEffect(() => {
-        fetchBarcodes();
-    }, [page, form]);
+        debounceRef.current = setTimeout(async () => {
+            setLoading(true);
+            try {
+                const res = await axios.post("/barcode-generator/preview", {
+                    ...form,
+                    page,
+                    tab: activeTab,
+                });
 
-    const generate = async () => {
-        try {
-            const fd = new FormData();
-            Object.entries(form).forEach(([k, v]) => fd.append(k, v));
-            if (selected.size > 0) {
-                fd.append("selected", JSON.stringify([...selected]));
+                setBarcodes(res.data.data || []);
+                setTotal(res.data.total || 0);
+                setDuplicateGroups(res.data.duplicateGroups || {});
+            } catch (err) {
+                console.error("Preview error:", err);
+            } finally {
+                setLoading(false);
             }
+        }, DEBOUNCE_MS);
+    };
 
-            const res = await axios.post("/barcode/generate", fd);
-            showToast(`Generated ${res.data.count} barcode(s)!`);
-            fetchBarcodes();
-        } catch {
-            showToast("Failed to generate barcodes", true);
-        }
+    // Debounced preview
+    useEffect(() => {
+        fetchPreview();
+        return () => clearTimeout(debounceRef.current);
+    }, [form, page, activeTab]);
+
+    // Progress polling when applying
+    useEffect(() => {
+        if (!applying) return;
+
+        const interval = setInterval(async () => {
+            try {
+                const { data } = await axios.get("/barcode-generator/progress");
+                setProgress(data.progress || 0);
+                if (data.progress >= 100) {
+                    setApplying(false);
+                    setProgress(0);
+                    fetchPreview();
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }, 1200);
+
+        return () => clearInterval(interval);
+    }, [applying]);
+
+    const applyBarcodes = (scope = "selected") => {
+        const ids = scope === "selected" ? Array.from(selected) : [];
+
+        setApplying(true);
+        setProgress(0);
+
+        router.post(
+            "/barcode-generator/apply",
+            {
+                ...form,
+                apply_scope: scope,
+                selected_variant_ids: ids.length > 0 ? ids : undefined,
+            },
+            {
+                onFinish: () => {
+                    setSelected(new Set());
+                    // Progress polling handles completion
+                },
+                onError: (err) => {
+                    setApplying(false);
+                    alert("Apply failed: " + JSON.stringify(err));
+                },
+            }
+        );
     };
 
     return (
-        <Frame>
-            {loading && <Loading />}
-            <Page fullWidth title="Barcode Generator">
-                {toast.active && (
-                    <Toast
-                        content={toast.message}
-                        error={toast.error}
-                        onDismiss={() => setToast({ ...toast, active: false })}
-                        duration={4500}
+        <Page fullWidth title="Barcode Generator">
+            <Layout>
+                <Layout.Section variant="oneThird">
+                    <BarcodeSidebar form={form} handleChange={handleChange} />
+                </Layout.Section>
+
+                <Layout.Section>
+                    <BarcodePreviewTable
+                        barcodes={barcodes}
+                        total={total}
+                        page={page}
+                        setPage={setPage}
+                        selected={selected}
+                        setSelected={setSelected}
+                        loading={loading}
+                        applying={applying}
+                        duplicateGroups={duplicateGroups}
+                        activeTab={activeTab}
+                        setActiveTab={setActiveTab}
+                        applyBarcodes={applyBarcodes}
+                        form={form}
+                        handleChange={handleChange}
                     />
-                )}
 
-                <div className="p-4">
-                    <BarcodeHeader onGenerate={generate} />
-
-                    <div className="grid grid-cols-1 gap-6 mt-6 lg:grid-cols-12">
-                        <aside className="lg:col-span-4">
-                            <BarcodeSidebar form={form} setForm={setForm} />
-                        </aside>
-
-                        <main className="lg:col-span-8">
-                            <BarcodePreviewTable
-                                barcodes={barcodes}
-                                total={total}
-                                page={page}
-                                setPage={setPage}
-                                loading={loading}
-                                selected={selected}
-                                setSelected={setSelected}
-                                summary={summary}
-                                refresh={fetchBarcodes}
-                            />
-                        </main>
-                    </div>
-                </div>
-            </Page>
-        </Frame>
+                    {applying && (
+                        <Card sectioned title="Applying Barcodes...">
+                            <BlockStack gap="400">
+                                <ProgressBar
+                                    progress={progress}
+                                    color="primary"
+                                />
+                                <Text alignment="center">
+                                    {progress}% – Applying to{" "}
+                                    {total.toLocaleString()} variants...
+                                </Text>
+                            </BlockStack>
+                        </Card>
+                    )}
+                </Layout.Section>
+            </Layout>
+        </Page>
     );
 }

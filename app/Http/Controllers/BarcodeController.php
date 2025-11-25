@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Inertia\Inertia;
 use App\Models\Variant;
-use App\Models\Barcode;
+use App\Jobs\GenerateBarcodeJob;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 class BarcodeController extends Controller
 {
@@ -14,47 +14,46 @@ class BarcodeController extends Controller
     {
         $shop = Auth::user();
 
-        $variants = Variant::with(['product', 'barcode'])
-            ->whereHas('product', function ($q) use ($shop) {
-                $q->where('user_id', $shop->id);
-            })
+        $variants = Variant::with(['product'])
+            ->whereHas('product', fn($q) => $q->where('user_id', $shop->id))
             ->latest()
-            ->take(50)
+            ->take(20)
             ->get();
 
-        return Inertia::render('BarcodeGenerator', [
-            'initialData' => $variants->map(function ($v) {
-                return [
-                    'id'                 => $v->id,
-                    'shopify_variant_id' => $v->shopify_variant_id,
-                    'product_title'      => $v->product?->title ?? 'Unknown Product',
-                    'variant_title'      => $v->title,
-                    'sku'                => $v->sku,
-                    'barcode_value'      => $v->barcode?->barcode_value,
-                    'format'             => $v->barcode?->format ?? 'UPC',
-                    'image_url'          => $v->image ?? ($v->product?->images[0]['src'] ?? null),
-                    'is_duplicate'       => $v->barcode?->is_duplicate ?? false,
-                    'is_empty'           => empty($v->barcode?->barcode_value) || str_starts_with($v->barcode?->barcode_value ?? '', 'AUTO-'),
-                    'is_auto'            => str_starts_with($v->barcode?->barcode_value ?? '', 'AUTO-'),
-                ];
-            })->values(),
+        return inertia('BarcodeGenerator', [
+            'initialVariants' => $variants->map(fn($v) => [
+                'id' => $v->id,
+                'title' => $v->product->title ?? 'Unknown',
+                'variant_title' => $v->title,
+                'sku' => $v->sku,
+                'barcode' => $v->barcode,
+                'image_url' => $v->image ?? ($v->product->images[0]['src'] ?? null),
+            ])
         ]);
     }
 
     public function preview(Request $request)
     {
         $shop = Auth::user();
-        if (!$shop) {
-            return response()->json(['error' => 'Unauthorized'], 401);
-        }
-
+        $page = max(1, (int)$request->input('page', 1));
         $perPage = 25;
-        $page = max(1, (int) $request->input('page', 1));
+        $tab = $request->input('tab', 'all');
 
-        $query = Variant::with(['product', 'barcode'])
+        // Build base query
+        $query = Variant::with(['product'])
             ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
 
         // Filters
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(
+                fn($q) => $q
+                    ->where('title', 'like', "%{$search}%")
+                    ->orWhere('sku', 'like', "%{$search}%")
+                    ->orWhere('barcode', 'like', "%{$search}%")
+            );
+        }
+
         if ($request->filled('vendor')) {
             $query->whereHas('product', fn($q) => $q->where('vendor', 'like', "%{$request->vendor}%"));
         }
@@ -63,66 +62,144 @@ class BarcodeController extends Controller
             $query->whereHas('product', fn($q) => $q->where('product_type', 'like', "%{$request->type}%"));
         }
 
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(
-                fn($q) =>
-                $q->where('title', 'like', "%{$search}%")
-                    ->orWhere('sku', 'like', "%{$search}%")
-                    ->orWhereHas('barcode', fn($bq) => $bq->where('barcode_value', 'like', "%{$search}%"))
-            );
+        $allVariants = $query->get();
+
+        // === BARCODE GENERATION LOGIC ===
+        $format = $request->input('format', 'UPC');
+        $prefix = strtoupper(trim($request->input('prefix', '')));
+        $length = (int)$request->input('length', 12);
+        $checksum = $request->boolean('checksum', true);
+        $enforce_length = $request->boolean('enforce_length', true);
+        $numeric_only = $request->boolean('numeric_only', true);
+        $auto_fill = $request->boolean('auto_fill', true);
+        $allow_qr_text = $request->boolean('allow_qr_text', false);
+
+        $counter = (int)($request->input('start_number', 1));
+        $generatedBarcodes = [];
+
+        foreach ($allVariants as $variant) {
+            $oldBarcode = $variant->barcode;
+
+            if ($format === 'QR') {
+                $newBarcode = $allow_qr_text
+                    ? ($variant->sku ?: "https://yourstore.com/products/{$variant->product->handle}")
+                    : 'QR-' . strtoupper(\Str::random(12));
+            } elseif ($format === 'CODE128') {
+                $newBarcode = $prefix . ($variant->sku ?: "V{$variant->id}");
+                if ($numeric_only) $newBarcode = preg_replace('/\D/', '', $newBarcode);
+            } else {
+                // UPC-A (12), EAN-13 (13), ISBN
+                $targetLength = $format === 'UPC' ? 12 : ($format === 'ISBN' ? 13 : 13);
+                $base = $prefix . ($variant->sku ? preg_replace('/\D/', '', $variant->sku) : $variant->id . $counter);
+
+                if ($numeric_only) {
+                    $base = preg_replace('/\D/', '', $base);
+                }
+
+                $code = substr($base, 0, $targetLength - ($checksum ? 1 : 0));
+
+                if ($enforce_length || $auto_fill) {
+                    $code = str_pad($code, $targetLength - ($checksum ? 1 : 0), '0', STR_PAD_LEFT);
+                }
+
+                if ($checksum && in_array($format, ['UPC', 'EAN13', 'ISBN'])) {
+                    $code .= $this->calculateCheckDigit($code, $format === 'UPC' ? 12 : 13);
+                }
+
+                $newBarcode = $code;
+            }
+
+            $isDuplicate = false;
+            if (!empty($newBarcode) && !str_starts_with($newBarcode, 'QR-')) {
+                $generatedBarcodes[] = $newBarcode;
+            }
+
+            if ($tab === 'duplicates' && empty($newBarcode)) continue;
+
+            $preview[] = [
+                'id' => $variant->id,
+                'variant_title' => $variant->title,
+                'sku' => $variant->sku,
+                'vendor' => $variant->product->vendor ?? '',
+                'image_url' => $variant->image ?? ($variant->product->images[0]['src'] ?? null),
+                'old_barcode' => $oldBarcode,
+                'barcode_value' => $newBarcode,
+                'format' => $format,
+                'is_duplicate' => $isDuplicate, // will be updated below
+            ];
+
+            $counter++;
         }
 
-        $variants = $query->get();
+        // Detect duplicates in NEW barcodes
+        $dupCount = array_count_values(array_filter($generatedBarcodes));
+        $duplicateValues = array_keys(array_filter($dupCount, fn($c) => $c > 1));
 
-        // Collect barcode values and detect duplicates
-        $barcodeValues = [];
-        $realBarcodes = [];
-
-        foreach ($variants as $v) {
-            $value = $v->barcode?->barcode_value ?? null;
-            $barcodeValues[$v->shopify_variant_id] = $value;
-
-            if ($value && !str_starts_with($value, 'AUTO-') && trim($value) !== '') {
-                $realBarcodes[] = $value;
+        foreach ($preview as &$item) {
+            if (in_array($item['barcode_value'], $duplicateValues)) {
+                $item['is_duplicate'] = true;
             }
         }
 
-        $duplicateValues = array_keys(array_filter(array_count_values($realBarcodes), fn($c) => $c > 1));
+        // Filter for duplicates tab
+        if ($tab === 'duplicates') {
+            $preview = array_filter($preview, fn($i) => $i['is_duplicate']);
+        }
 
-        $preview = $variants->map(function ($v) use ($duplicateValues) {
-            $value = $v->barcode; // Use variant's barcode field directly
-            $isEmpty = empty($value) || str_starts_with($value, 'AUTO-');
+        // Client-side search
+        if ($request->filled('search')) {
+            $q = strtolower($request->search);
+            $preview = array_filter(
+                $preview,
+                fn($i) =>
+                str_contains(strtolower($i['variant_title']), $q) ||
+                    str_contains(strtolower($i['sku'] ?? ''), $q) ||
+                    str_contains(strtolower($i['old_barcode'] ?? ''), $q) ||
+                    str_contains(strtolower($i['barcode_value'] ?? ''), $q)
+            );
+        }
 
-            return [
-                'id'                 => $v->id,
-                'shopify_variant_id' => $v->shopify_variant_id,
-                'variant_title'      => $v->title,
-                'sku'                => $v->sku,
-                'vendor'             => $v->product?->vendor ?? null,
-                'barcode_value'      => $value,
-                'old_barcode'        => null, // optional if you track old barcode elsewhere
-                'format'             => 'UPC', // or dynamically if you store format
-                'image_url'          => $v->image,
-                'is_duplicate'       => !$isEmpty && in_array($value, $duplicateValues),
-                'is_empty'           => $isEmpty,
-                'is_auto'            => str_starts_with($value ?? '', 'AUTO-'),
-            ];
-        });
+        $total = count($preview);
+        $paginated = array_slice($preview, ($page - 1) * $perPage, $perPage);
 
-
-        $total = $preview->count();
-        $paginated = $preview->forPage($page, $perPage)->values();
+        // Build duplicate groups
+        $duplicateGroups = [];
+        foreach ($duplicateValues as $code) {
+            $items = array_filter($preview, fn($i) => $i['barcode_value'] === $code);
+            $duplicateGroups[$code] = array_values($items);
+        }
 
         return response()->json([
-            'data' => $paginated,
+            'data' => array_values($paginated),
             'total' => $total,
-            'summary' => [
-                'total' => $total,
-                'unique' => count(array_unique($realBarcodes)),
-                'duplicates' => count($duplicateValues),
-                'empty_or_auto' => $variants->filter(fn($v) => empty($v->barcode?->barcode_value) || str_starts_with($v->barcode?->barcode_value ?? '', 'AUTO-'))->count(),
-            ],
+            'duplicates' => $duplicateValues,
+            'duplicateGroups' => $duplicateGroups,
         ]);
+    }
+
+    private function calculateCheckDigit($number, $type = 13)
+    {
+        $number = preg_replace('/\D/', '', $number);
+        $number = str_pad($number, $type === 12 ? 11 : 12, '0', STR_PAD_LEFT);
+        $sum = 0;
+        for ($i = strlen($number) - 1; $i >= 0; $i--) {
+            $sum += ($i % 2 === ($type === 12 ? 1 : 0)) ? $number[$i] * 3 : $number[$i];
+        }
+        $check = (10 - ($sum % 10)) % 10;
+        return $check;
+    }
+
+    public function apply(Request $request)
+    {
+        $shop = Auth::user();
+        GenerateBarcodeJob::dispatch($shop->id, $request->all());
+        return back()->with('success', 'Barcode generation started in background...');
+    }
+
+    public function progress()
+    {
+        $shop = Auth::user();
+        $progress = Cache::get("barcode_progress_{$shop->id}", 0);
+        return response()->json(['progress' => $progress]);
     }
 }
