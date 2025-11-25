@@ -1,139 +1,222 @@
+import React from "react";
 import {
     Page,
+    Layout,
     Card,
     Text,
     BlockStack,
-    Box,
+    InlineGrid,
     InlineStack,
+    Box,
+    Icon,
     Button,
-    Divider,
-    Badge,
 } from "@shopify/polaris";
-import { router } from "@inertiajs/react"; // ✅ use react bindings
+import { router } from "@inertiajs/react";
 
-export default function Home({ stats }) {
+import {
+    HashtagIcon,
+    BarcodeIcon,
+    PrintIcon,
+    ClockIcon,
+    StoreIcon,
+    MagicIcon,
+    CheckCircleIcon,
+} from "@shopify/polaris-icons";
+
+export default function Home({ stats = {} }) {
+    const defaultStats = {
+        total_skus_generated: 12480,
+        barcodes_created: 8920,
+        labels_printed: 5670,
+        products_processed: 3120,
+        time_saved: "2.4k hours",
+        active_stores: 428,
+    };
+
+    const data = { ...defaultStats, ...stats };
+
     return (
-        <Page title="BulkApp Dashboard">
-            <BlockStack gap="600">
-                {/* HERO CARD */}
-                <Card>
-                    <Box padding="600">
-                        <BlockStack gap="400">
-                            <Text as="h1" variant="headingLg">
-                                Welcome to BulkApp
-                            </Text>
-
-                            <Text as="p" variant="bodyMd" tone="subdued">
-                                A powerful tool to manage and bulk update
-                                Shopify products with ease.
-                            </Text>
-
-                            <InlineStack gap="300">
-                                <Button
-                                    variant="primary"
-                                    onClick={() => router.get("/bulk-edit")}
+        <Page>
+            <Layout>
+                {/* Header */}
+                <Layout.Section>
+                    <Card>
+                        <Box padding="500">
+                            <BlockStack gap="100" align="center">
+                                <InlineStack
+                                    gap="75"
+                                    align="center"
+                                    blockAlign="center"
                                 >
-                                    Start Bulk Editing
-                                </Button>
-                                <Button onClick={() => router.get("/products")}>
-                                    View Products
-                                </Button>
-                                <Button
-                                    variant="primary"
-                                    onClick={() => router.get("/sku-generator")}
-                                >
-                                    Generate SKU
-                                </Button>
-                            </InlineStack>
-                        </BlockStack>
-                    </Box>
-                </Card>
-
-                {/* STATS OVERVIEW */}
-                <Card>
-                    <Box padding="600">
-                        <BlockStack gap="400">
-                            <Text as="h2" variant="headingMd">
-                                Store Overview
-                            </Text>
-
-                            <InlineStack gap="500" align="space-between">
-                                <BlockStack gap="200">
-                                    <Text variant="headingLg">
-                                        {stats.total_products}
-                                    </Text>
-                                    <Text tone="subdued">Total Products</Text>
-                                </BlockStack>
-
-                                <BlockStack gap="200">
-                                    <Text variant="headingLg">
-                                        {stats.updated_products}
-                                    </Text>
-                                    <Text tone="subdued">Products Updated</Text>
-                                </BlockStack>
-
-                                <BlockStack gap="200">
-                                    <Text variant="headingLg">
-                                        {stats.draft_items}
-                                    </Text>
-                                    <Text tone="subdued">Draft Items</Text>
-                                </BlockStack>
-                            </InlineStack>
-                        </BlockStack>
-                    </Box>
-                </Card>
-
-                {/* FEATURES CARD */}
-                <Card>
-                    <Box padding="600">
-                        <BlockStack gap="400">
-                            <Text as="h2" variant="headingMd">
-                                Key Features
-                            </Text>
-                            <Divider />
-                            <BlockStack gap="300">
-                                <InlineStack gap="200" blockAlign="center">
-                                    <Badge tone="success">Bulk Editing</Badge>
-                                    <Text>
-                                        Update titles, descriptions & prices in
-                                        one go.
+                                    <Text
+                                        variant="heading2xl"
+                                        fontWeight="bold"
+                                        alignment="center"
+                                    >
+                                        SKU & Barcode Generator Pro
                                     </Text>
                                 </InlineStack>
-                                <InlineStack gap="200" blockAlign="center">
-                                    <Badge tone="info">Media Manager</Badge>
-                                    <Text>
-                                        Upload, replace, or remove product
-                                        images easily.
-                                    </Text>
-                                </InlineStack>
-                                <InlineStack gap="200" blockAlign="center">
-                                    <Badge tone="attention">Variants</Badge>
-                                    <Text>
-                                        Manage SKUs, inventory & options
-                                        efficiently.
-                                    </Text>
-                                </InlineStack>
+
+                                <Text tone="subdued" alignment="center">
+                                    Fast, accurate tools for SKUs, barcodes, and
+                                    label printing.
+                                </Text>
                             </BlockStack>
-                        </BlockStack>
-                    </Box>
-                </Card>
+                        </Box>
+                    </Card>
+                </Layout.Section>
 
-                {/* ABOUT */}
-                <Card>
-                    <Box padding="600">
-                        <BlockStack gap="300">
-                            <Text as="h2" variant="headingMd">
-                                Why choose BulkApp?
-                            </Text>
-                            <Text tone="subdued">
-                                Save hours of manual work by editing hundreds of
-                                products at once. Built with modern Shopify
-                                standards using Polaris.
-                            </Text>
-                        </BlockStack>
-                    </Box>
-                </Card>
-            </BlockStack>
+                {/* Stats */}
+                <Layout.Section>
+                    <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
+                        {[
+                            {
+                                icon: HashtagIcon,
+                                value: data.total_skus_generated,
+                                label: "SKUs generated",
+                            },
+                            {
+                                icon: BarcodeIcon,
+                                value: data.barcodes_created,
+                                label: "Barcodes created",
+                            },
+                            {
+                                icon: PrintIcon,
+                                value: data.labels_printed,
+                                label: "Labels printed",
+                            },
+                        ].map((item, index) => (
+                            <Card key={index}>
+                                <Box padding="400" width="100%">
+                                    <InlineStack
+                                        gap="150"
+                                        align="start"
+                                        blockAlign="center"
+                                        fullWidth
+                                    >
+                                        <Icon
+                                            source={item.icon}
+                                            tone={item.tone || "base"}
+                                        />
+                                        <BlockStack gap="50">
+                                            <Text
+                                                variant="headingLg"
+                                                fontWeight="bold"
+                                            >
+                                                {typeof item.value === "number"
+                                                    ? item.value.toLocaleString()
+                                                    : item.value}
+                                            </Text>
+                                            <Text tone="subdued">
+                                                {item.label}
+                                            </Text>
+                                        </BlockStack>
+                                    </InlineStack>
+                                </Box>
+                            </Card>
+                        ))}
+                    </InlineGrid>
+                </Layout.Section>
+
+                {/* Tools Section */}
+                <Layout.Section>
+                    <BlockStack gap="600">
+                        <Card>
+                            <Box padding="600">
+                                <InlineStack
+                                    align="space-between"
+                                    blockAlign="center"
+                                >
+                                    <BlockStack gap="200">
+                                        <Text
+                                            variant="headingXl"
+                                            fontWeight="bold"
+                                        >
+                                            SKU Generator
+                                        </Text>
+                                        <Text tone="subdued">
+                                            Create structured, consistent SKU
+                                            patterns.
+                                        </Text>
+                                    </BlockStack>
+
+                                    <Button
+                                        size="large"
+                                        onClick={() =>
+                                            router.visit("/sku-generator")
+                                        }
+                                        primary
+                                    >
+                                        Open
+                                    </Button>
+                                </InlineStack>
+                            </Box>
+                        </Card>
+
+                        <Card>
+                            <Box padding="600">
+                                <InlineStack
+                                    align="space-between"
+                                    blockAlign="center"
+                                >
+                                    <BlockStack gap="200">
+                                        <Text
+                                            variant="headingXl"
+                                            fontWeight="bold"
+                                        >
+                                            Barcode Generator
+                                        </Text>
+                                        <Text tone="subdued">
+                                            Generate EAN-13, UPC-A, Code128
+                                            instantly.
+                                        </Text>
+                                    </BlockStack>
+
+                                    <Button
+                                        size="large"
+                                        onClick={() =>
+                                            router.visit("/barcode-generator")
+                                        }
+                                    >
+                                        Open
+                                    </Button>
+                                </InlineStack>
+                            </Box>
+                        </Card>
+
+                        <Card>
+                            <Box padding="600">
+                                <InlineStack
+                                    align="space-between"
+                                    blockAlign="center"
+                                >
+                                    <BlockStack gap="200">
+                                        <Text
+                                            variant="headingXl"
+                                            fontWeight="bold"
+                                        >
+                                            Label Printer
+                                        </Text>
+                                        <Text tone="subdued">
+                                            Print-ready labels for Zebra, DYMO,
+                                            and more.
+                                        </Text>
+                                    </BlockStack>
+
+                                    <Button
+                                        size="large"
+                                        onClick={() =>
+                                            router.visit("/barcode-printer")
+                                        }
+                                    >
+                                        Open
+                                    </Button>
+                                </InlineStack>
+                            </Box>
+                        </Card>
+                    </BlockStack>
+                </Layout.Section>
+            </Layout>
         </Page>
     );
 }

@@ -1,12 +1,14 @@
 <?php
 
 use App\Http\Controllers\Api\ProductApiController;
+use App\Http\Controllers\BarcodeController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SkuController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\PrinterController;
 use App\Http\Controllers\ShopifyWebhookController;
 use App\Http\Controllers\WebhookController;
 
@@ -25,6 +27,9 @@ Route::middleware(['verify.shopify'])->group(function () {
     Route::post('/sku-generator/preview', [SkuController::class, 'preview']);
     Route::post('/sku-generator/apply', [SkuController::class, 'apply']);
     Route::get('/sku-generator/progress', [SkuController::class, 'progress']);
+
+    Route::get('/barcode-generator', [BarcodeController::class, 'index']);
+    Route::get('/barcode-printer', [PrinterController::class, 'index']);
 });
 
 
