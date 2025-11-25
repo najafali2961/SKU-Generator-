@@ -163,7 +163,7 @@ export default function SkuGenerator({ initialCollections = [] }) {
     const mediaUrl = (p) => p.image || null;
 
     return (
-        <div className="min-h-screen text-sm bg-gradient-to-br from-slate-50 via-white to-gray-100">
+        <div className="min-h-screen text-sm bg-white">
             <div className="p-4 mx-auto max-w-7xl">
                 <SkuHeader
                     onQuick={handleQuick}
