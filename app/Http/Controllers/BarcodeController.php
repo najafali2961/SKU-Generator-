@@ -7,6 +7,7 @@ use App\Jobs\GenerateBarcodeJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Collection;
 
 class BarcodeController extends Controller
 {
@@ -39,11 +40,10 @@ class BarcodeController extends Controller
         $perPage = 25;
         $tab = $request->input('tab', 'all');
 
-        // Build base query
         $query = Variant::with(['product'])
             ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
 
-        // Filters
+        // Filters (search, vendor, type)
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(
@@ -53,106 +53,79 @@ class BarcodeController extends Controller
                     ->orWhere('barcode', 'like', "%{$search}%")
             );
         }
-
         if ($request->filled('vendor')) {
             $query->whereHas('product', fn($q) => $q->where('vendor', 'like', "%{$request->vendor}%"));
         }
-
         if ($request->filled('type')) {
             $query->whereHas('product', fn($q) => $q->where('product_type', 'like', "%{$request->type}%"));
         }
 
         $allVariants = $query->get();
 
-        // === BARCODE GENERATION LOGIC ===
         $format = $request->input('format', 'UPC');
         $prefix = strtoupper(trim($request->input('prefix', '')));
-        $length = (int)$request->input('length', 12);
-        $checksum = $request->boolean('checksum', true);
-        $enforce_length = $request->boolean('enforce_length', true);
-        $numeric_only = $request->boolean('numeric_only', true);
-        $auto_fill = $request->boolean('auto_fill', true);
-        $allow_qr_text = $request->boolean('allow_qr_text', false);
-
         $counter = (int)($request->input('start_number', 1));
-        $generatedBarcodes = [];
+        $generatedBarcodes = collect();
+        $preview = [];
 
         foreach ($allVariants as $variant) {
-            $oldBarcode = $variant->barcode;
+            $oldBarcode = trim($variant->barcode ?? '');
+            $hasOldBarcode = !empty($oldBarcode);
 
-            if ($format === 'QR') {
-                $newBarcode = $allow_qr_text
-                    ? ($variant->sku ?: "https://yourstore.com/products/{$variant->product->handle}")
-                    : 'QR-' . strtoupper(\Str::random(12));
-            } elseif ($format === 'CODE128') {
-                $newBarcode = $prefix . ($variant->sku ?: "V{$variant->id}");
-                if ($numeric_only) $newBarcode = preg_replace('/\D/', '', $newBarcode);
-            } else {
-                // UPC-A (12), EAN-13 (13), ISBN
-                $targetLength = $format === 'UPC' ? 12 : ($format === 'ISBN' ? 13 : 13);
-                $base = $prefix . ($variant->sku ? preg_replace('/\D/', '', $variant->sku) : $variant->id . $counter);
+            $newBarcode = $this->generateBarcode($variant, $request->all(), $counter);
 
-                if ($numeric_only) {
-                    $base = preg_replace('/\D/', '', $base);
-                }
-
-                $code = substr($base, 0, $targetLength - ($checksum ? 1 : 0));
-
-                if ($enforce_length || $auto_fill) {
-                    $code = str_pad($code, $targetLength - ($checksum ? 1 : 0), '0', STR_PAD_LEFT);
-                }
-
-                if ($checksum && in_array($format, ['UPC', 'EAN13', 'ISBN'])) {
-                    $code .= $this->calculateCheckDigit($code, $format === 'UPC' ? 12 : 13);
-                }
-
-                $newBarcode = $code;
+            // Track new barcodes to detect duplicates
+            if ($newBarcode && !str_starts_with($newBarcode, 'QR-') === false) {
+                $generatedBarcodes->push($newBarcode);
             }
-
-            $isDuplicate = false;
-            if (!empty($newBarcode) && !str_starts_with($newBarcode, 'QR-')) {
-                $generatedBarcodes[] = $newBarcode;
-            }
-
-            if ($tab === 'duplicates' && empty($newBarcode)) continue;
 
             $preview[] = [
-                'id' => $variant->id,
-                'variant_title' => $variant->title,
-                'sku' => $variant->sku,
-                'vendor' => $variant->product->vendor ?? '',
-                'image_url' => $variant->image ?? ($variant->product->images[0]['src'] ?? null),
-                'old_barcode' => $oldBarcode,
+                'id'            => $variant->id,
+                'variant_title' => $variant->title ?? 'Default Variant',
+                'sku'           => $variant->sku ?? '',
+                'vendor'        => $variant->product->vendor ?? '',
+                'image_url'     => $variant->image ?? ($variant->product->images[0]['src'] ?? null),
+                'old_barcode'   => $hasOldBarcode ? $oldBarcode : null,
                 'barcode_value' => $newBarcode,
-                'format' => $format,
-                'is_duplicate' => $isDuplicate, // will be updated below
+                'format'        => $format,
             ];
 
             $counter++;
         }
 
         // Detect duplicates in NEW barcodes
-        $dupCount = array_count_values(array_filter($generatedBarcodes));
-        $duplicateValues = array_keys(array_filter($dupCount, fn($c) => $c > 1));
+        $dupCount = $generatedBarcodes->countBy();
+        $duplicates = $dupCount->filter(fn($count) => $count > 1)->keys()->all();
 
+        // Final status logic
         foreach ($preview as &$item) {
-            if (in_array($item['barcode_value'], $duplicateValues)) {
-                $item['is_duplicate'] = true;
+            $hasOld = $item['old_barcode'] !== null;
+            $isDup = in_array($item['barcode_value'], $duplicates);
+
+            if (!$item['barcode_value']) {
+                $item['status'] = 'empty';
+            } elseif ($isDup) {
+                $item['status'] = 'duplicate';
+            } elseif ($hasOld) {
+                $item['status'] = 'unique'; // has old barcode → Unique
+            } else {
+                $item['status'] = 'unique'; // no old barcode, but new one → still Unique
             }
         }
+        unset($item); // break reference
 
-        // Filter for duplicates tab
+        // Filter duplicates tab
         if ($tab === 'duplicates') {
-            $preview = array_filter($preview, fn($i) => $i['is_duplicate']);
+            $preview = array_filter($preview, fn($i) => $i['status'] === 'duplicate');
         }
 
-        // Client-side search
+        // Search
         if ($request->filled('search')) {
-            $q = strtolower($request->search);
+            $q = strtolower(trim($request->search));
             $preview = array_filter(
                 $preview,
                 fn($i) =>
-                str_contains(strtolower($i['variant_title']), $q) ||
+                str_contains(strtolower($i['variant_title'] ?? ''), $q) ||
                     str_contains(strtolower($i['sku'] ?? ''), $q) ||
                     str_contains(strtolower($i['old_barcode'] ?? ''), $q) ||
                     str_contains(strtolower($i['barcode_value'] ?? ''), $q)
@@ -162,29 +135,74 @@ class BarcodeController extends Controller
         $total = count($preview);
         $paginated = array_slice($preview, ($page - 1) * $perPage, $perPage);
 
-        // Build duplicate groups
+        // Duplicate groups
         $duplicateGroups = [];
-        foreach ($duplicateValues as $code) {
+        foreach ($duplicates as $code) {
             $items = array_filter($preview, fn($i) => $i['barcode_value'] === $code);
-            $duplicateGroups[$code] = array_values($items);
+            if (count($items) > 1) {
+                $duplicateGroups[$code] = array_values($items);
+            }
         }
 
         return response()->json([
             'data' => array_values($paginated),
             'total' => $total,
-            'duplicates' => $duplicateValues,
             'duplicateGroups' => $duplicateGroups,
         ]);
     }
 
-    private function calculateCheckDigit($number, $type = 13)
+    private function generateBarcode($variant, $rules, $counter)
+    {
+        $format = $rules['format'] ?? 'UPC';
+        $prefix = strtoupper(trim($rules['prefix'] ?? ''));
+        $checksum = $rules['checksum'] ?? true;
+        $numeric_only = $rules['numeric_only'] ?? true;
+        $auto_fill = $rules['auto_fill'] ?? true;
+        $allow_qr_text = $rules['allow_qr_text'] ?? false;
+
+        if ($format === 'QR') {
+            return $allow_qr_text
+                ? ($variant->sku ?: "https://yourstore.com/products/{$variant->product->handle}")
+                : 'QR-' . strtoupper(\Str::random(12));
+        }
+
+        if ($format === 'CODE128') {
+            $code = $prefix . ($variant->sku ?: "V{$variant->id}");
+            return $numeric_only ? preg_replace('/\D/', '', $code) : $code;
+        }
+
+        // UPC / EAN / ISBN
+        $targetLength = $format === 'UPC' ? 12 : 13;
+        $base = $prefix . ($variant->sku ? preg_replace('/\D/', '', $variant->sku) : $variant->id . $counter);
+
+        if ($numeric_only) {
+            $base = preg_replace('/\D/', '', $base);
+        }
+
+        $code = substr($base, 0, $targetLength - ($checksum ? 1 : 0));
+
+        if ($auto_fill) {
+            $code = str_pad($code, $targetLength - ($checksum ? 1 : 0), '0', STR_PAD_LEFT);
+        }
+
+        if ($checksum) {
+            $code .= $this->calculateCheckDigit($code, $targetLength);
+        }
+
+        return $code;
+    }
+
+    private function calculateCheckDigit($number, $length = 12)
     {
         $number = preg_replace('/\D/', '', $number);
-        $number = str_pad($number, $type === 12 ? 11 : 12, '0', STR_PAD_LEFT);
+        $number = str_pad($number, $length === 12 ? 11 : 12, '0', STR_PAD_LEFT);
+
         $sum = 0;
         for ($i = strlen($number) - 1; $i >= 0; $i--) {
-            $sum += ($i % 2 === ($type === 12 ? 1 : 0)) ? $number[$i] * 3 : $number[$i];
+            $weight = ($i % 2 === ($length === 12 ? 1 : 0)) ? 3 : 1;
+            $sum += $number[$i] * $weight;
         }
+
         $check = (10 - ($sum % 10)) % 10;
         return $check;
     }

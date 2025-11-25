@@ -15,8 +15,8 @@ import {
     Pagination,
     Button,
     Thumbnail,
+    ButtonGroup,
 } from "@shopify/polaris";
-
 import {
     SearchIcon,
     HashtagIcon,
@@ -30,18 +30,21 @@ export default function VariantBarcodeTable({
     barcodes = [],
     total = 0,
     page = 1,
-    setPage = () => {},
+    setPage,
     selected = new Set(),
-    setSelected = () => {},
+    setSelected,
     loading = false,
-    duplicates = [],
     duplicateGroups = {},
     applyBarcodes = () => {},
     applying = false,
+    activeTab: controlledTab,
+    setActiveTab: setControlledTab,
     form = { search: "", vendor: "", type: "" },
     handleChange = () => {},
 }) {
-    const [activeTab, setActiveTab] = React.useState("all");
+    const activeTab = controlledTab || "all";
+    const setActiveTab = setControlledTab || (() => {});
+
     const totalPages = Math.ceil(total / PAGE_SIZE);
 
     const tabs = [
@@ -58,48 +61,64 @@ export default function VariantBarcodeTable({
             content: (
                 <>
                     Duplicates{" "}
-                    <Badge status="critical">{duplicates.length}</Badge>
+                    <Badge status="critical">
+                        {Object.keys(duplicateGroups).length}
+                    </Badge>
                 </>
             ),
         },
     ];
 
-    const handleTabChange = (index) => {
-        setActiveTab(tabs[index].id);
+    const handleTabChange = (selectedTabIndex) => {
+        const tabId = tabs[selectedTabIndex].id;
+        setActiveTab(tabId);
         setSelected(new Set());
         setPage(1);
     };
 
-    const handleSelectionChange = (type, toggle, id) => {
-        if (type === "all") {
-            setSelected(
-                toggle ? new Set(barcodes.map((b) => b.id)) : new Set()
-            );
+    const handleSelectionChange = (selectionType, shouldSelect, id) => {
+        if (selectionType === "all") {
+            const allIds = barcodes.map((b) => b.id);
+            setSelected(shouldSelect ? new Set(allIds) : new Set());
+        } else if (selectionType === "page") {
+            const pageIds = barcodes
+                .slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+                .map((b) => b.id);
+            setSelected((prev) => {
+                const next = new Set(prev);
+                pageIds.forEach((pid) =>
+                    shouldSelect ? next.add(pid) : next.delete(pid)
+                );
+                return next;
+            });
         } else if (id !== undefined) {
             setSelected((prev) => {
                 const next = new Set(prev);
-                toggle ? next.add(id) : next.delete(id);
+                shouldSelect ? next.add(id) : next.delete(id);
                 return next;
             });
         }
     };
 
-    const currentBarcodes = () => {
-        const start = (page - 1) * PAGE_SIZE;
-        return barcodes.slice(start, start + PAGE_SIZE);
-    };
+    const displayedBarcodes =
+        activeTab === "all"
+            ? barcodes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+            : barcodes;
 
     const rowMarkup =
         activeTab === "all"
-            ? currentBarcodes().map((v, idx) => (
+            ? displayedBarcodes.map((v) => (
                   <IndexTable.Row
                       key={v.id}
                       id={v.id}
-                      position={idx}
                       selected={selected.has(v.id)}
                   >
                       <IndexTable.Cell>
-                          <Thumbnail source={v.image_url} size="small" />
+                          <Thumbnail
+                              source={v.image_url || ""}
+                              size="small"
+                              alt={v.variant_title}
+                          />
                       </IndexTable.Cell>
 
                       <IndexTable.Cell>
@@ -119,7 +138,9 @@ export default function VariantBarcodeTable({
                               {v.barcode_value || "—"}
                           </Text>
                           <Text variant="bodySm" tone="subdued">
-                              {v.old_barcode || "—"}
+                              {v.old_barcode
+                                  ? `Old: ${v.old_barcode}`
+                                  : "Old: —"}
                           </Text>
                           <Text variant="bodySm" tone="subdued">
                               {v.format || "UPC"}
@@ -127,13 +148,15 @@ export default function VariantBarcodeTable({
                       </IndexTable.Cell>
 
                       <IndexTable.Cell>
-                          {!v.barcode_value ? (
+                          {v.status === "empty" && (
                               <Badge tone="warning">Empty</Badge>
-                          ) : v.is_duplicate ? (
+                          )}
+                          {v.status === "duplicate" && (
                               <Badge tone="critical" icon={AlertCircleIcon}>
                                   Duplicate
                               </Badge>
-                          ) : (
+                          )}
+                          {v.status === "unique" && (
                               <Badge tone="success" icon={CheckCircleIcon}>
                                   Unique
                               </Badge>
@@ -161,27 +184,46 @@ export default function VariantBarcodeTable({
                                           {items.length} conflicts
                                       </Badge>
                                   </InlineStack>
-                                  <Button
-                                      size="slim"
-                                      onClick={() =>
-                                          setSelected(
-                                              new Set(items.map((i) => i.id))
-                                          )
-                                      }
-                                  >
-                                      Select Group
-                                  </Button>
+
+                                  <ButtonGroup>
+                                      <Button
+                                          size="slim"
+                                          onClick={() =>
+                                              setSelected(
+                                                  new Set(
+                                                      items.map((i) => i.id)
+                                                  )
+                                              )
+                                          }
+                                      >
+                                          Select Group
+                                      </Button>
+                                      <Button
+                                          primary
+                                          size="slim"
+                                          onClick={() => {
+                                              setSelected(
+                                                  new Set(
+                                                      items.map((i) => i.id)
+                                                  )
+                                              );
+                                              applyBarcodes("selected");
+                                          }}
+                                      >
+                                          Fix Group
+                                      </Button>
+                                  </ButtonGroup>
                               </InlineStack>
 
                               <BlockStack gap="200">
                                   {items.map((v) => {
-                                      const active = selected.has(v.id);
+                                      const isSelected = selected.has(v.id);
                                       return (
                                           <Box
                                               key={v.id}
                                               padding="300"
                                               background={
-                                                  active
+                                                  isSelected
                                                       ? "bg-surface-selected"
                                                       : "bg-surface"
                                               }
@@ -190,33 +232,36 @@ export default function VariantBarcodeTable({
                                               <InlineStack gap="400">
                                                   <input
                                                       type="checkbox"
-                                                      checked={active}
+                                                      checked={isSelected}
                                                       onChange={() =>
                                                           handleSelectionChange(
                                                               "single",
-                                                              !active,
+                                                              !isSelected,
                                                               v.id
                                                           )
                                                       }
                                                   />
                                                   <Thumbnail
-                                                      source={v.image_url}
+                                                      source={v.image_url || ""}
                                                       size="small"
                                                   />
                                                   <BlockStack>
                                                       <Text fontWeight="medium">
-                                                          {v.barcode_value ||
+                                                          {v.variant_title ||
                                                               "—"}
                                                       </Text>
                                                       <Text
                                                           variant="bodySm"
                                                           tone="subdued"
                                                       >
-                                                          {v.format || "UPC"}
+                                                          {v.sku || "—"}
                                                       </Text>
                                                   </BlockStack>
-                                                  <Text tone="subdued">
-                                                      {v.variant_title || "—"}
+                                                  <Text
+                                                      fontWeight="bold"
+                                                      tone="critical"
+                                                  >
+                                                      {v.barcode_value}
                                                   </Text>
                                               </InlineStack>
                                           </Box>
@@ -236,13 +281,14 @@ export default function VariantBarcodeTable({
                 onSelect={handleTabChange}
             >
                 <BlockStack gap="400">
+                    {/* Search Bar */}
                     <Box padding="400" background="bg-surface-active">
                         <InlineStack gap="300" align="start" wrap={false}>
                             <Box minWidth="320">
                                 <TextField
                                     placeholder="Search variants, SKU or barcode..."
                                     prefix={<Icon source={SearchIcon} />}
-                                    value={form?.search || ""}
+                                    value={form.search || ""}
                                     onChange={(v) => handleChange("search", v)}
                                     clearButton
                                     onClearButtonClick={() =>
@@ -254,7 +300,7 @@ export default function VariantBarcodeTable({
                                 <TextField
                                     labelHidden
                                     placeholder="Vendor"
-                                    value={form?.vendor || ""}
+                                    value={form.vendor || ""}
                                     onChange={(v) => handleChange("vendor", v)}
                                 />
                             </Box>
@@ -262,7 +308,7 @@ export default function VariantBarcodeTable({
                                 <TextField
                                     labelHidden
                                     placeholder="Type"
-                                    value={form?.type || ""}
+                                    value={form.type || ""}
                                     onChange={(v) => handleChange("type", v)}
                                 />
                             </Box>
@@ -291,7 +337,7 @@ export default function VariantBarcodeTable({
                                 ? [
                                       { title: "Image" },
                                       { title: "Variant / SKU / Vendor" },
-                                      { title: "New / Old Barcode / Format" },
+                                      { title: "New / Old / Format" },
                                       { title: "Status" },
                                   ]
                                 : [{ title: "Duplicate Groups" }]
@@ -299,7 +345,7 @@ export default function VariantBarcodeTable({
                         loading={loading}
                         emptyState={
                             activeTab === "duplicates" &&
-                            duplicates.length === 0 && (
+                            Object.keys(duplicateGroups).length === 0 && (
                                 <EmptyState heading="No duplicates found">
                                     <Text tone="success">
                                         All barcodes are unique!
@@ -312,7 +358,7 @@ export default function VariantBarcodeTable({
                             <Box padding="1600">
                                 <InlineStack align="center" gap="200">
                                     <Spinner size="large" />
-                                    <Text>Loading barcodes...</Text>
+                                    <Text>Generating preview...</Text>
                                 </InlineStack>
                             </Box>
                         ) : (
@@ -320,6 +366,7 @@ export default function VariantBarcodeTable({
                         )}
                     </IndexTable>
 
+                    {/* Pagination */}
                     {activeTab === "all" && totalPages > 1 && (
                         <Box padding="400">
                             <InlineStack align="space-between">
@@ -342,6 +389,7 @@ export default function VariantBarcodeTable({
                         </Box>
                     )}
 
+                    {/* Action Bar */}
                     <Box
                         padding="400"
                         background="bg-surface-secondary"
@@ -354,18 +402,13 @@ export default function VariantBarcodeTable({
                                 </Button>
                                 <Button
                                     onClick={() =>
-                                        setSelected(
-                                            new Set(
-                                                currentBarcodes().map(
-                                                    (v) => v.id
-                                                )
-                                            )
-                                        )
+                                        handleSelectionChange("page", true)
                                     }
                                 >
                                     Select Page
                                 </Button>
                             </InlineStack>
+
                             <InlineStack gap="400" align="end">
                                 <Button
                                     primary
@@ -373,7 +416,7 @@ export default function VariantBarcodeTable({
                                     disabled={selected.size === 0 || applying}
                                     onClick={() => applyBarcodes("selected")}
                                 >
-                                    Apply Selected
+                                    Apply Selected ({selected.size})
                                 </Button>
                                 <Button
                                     tone="critical"
