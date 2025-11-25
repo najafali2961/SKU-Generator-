@@ -2,15 +2,13 @@
 
 namespace App\Jobs;
 
-use App\Models\Product;
-use App\Models\Variant;
+use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use App\Models\User;
 
 class FetchProductsOnInstallJob implements ShouldQueue
 {
@@ -27,143 +25,46 @@ class FetchProductsOnInstallJob implements ShouldQueue
     {
         $shop = User::find($this->shopId);
         if (!$shop) {
-            Log::error("❌ Shop not found: {$this->shopId}");
+            Log::error("Shop not found: {$this->shopId}");
             return;
         }
 
-        $limit = 50;
+        $limit = 250;
         $after = null;
 
         do {
-            $query = <<<'GRAPHQL'
-query getProducts($first: Int!, $after: String) {
-  products(first: $first, after: $after) {
-    edges {
-      cursor
-      node {
-        id
-        title
-        bodyHtml
-        status
-        vendor
-        productType
-        tags
-
-        images(first: 10) {
-          edges {
-            node {
-              src
-              altText
-            }
-          }
-        }
-
-        variants(first: 100) {
-          edges {
-            node {
-              id
-              title
-              sku
-              price
-              inventoryQuantity
-              selectedOptions {
-                value
-              }
-            }
-          }
-        }
-      }
-    }
-    pageInfo {
-      hasNextPage
-      endCursor
-    }
-  }
-}
-GRAPHQL;
-
             try {
-                $response = $shop->api()->graph($query, [
-                    'first' => $limit,
-                    'after' => $after
-                ]);
-            } catch (\Exception $e) {
-                Log::error("❌ GraphQL failed: " . $e->getMessage());
-                break;
-            }
-
-            $products = $response['body']['data']['products']['edges'] ?? [];
-            $pageInfo = $response['body']['data']['products']['pageInfo'] ?? null;
-
-            foreach ($products as $edge) {
-                $node = $edge['node'];
-
-                $shopifyId = intval(basename($node['id']));
-
-                // SAFE images
-                $images = [];
-                $imageEdges = $node['images']['edges'] ?? [];
-                if (is_array($imageEdges)) {
-                    foreach ($imageEdges as $img) {
-                        if (!isset($img['node'])) continue;
-                        $images[] = [
-                            'src' => $img['node']['src'] ?? null,
-                            'alt' => $img['node']['altText'] ?? null,
-                        ];
+                $response = $shop->api()->graph(
+                    <<<'GRAPHQL'
+                    query ($first: Int!, $after: String) {
+                      products(first: $first, after: $after) {
+                        pageInfo {
+                          hasNextPage
+                          endCursor
+                        }
+                      }
                     }
-                }
-
-                // SAFE tags
-                $tags = [];
-                if (isset($node['tags'])) {
-                    if (is_string($node['tags'])) {
-                        $tags = array_filter(array_map('trim', explode(',', $node['tags'])));
-                    } elseif (is_array($node['tags'])) {
-                        $tags = $node['tags'];
-                    }
-                }
-
-                // Save product
-                $product = Product::updateOrCreate(
-                    ['shopify_id' => $shopifyId, 'user_id' => $shop->id],
-                    [
-                        'title' => $node['title'],
-                        'description_html' => $node['bodyHtml'],
-                        'status' => $node['status'],
-                        'vendor' => $node['vendor'],
-                        'product_type' => $node['productType'],
-                        'tags' => $tags,
-                        'images' => $images,
-                    ]
+                    GRAPHQL,
+                    ['first' => $limit, 'after' => $after]
                 );
 
-                // Delete old variants
-                Variant::where('product_id', $product->id)->delete();
+                $pageInfo = $response['body']['data']['products']['pageInfo'] ?? null;
 
-                // Variants
-                $variantEdges = $node['variants']['edges'] ?? [];
+                // Dispatch ONE job for this entire page (250 products)
+                FetchProductPageJob::dispatch($shop->id, $after);
 
-                foreach ($variantEdges as $vEdge) {
-                    $v = $vEdge['node'];
-                    $options = $v['selectedOptions'] ?? [];
-
-                    Variant::create([
-                        'product_id' => $product->id,
-                        'shopify_variant_id' => intval(basename($v['id'])),
-                        'title' => $v['title'] ?? '',
-                        'sku' => $v['sku'] ?? '',
-                        'price' => $v['price'] ?? 0,
-                        'inventory_quantity' => $v['inventoryQuantity'] ?? 0,
-                        'option1' => $options[0]['value'] ?? null,
-                        'option2' => $options[1]['value'] ?? null,
-                        'option3' => $options[2]['value'] ?? null,
-                    ]);
-                }
+                $hasNextPage = $pageInfo['hasNextPage'] ?? false;
+                $after = $hasNextPage ? $pageInfo['endCursor'] : null;
+            } catch (\Exception $e) {
+                Log::error("Failed to dispatch page job: " . $e->getMessage());
+                break; // Stop dispatching if API fails
             }
 
-            $after = $pageInfo && $pageInfo['hasNextPage'] ? $pageInfo['endCursor'] : null;
-        } while ($after);
+            // Small delay to be gentle on Shopify
+            usleep(200_000); // 0.2 sec
 
-        Log::info("🎉 Completed product + variant sync for install: {$shop->myshopify_domain}");
+        } while ($hasNextPage);
+
+        Log::info("Successfully dispatched all product page jobs for {$shop->myshopify_domain}");
     }
 }
