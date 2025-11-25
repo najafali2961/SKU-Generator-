@@ -44,4 +44,8 @@ class Product extends Model
     {
         return $this->hasMany(Variant::class, 'product_id', 'id');
     }
+    public function barcodes()
+    {
+        return $this->hasMany(Barcode::class, 'product_id', 'shopify_id');
+    }
 }
