@@ -41,11 +41,36 @@ export default function Home({ stats = {} }) {
                   (data.variants_with_barcode / data.total_variants) * 100
               )
             : 0;
+    const heroGradient =
+        "linear-gradient(195deg,  #1e90ff 0%, #87cefa 50%, #ffffff 100%)";
+    const cardGradient = "linear-gradient(135deg, #1e90ff, #87cefa)"; // keep icon squares vibrant
 
-    const heroGradient = "linear-gradient(135deg, #ffffff 0%, #e0f2fe 100%)";
-    const cardGradient = "linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%)";
     const borderBlue = "#bae6fd";
-    const iconBlue = "primary";
+
+    const IconBox = ({ icon }) => (
+        <Box
+            style={{
+                width: "48px",
+                height: "48px",
+                borderRadius: "12px",
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                background: cardGradient,
+            }}
+        >
+            <span
+                style={{
+                    color: "white",
+                    display: "flex",
+                    alignItems: "center",
+                }}
+            >
+                {" "}
+                <Icon source={icon} />{" "}
+            </span>{" "}
+        </Box>
+    );
 
     return (
         <Page fullWidth>
@@ -118,13 +143,11 @@ export default function Home({ stats = {} }) {
                                 title: "Total Variants",
                                 value: data.total_variants,
                                 icon: MagicIcon,
-                                gradient: cardGradient,
                             },
                             {
                                 title: "Missing SKUs",
                                 value: data.variants_missing_sku,
                                 icon: AlertTriangleIcon,
-                                gradient: cardGradient,
                                 badge: "Action Needed",
                                 percentage: 100 - skuCoverage,
                             },
@@ -132,7 +155,6 @@ export default function Home({ stats = {} }) {
                                 title: "Missing Barcodes",
                                 value: data.variants_missing_barcode,
                                 icon: BarcodeIcon,
-                                gradient: cardGradient,
                                 percentage: 100 - barcodeCoverage,
                             },
                         ].map((stat, idx) => (
@@ -155,15 +177,12 @@ export default function Home({ stats = {} }) {
                                         top: 0,
                                         bottom: 0,
                                         width: "6px",
-                                        background: stat.gradient,
+                                        background: cardGradient,
                                     }}
                                 />
                                 <InlineStack gap="400" align="start">
                                     <Box paddingBlockStart="100">
-                                        <Icon
-                                            source={stat.icon}
-                                            color={iconBlue}
-                                        />
+                                        <IconBox icon={stat.icon} />
                                     </Box>
                                     <BlockStack gap="200">
                                         <InlineStack gap="200" align="center">
@@ -236,10 +255,7 @@ export default function Home({ stats = {} }) {
                                 >
                                     <BlockStack gap="400">
                                         <InlineStack gap="300">
-                                            <Icon
-                                                source={action.icon}
-                                                color={iconBlue}
-                                            />
+                                            <IconBox icon={action.icon} />
                                             <Text
                                                 variant="headingMd"
                                                 fontWeight="semibold"
