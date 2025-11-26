@@ -16,8 +16,7 @@ class Product extends Model
         'product_type',
         'tags',
         'images',
-        'seo_title',
-        'seo_description'
+
     ];
 
     protected $casts = [

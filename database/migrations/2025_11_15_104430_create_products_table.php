@@ -25,8 +25,6 @@ return new class extends Migration
             $table->json('tags')->nullable();
             $table->json('images')->nullable();
             $table->json('variants')->nullable();
-            $table->string('seo_title')->nullable();
-            $table->string('seo_description')->nullable();
             $table->timestamps();
         });
     }
