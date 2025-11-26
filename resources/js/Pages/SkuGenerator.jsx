@@ -172,7 +172,7 @@ export default function SkuGenerator({ initialCollections = [] }) {
     const mediaUrl = (p) => p.image || null;
 
     return (
-        <div className="min-h-screen bg-white">
+        <div className="min-h-screen">
             <div className="p-4 mx-auto max-w-7xl">
                 <SkuHeader
                     onQuick={handleQuick}
