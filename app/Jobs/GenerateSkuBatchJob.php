@@ -1,5 +1,6 @@
 <?php
-// GenerateSkuBatchJob.php
+// app/Jobs/GenerateSkuBatchJob.php
+
 namespace App\Jobs;
 
 use App\Models\Variant;
@@ -10,6 +11,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class GenerateSkuBatchJob implements ShouldQueue
@@ -30,36 +32,97 @@ class GenerateSkuBatchJob implements ShouldQueue
     public function handle()
     {
         $shop = User::find($this->shopId);
+        if (!$shop) {
+            return;
+        }
+
         $shopify = new ShopifyService($shop);
 
-        $variants = Variant::with('product')->whereIn('id', $this->variantIds)->get();
+        $variants = Variant::with('product')
+            ->whereIn('id', $this->variantIds)
+            ->get();
+
         if ($variants->isEmpty()) {
             return;
         }
 
-        $counter = $this->settings['auto_start'] ?? 1;
-
         foreach ($variants->groupBy('product_id') as $productId => $productVariants) {
             $skuMap = [];
+
             foreach ($productVariants as $variant) {
-                $sku = $this->generateSku($counter++);
+                $nextCounter = $this->getNextGlobalCounter();
+                $sku = $this->generateSku($nextCounter);
+
                 $variant->sku = $sku;
                 $variant->save();
+
                 $skuMap[$variant->id] = $sku;
             }
 
+            // Update Shopify in bulk
             $shopify->updateVariantSkus((int)$productId, $skuMap);
         }
+    }
+
+    private function getNextGlobalCounter(): int
+    {
+        return DB::transaction(function () {
+            $row = DB::table('sku_counters')
+                ->lockForUpdate()
+                ->where('shop_id', $this->shopId)
+                ->whereNull('product_id')
+                ->first();
+
+            $start = $this->settings['auto_start'] ?? 1;
+
+            if (!$row) {
+                DB::table('sku_counters')->insert([
+                    'shop_id' => $this->shopId,
+                    'product_id' => null,
+                    'counter' => $start,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                return $start;
+            }
+
+            $next = $row->counter + 1;
+
+            DB::table('sku_counters')
+                ->where('id', $row->id)
+                ->update([
+                    'counter' => $next,
+                    'updated_at' => now(),
+                ]);
+
+            return $next;
+        });
     }
 
     private function generateSku(int $counter): string
     {
         $s = $this->settings;
-        $num = str_pad($counter, strlen($s['auto_start'] ?? '1'), '0', STR_PAD_LEFT);
+
+        // Determine padding length from auto_start (e.g. if user sets 1000 → 4 digits)
+        $start = $s['auto_start'] ?? 1;
+        $padLength = max(strlen((string)$start), 4);
+
+        $num = str_pad($counter, $padLength, '0', STR_PAD_LEFT);
+
         $sku = ($s['prefix'] ?? '') . ($s['delimiter'] ?? '') . $num;
-        if (!empty($s['suffix'])) $sku .= ($s['delimiter'] ?? '') . $s['suffix'];
-        if (!empty($s['remove_spaces'])) $sku = str_replace(' ', '', $sku);
-        if (!empty($s['alphanumeric'])) $sku = preg_replace('/[^A-Za-z0-9\-]/', '', $sku);
+
+        if (!empty($s['suffix'])) {
+            $sku .= ($s['delimiter'] ?? '') . $s['suffix'];
+        }
+
+        if (!empty($s['remove_spaces'])) {
+            $sku = str_replace(' ', '', $sku);
+        }
+
+        if (!empty($s['alphanumeric'])) {
+            $sku = preg_replace('/[^A-Za-z0-9\-]/', '', $sku);
+        }
+
         return $sku;
     }
 }

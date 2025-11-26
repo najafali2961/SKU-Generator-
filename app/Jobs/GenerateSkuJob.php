@@ -1,10 +1,10 @@
 <?php
+// app/Jobs/GenerateSkuJob.php
 
 namespace App\Jobs;
 
 use App\Models\Variant;
 use App\Models\User;
-use App\Jobs\GenerateSkuBatchJob;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -28,6 +28,7 @@ class GenerateSkuJob implements ShouldQueue
     public function handle()
     {
         $shop = User::find($this->shopId);
+        if (!$shop) return;
 
         $query = Variant::whereHas('product', fn($q) => $q->where('user_id', $shop->id));
 
@@ -50,17 +51,16 @@ class GenerateSkuJob implements ShouldQueue
         $variants = $query->orderBy('id')->get();
         $total = $variants->count();
 
-
         if ($total === 0) {
-
             return;
         }
 
         $batchSize = $this->settings['batch_size'] ?? 100;
-        $variants->chunk($batchSize)->each(function ($chunk, $batchIndex) use ($shop) {
+
+        $variants->chunk($batchSize)->each(function ($chunk) use ($shop) {
             GenerateSkuBatchJob::dispatch($shop->id, $this->settings, $chunk->pluck('id')->toArray());
         });
 
-        Log::info("GenerateSkuJob dispatched all batches for Shop ID: {$shop->id}");
+        Log::info("GenerateSkuJob dispatched all batches for Shop ID: {$shop->id}, total variants: {$total}");
     }
 }
