@@ -17,9 +17,7 @@ import {
     BarcodeIcon,
     MagicIcon,
     StarFilledIcon,
-    HashtagIcon,
     AlertTriangleIcon,
-    CheckCircleIcon,
 } from "@shopify/polaris-icons";
 
 export default function Home({ stats = {} }) {
@@ -44,7 +42,8 @@ export default function Home({ stats = {} }) {
               )
             : 0;
 
-    const blueGradient = "linear-gradient(135deg, #ffffff 0%, #e0f2fe 100%)";
+    const heroGradient = "linear-gradient(135deg, #ffffff 0%, #e0f2fe 100%)";
+    const cardGradient = "linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%)";
     const borderBlue = "#bae6fd";
     const iconBlue = "primary";
 
@@ -57,7 +56,7 @@ export default function Home({ stats = {} }) {
                         style={{
                             borderRadius: "20px",
                             padding: "48px 40px",
-                            background: blueGradient,
+                            background: heroGradient,
                             border: `1px solid ${borderBlue}`,
                             boxShadow: "0 8px 25px rgba(56, 178, 239, 0.1)",
                             display: "flex",
@@ -119,15 +118,13 @@ export default function Home({ stats = {} }) {
                                 title: "Total Variants",
                                 value: data.total_variants,
                                 icon: MagicIcon,
-                                gradient:
-                                    "linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%)",
+                                gradient: cardGradient,
                             },
                             {
                                 title: "Missing SKUs",
                                 value: data.variants_missing_sku,
                                 icon: AlertTriangleIcon,
-                                gradient:
-                                    "linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%)",
+                                gradient: cardGradient,
                                 badge: "Action Needed",
                                 percentage: 100 - skuCoverage,
                             },
@@ -135,8 +132,7 @@ export default function Home({ stats = {} }) {
                                 title: "Missing Barcodes",
                                 value: data.variants_missing_barcode,
                                 icon: BarcodeIcon,
-                                gradient:
-                                    "linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%)",
+                                gradient: cardGradient,
                                 percentage: 100 - barcodeCoverage,
                             },
                         ].map((stat, idx) => (
