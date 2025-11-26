@@ -8,212 +8,266 @@ import {
     InlineGrid,
     InlineStack,
     Box,
-    Icon,
     Button,
+    Icon,
+    Badge,
 } from "@shopify/polaris";
 import { router } from "@inertiajs/react";
-
 import {
-    HashtagIcon,
     BarcodeIcon,
-    PrintIcon,
-    ClockIcon,
-    StoreIcon,
     MagicIcon,
+    StarFilledIcon,
+    HashtagIcon,
+    AlertTriangleIcon,
     CheckCircleIcon,
 } from "@shopify/polaris-icons";
 
 export default function Home({ stats = {} }) {
-    const defaultStats = {
-        total_skus_generated: 12480,
-        barcodes_created: 8920,
-        labels_printed: 5670,
-        products_processed: 3120,
-        time_saved: "2.4k hours",
-        active_stores: 428,
+    const data = {
+        total_variants: stats.total_variants || 0,
+        variants_with_sku: stats.variants_with_sku || 0,
+        variants_missing_sku: stats.variants_missing_sku || 0,
+        variants_with_barcode: stats.variants_with_barcode || 0,
+        variants_missing_barcode: stats.variants_missing_barcode || 0,
+        total_products: stats.total_products || 0,
+        active_stores: stats.active_stores || 1,
     };
 
-    const data = { ...defaultStats, ...stats };
+    const skuCoverage =
+        data.total_variants > 0
+            ? Math.round((data.variants_with_sku / data.total_variants) * 100)
+            : 0;
+    const barcodeCoverage =
+        data.total_variants > 0
+            ? Math.round(
+                  (data.variants_with_barcode / data.total_variants) * 100
+              )
+            : 0;
+
+    const blueGradient = "linear-gradient(135deg, #ffffff 0%, #e0f2fe 100%)";
+    const borderBlue = "#bae6fd";
+    const iconBlue = "primary";
 
     return (
-        <Page>
+        <Page fullWidth>
             <Layout>
-                {/* Header */}
+                {/* Hero Header */}
                 <Layout.Section>
-                    <Card>
-                        <Box padding="500">
-                            <BlockStack gap="100" align="center">
-                                <InlineStack
-                                    gap="75"
-                                    align="center"
-                                    blockAlign="center"
-                                >
-                                    <Text
-                                        variant="heading2xl"
-                                        fontWeight="bold"
-                                        alignment="center"
-                                    >
-                                        SKU & Barcode Generator Pro
-                                    </Text>
-                                </InlineStack>
+                    <div
+                        style={{
+                            borderRadius: "20px",
+                            padding: "48px 40px",
+                            background: blueGradient,
+                            border: `1px solid ${borderBlue}`,
+                            boxShadow: "0 8px 25px rgba(56, 178, 239, 0.1)",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                        }}
+                    >
+                        <div style={{ maxWidth: "65%" }}>
+                            <Text
+                                as="h1"
+                                variant="heading2xl"
+                                fontWeight="bold"
+                            >
+                                SKU & Barcode Generator Pro
+                            </Text>
+                            <Text
+                                variant="bodyLg"
+                                tone="subdued"
+                                style={{ marginTop: "8px" }}
+                            >
+                                Fix missing SKUs & barcodes in seconds • Trusted
+                                by{" "}
+                                <strong>
+                                    {data.active_stores.toLocaleString()}+
+                                    stores
+                                </strong>
+                            </Text>
+                        </div>
 
-                                <Text tone="subdued" alignment="center">
-                                    Fast, accurate tools for SKUs, barcodes, and
-                                    label printing.
-                                </Text>
-                            </BlockStack>
-                        </Box>
-                    </Card>
+                        <InlineStack gap="300">
+                            <Button
+                                size="large"
+                                variant="primary"
+                                icon={<Icon source={StarFilledIcon} />}
+                                onClick={() =>
+                                    window.open(
+                                        "https://apps.shopify.com/your-app/reviews",
+                                        "_blank"
+                                    )
+                                }
+                            >
+                                Leave a Review
+                            </Button>
+                            <Button
+                                size="large"
+                                onClick={() => router.visit("/support")}
+                            >
+                                Support
+                            </Button>
+                        </InlineStack>
+                    </div>
                 </Layout.Section>
 
-                {/* Stats */}
+                {/* Stats Grid */}
                 <Layout.Section>
-                    <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
+                    <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="500">
                         {[
                             {
-                                icon: HashtagIcon,
-                                value: data.total_skus_generated,
-                                label: "SKUs generated",
+                                title: "Total Variants",
+                                value: data.total_variants,
+                                icon: MagicIcon,
+                                gradient:
+                                    "linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%)",
                             },
                             {
+                                title: "Missing SKUs",
+                                value: data.variants_missing_sku,
+                                icon: AlertTriangleIcon,
+                                gradient:
+                                    "linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%)",
+                                badge: "Action Needed",
+                                percentage: 100 - skuCoverage,
+                            },
+                            {
+                                title: "Missing Barcodes",
+                                value: data.variants_missing_barcode,
                                 icon: BarcodeIcon,
-                                value: data.barcodes_created,
-                                label: "Barcodes created",
+                                gradient:
+                                    "linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%)",
+                                percentage: 100 - barcodeCoverage,
                             },
-                            {
-                                icon: PrintIcon,
-                                value: data.labels_printed,
-                                label: "Labels printed",
-                            },
-                        ].map((item, index) => (
-                            <Card key={index}>
-                                <Box padding="400" width="100%">
-                                    <InlineStack
-                                        gap="150"
-                                        align="start"
-                                        blockAlign="center"
-                                        fullWidth
-                                    >
+                        ].map((stat, idx) => (
+                            <Card
+                                key={idx}
+                                padding="600"
+                                style={{
+                                    borderRadius: "16px",
+                                    background: "#ffffff",
+                                    border: `1px solid ${borderBlue}`,
+                                    position: "relative",
+                                    overflow: "hidden",
+                                    boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        position: "absolute",
+                                        left: 0,
+                                        top: 0,
+                                        bottom: 0,
+                                        width: "6px",
+                                        background: stat.gradient,
+                                    }}
+                                />
+                                <InlineStack gap="400" align="start">
+                                    <Box paddingBlockStart="100">
                                         <Icon
-                                            source={item.icon}
-                                            tone={item.tone || "base"}
+                                            source={stat.icon}
+                                            color={iconBlue}
                                         />
-                                        <BlockStack gap="50">
+                                    </Box>
+                                    <BlockStack gap="200">
+                                        <InlineStack gap="200" align="center">
                                             <Text
                                                 variant="headingLg"
-                                                fontWeight="bold"
+                                                fontWeight="semibold"
                                             >
-                                                {typeof item.value === "number"
-                                                    ? item.value.toLocaleString()
-                                                    : item.value}
+                                                {stat.value.toLocaleString()}
                                             </Text>
-                                            <Text tone="subdued">
-                                                {item.label}
-                                            </Text>
-                                        </BlockStack>
-                                    </InlineStack>
-                                </Box>
+                                            {stat.badge && (
+                                                <Badge tone="info">
+                                                    {stat.badge}
+                                                </Badge>
+                                            )}
+                                        </InlineStack>
+                                        <Text variant="bodyMd" tone="subdued">
+                                            {stat.title}{" "}
+                                            {stat.percentage
+                                                ? `(${stat.percentage}%)`
+                                                : ""}
+                                        </Text>
+                                    </BlockStack>
+                                </InlineStack>
                             </Card>
                         ))}
                     </InlineGrid>
                 </Layout.Section>
 
-                {/* Tools Section */}
+                {/* Quick Actions */}
                 <Layout.Section>
-                    <BlockStack gap="600">
-                        <Card>
-                            <Box padding="600">
-                                <InlineStack
-                                    align="space-between"
-                                    blockAlign="center"
+                    <BlockStack gap="500">
+                        <Text as="h2" variant="headingLg" fontWeight="semibold">
+                            Fix Issues Instantly
+                        </Text>
+                        <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
+                            {[
+                                {
+                                    title: "Generate Missing SKUs",
+                                    description:
+                                        "Auto-fill all variants without SKUs",
+                                    icon: AlertTriangleIcon,
+                                    route: `/sku-generator?auto=missing`,
+                                    buttonText: `Fix ${data.variants_missing_sku} Missing SKUs`,
+                                },
+                                {
+                                    title: "Generate Missing Barcodes",
+                                    description:
+                                        "Create valid EAN-13/UPC for all variants",
+                                    icon: BarcodeIcon,
+                                    route: `/barcode-generator?auto=missing`,
+                                    buttonText: `Fix ${data.variants_missing_barcode} Barcodes`,
+                                },
+                                {
+                                    title: "Bulk Process All Products",
+                                    description:
+                                        "Run SKU + Barcode generation in one click",
+                                    icon: MagicIcon,
+                                    route: "/bulk-process",
+                                    buttonText: "Start Bulk Fix",
+                                },
+                            ].map((action, idx) => (
+                                <Card
+                                    key={idx}
+                                    padding="600"
+                                    style={{
+                                        borderRadius: "16px",
+                                        border: `1px solid ${borderBlue}`,
+                                        background: "#ffffff",
+                                    }}
                                 >
-                                    <BlockStack gap="200">
-                                        <Text
-                                            variant="headingXl"
-                                            fontWeight="bold"
-                                        >
-                                            SKU Generator
-                                        </Text>
+                                    <BlockStack gap="400">
+                                        <InlineStack gap="300">
+                                            <Icon
+                                                source={action.icon}
+                                                color={iconBlue}
+                                            />
+                                            <Text
+                                                variant="headingMd"
+                                                fontWeight="semibold"
+                                                color="base"
+                                            >
+                                                {action.title}
+                                            </Text>
+                                        </InlineStack>
                                         <Text tone="subdued">
-                                            Create structured, consistent SKU
-                                            patterns.
+                                            {action.description}
                                         </Text>
-                                    </BlockStack>
-
-                                    <Button
-                                        size="large"
-                                        onClick={() =>
-                                            router.visit("/sku-generator")
-                                        }
-                                        primary
-                                    >
-                                        Open
-                                    </Button>
-                                </InlineStack>
-                            </Box>
-                        </Card>
-
-                        <Card>
-                            <Box padding="600">
-                                <InlineStack
-                                    align="space-between"
-                                    blockAlign="center"
-                                >
-                                    <BlockStack gap="200">
-                                        <Text
-                                            variant="headingXl"
-                                            fontWeight="bold"
+                                        <Button
+                                            fullWidth
+                                            variant="primary"
+                                            onClick={() =>
+                                                router.visit(action.route)
+                                            }
                                         >
-                                            Barcode Generator
-                                        </Text>
-                                        <Text tone="subdued">
-                                            Generate EAN-13, UPC-A, Code128
-                                            instantly.
-                                        </Text>
+                                            {action.buttonText}
+                                        </Button>
                                     </BlockStack>
-
-                                    <Button
-                                        size="large"
-                                        onClick={() =>
-                                            router.visit("/barcode-generator")
-                                        }
-                                    >
-                                        Open
-                                    </Button>
-                                </InlineStack>
-                            </Box>
-                        </Card>
-
-                        <Card>
-                            <Box padding="600">
-                                <InlineStack
-                                    align="space-between"
-                                    blockAlign="center"
-                                >
-                                    <BlockStack gap="200">
-                                        <Text
-                                            variant="headingXl"
-                                            fontWeight="bold"
-                                        >
-                                            Label Printer
-                                        </Text>
-                                        <Text tone="subdued">
-                                            Print-ready labels for Zebra, DYMO,
-                                            and more.
-                                        </Text>
-                                    </BlockStack>
-
-                                    <Button
-                                        size="large"
-                                        onClick={() =>
-                                            router.visit("/barcode-printer")
-                                        }
-                                    >
-                                        Open
-                                    </Button>
-                                </InlineStack>
-                            </Box>
-                        </Card>
+                                </Card>
+                            ))}
+                        </InlineGrid>
                     </BlockStack>
                 </Layout.Section>
             </Layout>

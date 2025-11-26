@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
 use App\Models\Product;
+use App\Models\Variant;
 use Illuminate\Support\Facades\Auth;
 
 class HomeController extends Controller
@@ -13,42 +14,46 @@ class HomeController extends Controller
     {
         $shop = Auth::user();
 
-        // Fetch stats
+        // Base query – only variants that belong to this shop’s products
+        $baseQuery = Variant::whereHas('product', fn($q) => $q->where('user_id', $shop->id));
+
         $stats = [
-            'total_products' => Product::where('user_id', $shop->id)->count(),
-            'updated_products' => Product::where('user_id', $shop->id)
-                ->whereNotNull('updated_at')
+            'total_variants'         => $baseQuery->count(),
+
+            // With SKU
+            'variants_with_sku'      => (clone $baseQuery)
+                ->whereNotNull('sku')
+                ->where('sku', '!=', '')
                 ->count(),
-            'draft_items' => Product::where('user_id', $shop->id)
-                ->where('status', 'DRAFT')
+
+            // Missing SKU
+            'variants_missing_sku'   => (clone $baseQuery)
+                ->where(function ($q) {
+                    $q->whereNull('sku')->orWhere('sku', '');
+                })
                 ->count(),
+
+            // With Barcode
+            'variants_with_barcode' => (clone $baseQuery)
+                ->whereNotNull('barcode')
+                ->where('barcode', '!=', '')
+                ->count(),
+
+            // Missing Barcode
+            'variants_missing_barcode' => (clone $baseQuery)
+                ->where(function ($q) {
+                    $q->whereNull('barcode')->orWhere('barcode', '');
+                })
+                ->count(),
+
+            'total_products'         => Product::where('user_id', $shop->id)->count(),
+
+            // Change this to whatever makes sense for your app
+            'active_stores'          => \App\Models\User::count(),
         ];
-
-        $products = Product::where('user_id', $shop->id)
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($p) {
-
-                // Extract container tags safely
-                $tags = $p->tags['container'] ?? [];
-
-                // Images are already array due to $casts or JSON column
-                $images = $p->images ?? [];
-
-                return [
-                    'id' => $p->id,
-                    'shopify_id' => $p->shopify_id,
-                    'title' => $p->title,
-                    'status' => $p->status,
-                    'vendor' => $p->vendor,
-                    'tags' => is_array($tags) ? implode(', ', $tags) : '',
-                    'images' => $images,
-                ];
-            });
 
         return Inertia::render('Home', [
             'stats' => $stats,
-            'products' => $products,
         ]);
     }
 }
