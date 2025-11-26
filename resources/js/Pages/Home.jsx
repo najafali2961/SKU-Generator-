@@ -12,11 +12,12 @@ import {
     Icon,
     Badge,
 } from "@shopify/polaris";
-import { router } from "@inertiajs/react";
+import { Link, router } from "@inertiajs/react";
 import {
     BarcodeIcon,
     MagicIcon,
     StarFilledIcon,
+    ArrowRightIcon,
     AlertTriangleIcon,
 } from "@shopify/polaris-icons";
 
@@ -211,73 +212,119 @@ export default function Home({ stats = {} }) {
                     </InlineGrid>
                 </Layout.Section>
 
-                {/* Quick Actions */}
+                {/* Quick Actions - Icons like Stats */}
                 <Layout.Section>
-                    <BlockStack gap="500">
-                        <Text as="h2" variant="headingLg" fontWeight="semibold">
-                            Fix Issues Instantly
-                        </Text>
-                        <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
+                    <BlockStack gap="600">
+                        <InlineGrid columns={{ xs: 1, md: 3 }} gap="500">
                             {[
                                 {
                                     title: "Generate Missing SKUs",
-                                    description:
-                                        "Auto-fill all variants without SKUs",
+                                    desc: "Smart auto-fill for all variants without SKUs",
                                     icon: AlertTriangleIcon,
-                                    route: `/sku-generator?auto=missing`,
-                                    buttonText: `Fix ${data.variants_missing_sku} Missing SKUs`,
+                                    route: "/sku-generator?auto=missing",
+                                    cta: `Fix ${data.variants_missing_sku} Missing SKUs →`,
                                 },
                                 {
-                                    title: "Generate Missing Barcodes",
-                                    description:
-                                        "Create valid EAN-13/UPC for all variants",
+                                    title: "Generate Valid Barcodes",
+                                    desc: "EAN-13 / UPC-A instantly generated",
                                     icon: BarcodeIcon,
-                                    route: `/barcode-generator?auto=missing`,
-                                    buttonText: `Fix ${data.variants_missing_barcode} Barcodes`,
+                                    route: "/barcode-generator?auto=missing",
+                                    cta: `Fix ${data.variants_missing_barcode} Barcodes →`,
                                 },
                                 {
-                                    title: "Bulk Process All Products",
-                                    description:
-                                        "Run SKU + Barcode generation in one click",
+                                    title: "Bulk Fix Everything",
+                                    desc: "Run full SKU + Barcode generation",
                                     icon: MagicIcon,
                                     route: "/bulk-process",
-                                    buttonText: "Start Bulk Fix",
+                                    cta: "Start Full Scan & Fix →",
                                 },
-                            ].map((action, idx) => (
-                                <Card
-                                    key={idx}
-                                    padding="600"
-                                    style={{
-                                        borderRadius: "16px",
-                                        border: `1px solid ${borderBlue}`,
-                                        background: "#ffffff",
-                                    }}
+                            ].map((action) => (
+                                <Link
+                                    href={action.route}
+                                    key={action.title}
+                                    style={{ textDecoration: "none" }}
                                 >
-                                    <BlockStack gap="400">
-                                        <InlineStack gap="300">
-                                            <IconBox icon={action.icon} />
-                                            <Text
-                                                variant="headingMd"
-                                                fontWeight="semibold"
-                                                color="base"
+                                    <Card
+                                        padding="600"
+                                        background="bg-surface"
+                                        roundedAbove="lg"
+                                        className="quick-action-card"
+                                        style={{
+                                            border: `1px solid ${borderBlue}`,
+                                            cursor: "pointer",
+                                            transition:
+                                                "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                            position: "relative",
+                                            overflow: "hidden",
+                                        }}
+                                    >
+                                        <Box
+                                            position="absolute"
+                                            top="0"
+                                            left="0"
+                                            width="full"
+                                            height="4px"
+                                            background="primary"
+                                        />
+
+                                        <BlockStack gap="400">
+                                            <InlineStack gap="400">
+                                                {/* Use IconBox like Stats */}
+                                                <IconBox icon={action.icon} />
+
+                                                <BlockStack gap="100">
+                                                    <Text
+                                                        variant="headingLg"
+                                                        fontWeight="semibold"
+                                                    >
+                                                        {action.title}
+                                                    </Text>
+                                                    <Text tone="subdued">
+                                                        {action.desc}
+                                                    </Text>
+                                                </BlockStack>
+                                            </InlineStack>
+
+                                            <InlineStack
+                                                gap="100"
+                                                blockAlign="center"
                                             >
-                                                {action.title}
-                                            </Text>
-                                        </InlineStack>
-                                        <Text tone="subdued">
-                                            {action.description}
-                                        </Text>
-                                        <Button
-                                            fullWidth
-                                            variant="primary"
-                                            onClick={() =>
-                                                router.visit(action.route)
-                                            }
-                                        >
-                                            {action.buttonText}
-                                        </Button>
-                                    </BlockStack>
-                                </Card>
+                                                <Text
+                                                    fontWeight="medium"
+                                                    color="primary"
+                                                >
+                                                    {action.cta.replace(
+                                                        " →",
+                                                        ""
+                                                    )}
+                                                </Text>
+                                                <Icon
+                                                    source={ArrowRightIcon}
+                                                    color="primary"
+                                                    style={{
+                                                        opacity: 0,
+                                                        transform:
+                                                            "translateX(-10px)",
+                                                        transition:
+                                                            "all 0.3s ease",
+                                                    }}
+                                                    className="hover-arrow"
+                                                />
+                                            </InlineStack>
+                                        </BlockStack>
+
+                                        <style>{`
+                            .quick-action-card:hover {
+                                transform: translateY(-6px);
+                                box-shadow: 0 20px 40px rgba(14, 165, 233, 0.18);
+                            }
+                            .quick-action-card:hover .hover-arrow {
+                                opacity: 1 !important;
+                                transform: translateX(4px) !important;
+                            }
+                        `}</style>
+                                    </Card>
+                                </Link>
                             ))}
                         </InlineGrid>
                     </BlockStack>
