@@ -13,12 +13,10 @@ return new class extends Migration
             $table->foreignId('product_id')->constrained()->onDelete('cascade');
             $table->unsignedBigInteger('shopify_variant_id')->unique(); // ← Shopify's real ID
             $table->index('shopify_variant_id');
-
             $table->string('title')->nullable();
             $table->string('sku')->nullable();
             $table->string('barcode')->nullable(); // ← Real UPC/EAN from Shopify
             $table->index('barcode');
-
             $table->string('option1')->nullable();
             $table->string('option2')->nullable();
             $table->string('option3')->nullable();
