@@ -137,7 +137,7 @@ export default function SkuGenerator({ initialCollections = [] }) {
             <div className="p-6 mx-auto max-w-7xl">
                 <SkuHeader onPreset={applyPreset} />
 
-                <div className="grid gap-8 mt-8 lg:grid-cols-12">
+                <div className="grid gap-4 mt-4 lg:grid-cols-12">
                     {/* Sidebar */}
                     <div className="lg:col-span-4">
                         <SkuSidebar
