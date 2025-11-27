@@ -23,6 +23,7 @@ import {
     AlertCircleIcon,
     HashtagIcon,
     CheckCircleIcon,
+    ArrowRightIcon,
 } from "@shopify/polaris-icons";
 
 export default function SkuPreviewTable({
@@ -190,7 +191,7 @@ export default function SkuPreviewTable({
                                     </Button>
                                     <Button
                                         variant="primary"
-                                        tone="critical"
+                                        // tone="critical"
                                         loading={applying}
                                         onClick={() => {
                                             setSelected(
@@ -279,12 +280,18 @@ export default function SkuPreviewTable({
                                                 </BlockStack>
                                             </InlineStack>
 
-                                            <InlineStack gap="300">
-                                                <Badge tone="info">
+                                            <InlineStack gap="100">
+                                                <Badge tone="subdued">
                                                     {v.old_sku || "—"}
                                                 </Badge>
-                                                <Text tone="subdued">→</Text>
-                                                <Badge status="success">
+                                                <Icon
+                                                    source={ArrowRightIcon}
+                                                    color="base"
+                                                />
+                                                <Badge
+                                                    tone="success"
+                                                    status="success"
+                                                >
                                                     {v.new_sku}
                                                 </Badge>
                                             </InlineStack>
