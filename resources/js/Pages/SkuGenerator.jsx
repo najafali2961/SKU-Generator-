@@ -38,6 +38,11 @@ export default function SkuGenerator({ initialCollections = [] }) {
     const [progress, setProgress] = useState(0);
     const [queryValue, setQueryValue] = useState("");
 
+    // Filter states
+    const [selectedCollectionIds, setSelectedCollectionIds] = useState([]);
+    const [selectedVendors, setSelectedVendors] = useState([]);
+    const [selectedTypes, setSelectedTypes] = useState([]);
+
     const debounceRef = useRef(null);
 
     const fetchPreview = useCallback(async () => {
@@ -48,6 +53,9 @@ export default function SkuGenerator({ initialCollections = [] }) {
                 search: queryValue.trim(),
                 page,
                 tab: activeTab,
+                collections: selectedCollectionIds,
+                vendor: selectedVendors[0] || null,
+                type: selectedTypes[0] || null,
             });
 
             setPreview(res.data.preview || []);
@@ -60,27 +68,31 @@ export default function SkuGenerator({ initialCollections = [] }) {
         } finally {
             setLoading(false);
         }
-    }, [form, queryValue, page, activeTab]);
+    }, [
+        form,
+        queryValue,
+        page,
+        activeTab,
+        selectedCollectionIds,
+        selectedVendors,
+        selectedTypes,
+    ]);
 
-    // Debounced preview update
     useEffect(() => {
-        if (debounceRef.current) {
-            clearTimeout(debounceRef.current);
-        }
+        if (debounceRef.current) clearTimeout(debounceRef.current);
 
         debounceRef.current = setTimeout(() => {
+            setPage(1); // Reset page on any filter change
             fetchPreview();
         }, DEBOUNCE_DELAY);
 
         return () => clearTimeout(debounceRef.current);
     }, [fetchPreview]);
 
-    // Initial load
     useEffect(() => {
         fetchPreview();
     }, []);
 
-    // Progress polling during apply
     useEffect(() => {
         if (!applying) return;
 
@@ -129,17 +141,15 @@ export default function SkuGenerator({ initialCollections = [] }) {
         router.post("/sku-generator/apply", {
             ...form,
             search: queryValue.trim(),
+            collections: selectedCollectionIds,
+            vendor: selectedVendors[0] || null,
+            type: selectedTypes[0] || null,
             apply_scope: scope,
             selected_variant_ids: ids,
         });
     };
 
     const mediaUrl = (item) => item.image || null;
-
-    const handleSearchChange = (value) => {
-        setQueryValue(value);
-        setPage(1);
-    };
 
     const handleTabChange = (tab) => {
         setActiveTab(tab);
@@ -154,12 +164,10 @@ export default function SkuGenerator({ initialCollections = [] }) {
                 <SkuHeader />
 
                 <div className="grid gap-6 mt-6 lg:grid-cols-12">
-                    {/* Sidebar */}
                     <div className="lg:col-span-4">
                         <SkuSidebar form={form} setForm={setForm} />
                     </div>
 
-                    {/* Main Content */}
                     <div className="space-y-6 lg:col-span-8">
                         <SkuPreviewTable
                             preview={preview}
@@ -176,11 +184,19 @@ export default function SkuGenerator({ initialCollections = [] }) {
                             selected={selected}
                             setSelected={setSelected}
                             queryValue={queryValue}
-                            setQueryValue={handleSearchChange}
+                            setQueryValue={setQueryValue}
                             loading={loading}
                             applying={applying}
                             applySKUs={applySKUs}
                             mediaUrl={mediaUrl}
+                            initialCollections={initialCollections}
+                            // Filters
+                            selectedCollectionIds={selectedCollectionIds}
+                            setSelectedCollectionIds={setSelectedCollectionIds}
+                            selectedVendors={selectedVendors}
+                            setSelectedVendors={setSelectedVendors}
+                            selectedTypes={selectedTypes}
+                            setSelectedTypes={setSelectedTypes}
                         />
 
                         {applying && (

@@ -1,11 +1,15 @@
+// components/SkuPreviewTable.jsx
 import React from "react";
 import {
     Card,
     IndexTable,
+    Tabs,
+    TextField,
+    Filters,
+    ChoiceList,
     Text,
     Badge,
     EmptyState,
-    Spinner,
     Icon,
     InlineStack,
     BlockStack,
@@ -14,15 +18,12 @@ import {
     Button,
     Thumbnail,
     ButtonGroup,
-    TextField,
-    Tabs,
     Divider,
 } from "@shopify/polaris";
 import {
     SearchIcon,
     AlertCircleIcon,
     HashtagIcon,
-    CheckCircleIcon,
     ArrowRightIcon,
 } from "@shopify/polaris-icons";
 
@@ -45,6 +46,15 @@ export default function SkuPreviewTable({
     applying,
     applySKUs,
     mediaUrl,
+    initialCollections = [],
+
+    // Filter states
+    selectedCollectionIds,
+    setSelectedCollectionIds,
+    selectedVendors,
+    setSelectedVendors,
+    selectedTypes,
+    setSelectedTypes,
 }) {
     const DUPLICATES_PER_PAGE = 10;
     const totalDuplicatePages = Math.ceil(
@@ -56,50 +66,119 @@ export default function SkuPreviewTable({
     );
 
     const tabs = [
+        { id: "all", content: `All Products (${total})` },
+        { id: "duplicates", content: `Duplicates (${stats.duplicates})` },
+        { id: "missing", content: `Missing SKUs (${stats.missing})` },
+    ];
+
+    const handleTabChange = (selectedTabIndex) => {
+        setActiveTab(tabs[selectedTabIndex].id);
+        setPage(1);
+        setDuplicatePage(1);
+        setSelected(new Set());
+    };
+
+    const handleClearAll = () => {
+        setQueryValue("");
+        setSelectedCollectionIds([]);
+        setSelectedVendors([]);
+        setSelectedTypes([]);
+    };
+
+    const appliedFilters = [];
+    if (selectedCollectionIds.length > 0) {
+        const names = selectedCollectionIds
+            .map(
+                (id) => initialCollections.find((c) => c.id === id)?.title || id
+            )
+            .join(", ");
+        appliedFilters.push({
+            key: "collections",
+            label: `Collection: ${names}`,
+            onRemove: () => setSelectedCollectionIds([]),
+        });
+    }
+    if (selectedVendors.length > 0) {
+        appliedFilters.push({
+            key: "vendor",
+            label: `Vendor: ${selectedVendors.join(", ")}`,
+            onRemove: () => setSelectedVendors([]),
+        });
+    }
+    if (selectedTypes.length > 0) {
+        appliedFilters.push({
+            key: "type",
+            label: `Product type: ${selectedTypes.join(", ")}`,
+            onRemove: () => setSelectedTypes([]),
+        });
+    }
+
+    const filters = [
         {
-            id: "all",
-            content: (
-                <InlineStack gap="200" align="start" blockAlign="center">
-                    <Text as="span" fontWeight="medium">
-                        All Products
-                    </Text>
-                    <Badge tone="info">{total}</Badge>
-                </InlineStack>
+            key: "collections",
+            label: "Collection",
+            filter: (
+                <ChoiceList
+                    title="Collections"
+                    titleHidden
+                    allowMultiple
+                    choices={initialCollections.map((c) => ({
+                        label: c.title,
+                        value: c.id.toString(),
+                    }))}
+                    selected={selectedCollectionIds.map(String)}
+                    onChange={(value) =>
+                        setSelectedCollectionIds(value.map(Number))
+                    }
+                />
+            ),
+            shortcut: true,
+        },
+        {
+            key: "vendor",
+            label: "Vendor",
+            filter: (
+                <TextField
+                    label="Vendor"
+                    labelHidden
+                    placeholder="Filter by vendor"
+                    value={selectedVendors[0] || ""}
+                    onChange={(v) =>
+                        setSelectedVendors(v.trim() ? [v.trim()] : [])
+                    }
+                    autoComplete="off"
+                />
             ),
         },
         {
-            id: "duplicates",
-            content: (
-                <InlineStack gap="200" align="start" blockAlign="center">
-                    <Text as="span" fontWeight="medium">
-                        Duplicates
-                    </Text>
-                    <Badge status="critical">{stats.duplicates}</Badge>
-                </InlineStack>
-            ),
-        },
-        {
-            id: "missing",
-            content: (
-                <InlineStack gap="200" align="start" blockAlign="center">
-                    <Text as="span" fontWeight="medium">
-                        Missing SKUs
-                    </Text>
-                    <Badge status="warning">{stats.missing}</Badge>
-                </InlineStack>
+            key: "type",
+            label: "Product type",
+            filter: (
+                <TextField
+                    label="Product type"
+                    labelHidden
+                    placeholder="Filter by product type"
+                    value={selectedTypes[0] || ""}
+                    onChange={(v) =>
+                        setSelectedTypes(v.trim() ? [v.trim()] : [])
+                    }
+                    autoComplete="off"
+                />
             ),
         },
     ];
 
     const renderRow = (item) => (
         <IndexTable.Row
+            key={item.id}
             id={item.id}
             selected={selected.has(item.id)}
             onClick={() =>
                 setSelected((prev) => {
                     const next = new Set(prev);
-                    if (next.has(item.id)) next.delete(item.id);
-                    else next.add(item.id);
+                    next.has(item.id)
+                        ? next.delete(item.id)
+                        : next.add(item.id);
                     return next;
                 })
             }
@@ -111,18 +190,14 @@ export default function SkuPreviewTable({
                     alt={item.title}
                 />
             </IndexTable.Cell>
-
             <IndexTable.Cell>
                 <BlockStack gap="100">
-                    <Text fontWeight="semibold" as="span">
-                        {item.title}
-                    </Text>
-                    <Text variant="bodySm" tone="subdued" as="span">
+                    <Text fontWeight="semibold">{item.title}</Text>
+                    <Text variant="bodySm" tone="subdued">
                         {item.vendor} {item.option && `• ${item.option}`}
                     </Text>
                 </BlockStack>
             </IndexTable.Cell>
-
             <IndexTable.Cell>
                 {item.old_sku ? (
                     <Badge tone="info">{item.old_sku}</Badge>
@@ -133,188 +208,140 @@ export default function SkuPreviewTable({
                     </InlineStack>
                 )}
             </IndexTable.Cell>
-
             <IndexTable.Cell>
-                <Badge tone="success" status="success">
-                    {item.new_sku}
-                </Badge>
+                <Badge tone="success">{item.new_sku}</Badge>
             </IndexTable.Cell>
         </IndexTable.Row>
     );
 
-    const renderDuplicateGroup = (group) => {
-        const { sku, count, variants } = group;
-
-        return (
-            <IndexTable.Row key={sku}>
-                <IndexTable.Cell colSpan={4}>
-                    <Box padding="400">
-                        <BlockStack gap="400">
-                            <InlineStack
-                                align="space-between"
-                                blockAlign="center"
-                            >
-                                <InlineStack gap="300" blockAlign="center">
-                                    <Icon
-                                        source={HashtagIcon}
-                                        tone="critical"
-                                    />
-                                    <BlockStack gap="100">
-                                        <Text fontWeight="bold" tone="critical">
-                                            Conflicting SKU
-                                        </Text>
-                                        <InlineStack gap="200">
-                                            <Badge
-                                                status="critical"
-                                                size="large"
-                                            >
-                                                {sku || "(Blank)"}
-                                            </Badge>
-                                            <Badge status="critical">
-                                                {count} variants
-                                            </Badge>
-                                        </InlineStack>
-                                    </BlockStack>
-                                </InlineStack>
-
-                                <ButtonGroup>
-                                    <Button
-                                        onClick={() =>
-                                            setSelected(
-                                                new Set(
-                                                    variants.map((v) => v.id)
-                                                )
-                                            )
-                                        }
-                                    >
-                                        Select All
-                                    </Button>
-                                    <Button
-                                        variant="primary"
-                                        // tone="critical"
-                                        loading={applying}
-                                        onClick={() => {
-                                            setSelected(
-                                                new Set(
-                                                    variants.map((v) => v.id)
-                                                )
-                                            );
-                                            applySKUs("selected");
-                                        }}
-                                    >
-                                        Fix This Group
-                                    </Button>
-                                </ButtonGroup>
+    const renderDuplicateGroup = (group) => (
+        <IndexTable.Row key={group.sku || `blank-${group.variants[0]?.id}`}>
+            <IndexTable.Cell colSpan={4}>
+                <Box padding="400">
+                    <BlockStack gap="400">
+                        <InlineStack align="space-between" blockAlign="center">
+                            <InlineStack gap="300" blockAlign="center">
+                                <Icon source={HashtagIcon} tone="critical" />
+                                <BlockStack gap="100">
+                                    <Text fontWeight="bold" tone="critical">
+                                        Conflicting SKU
+                                    </Text>
+                                    <InlineStack gap="200">
+                                        <Badge status="critical" size="large">
+                                            {group.sku || "(Blank)"}
+                                        </Badge>
+                                        <Badge status="critical">
+                                            {group.count} variants
+                                        </Badge>
+                                    </InlineStack>
+                                </BlockStack>
                             </InlineStack>
-
-                            <Divider />
-
-                            <BlockStack gap="200">
-                                {variants.map((v) => (
-                                    <Box
-                                        key={v.id}
-                                        padding="300"
-                                        background={
-                                            selected.has(v.id)
-                                                ? "bg-surface-selected"
-                                                : "bg-surface-hover"
-                                        }
-                                        borderRadius="200"
-                                        borderWidth="025"
-                                        borderColor={
-                                            selected.has(v.id)
-                                                ? "border-brand"
-                                                : "border"
-                                        }
-                                        onClick={() =>
-                                            setSelected((prev) => {
-                                                const next = new Set(prev);
-                                                if (next.has(v.id))
-                                                    next.delete(v.id);
-                                                else next.add(v.id);
-                                                return next;
-                                            })
-                                        }
-                                        style={{ cursor: "pointer" }}
+                            <ButtonGroup>
+                                <Button
+                                    onClick={() =>
+                                        setSelected(
+                                            new Set(
+                                                group.variants.map((v) => v.id)
+                                            )
+                                        )
+                                    }
+                                >
+                                    Select All
+                                </Button>
+                                <Button
+                                    variant="primary"
+                                    loading={applying}
+                                    onClick={() => {
+                                        setSelected(
+                                            new Set(
+                                                group.variants.map((v) => v.id)
+                                            )
+                                        );
+                                        applySKUs("selected");
+                                    }}
+                                >
+                                    Fix This Group
+                                </Button>
+                            </ButtonGroup>
+                        </InlineStack>
+                        <Divider />
+                        <BlockStack gap="200">
+                            {group.variants.map((v) => (
+                                <Box
+                                    key={v.id}
+                                    padding="300"
+                                    background={
+                                        selected.has(v.id)
+                                            ? "bg-surface-selected"
+                                            : "bg-surface-hover"
+                                    }
+                                    borderRadius="200"
+                                    onClick={() =>
+                                        setSelected((prev) => {
+                                            const next = new Set(prev);
+                                            next.has(v.id)
+                                                ? next.delete(v.id)
+                                                : next.add(v.id);
+                                            return next;
+                                        })
+                                    }
+                                    style={{ cursor: "pointer" }}
+                                >
+                                    <InlineStack
+                                        gap="400"
+                                        align="space-between"
                                     >
-                                        <InlineStack
-                                            gap="400"
-                                            align="space-between"
-                                        >
-                                            <InlineStack gap="300">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selected.has(v.id)}
-                                                    onChange={(e) =>
-                                                        e.stopPropagation()
-                                                    }
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setSelected((prev) => {
-                                                            const next =
-                                                                new Set(prev);
-                                                            if (next.has(v.id))
-                                                                next.delete(
-                                                                    v.id
-                                                                );
-                                                            else next.add(v.id);
-                                                            return next;
-                                                        });
-                                                    }}
-                                                />
-                                                <Thumbnail
-                                                    source={mediaUrl(v) || ""}
-                                                    size="small"
-                                                    alt={v.title}
-                                                />
-                                                <BlockStack gap="050">
-                                                    <Text fontWeight="medium">
-                                                        {v.title}
-                                                    </Text>
-                                                    <Text
-                                                        variant="bodySm"
-                                                        tone="subdued"
-                                                    >
-                                                        {v.vendor}
-                                                    </Text>
-                                                </BlockStack>
-                                            </InlineStack>
-
-                                            <InlineStack gap="100">
-                                                <Badge tone="subdued">
-                                                    {v.old_sku || "—"}
-                                                </Badge>
-                                                <Icon
-                                                    source={ArrowRightIcon}
-                                                    color="base"
-                                                />
-                                                <Badge
-                                                    tone="success"
-                                                    status="success"
+                                        <InlineStack gap="300">
+                                            <input
+                                                type="checkbox"
+                                                checked={selected.has(v.id)}
+                                                onChange={() => {}}
+                                                onClick={(e) =>
+                                                    e.stopPropagation()
+                                                }
+                                            />
+                                            <Thumbnail
+                                                source={mediaUrl(v) || ""}
+                                                size="small"
+                                                alt={v.title}
+                                            />
+                                            <BlockStack gap="050">
+                                                <Text fontWeight="medium">
+                                                    {v.title}
+                                                </Text>
+                                                <Text
+                                                    variant="bodySm"
+                                                    tone="subdued"
                                                 >
-                                                    {v.new_sku}
-                                                </Badge>
-                                            </InlineStack>
+                                                    {v.vendor}
+                                                </Text>
+                                            </BlockStack>
                                         </InlineStack>
-                                    </Box>
-                                ))}
-                            </BlockStack>
+                                        <InlineStack gap="100">
+                                            <Badge tone="subdued">
+                                                {v.old_sku || "—"}
+                                            </Badge>
+                                            <Icon source={ArrowRightIcon} />
+                                            <Badge tone="success">
+                                                {v.new_sku}
+                                            </Badge>
+                                        </InlineStack>
+                                    </InlineStack>
+                                </Box>
+                            ))}
                         </BlockStack>
-                    </Box>
-                </IndexTable.Cell>
-            </IndexTable.Row>
-        );
-    };
+                    </BlockStack>
+                </Box>
+            </IndexTable.Cell>
+        </IndexTable.Row>
+    );
 
     const rowMarkup =
         activeTab === "duplicates" ? (
             duplicateGroups.length === 0 ? (
-                <IndexTable.Row>
+                <IndexTable.Row key="empty-duplicates">
                     <IndexTable.Cell colSpan={4}>
-                        <EmptyState
-                            heading="No duplicate SKUs found"
-                            image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-                        >
+                        <EmptyState heading="No duplicate SKUs found">
                             <Text tone="subdued">
                                 All your SKUs are unique. Great job!
                             </Text>
@@ -325,14 +352,11 @@ export default function SkuPreviewTable({
                 paginatedGroups.map(renderDuplicateGroup)
             )
         ) : preview.length === 0 ? (
-            <IndexTable.Row>
+            <IndexTable.Row key="empty-preview">
                 <IndexTable.Cell colSpan={4}>
-                    <EmptyState
-                        heading="No products found"
-                        image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-                    >
+                    <EmptyState heading="No products found">
                         <Text tone="subdued">
-                            Try adjusting your search or filter criteria
+                            Try adjusting your search or filters
                         </Text>
                     </EmptyState>
                 </IndexTable.Cell>
@@ -343,31 +367,34 @@ export default function SkuPreviewTable({
 
     return (
         <Card>
+            {/* TABS — Always visible */}
             <Box padding="400">
-                <BlockStack gap="400">
-                    <Tabs
-                        tabs={tabs}
-                        selected={tabs.findIndex((t) => t.id === activeTab)}
-                        onSelect={(i) => {
-                            setActiveTab(tabs[i].id);
-                            setPage(1);
-                            setDuplicatePage(1);
-                            setSelected(new Set());
-                        }}
-                        fitted
-                    />
-                    <TextField
-                        value={queryValue}
-                        onChange={setQueryValue}
-                        placeholder="Search products, SKUs..."
-                        prefix={<Icon source={SearchIcon} />}
-                        clearButton
-                        onClearButtonClick={() => setQueryValue("")}
-                        autoComplete="off"
-                    />
-                </BlockStack>
+                <Tabs
+                    tabs={tabs}
+                    selected={tabs.findIndex((t) => t.id === activeTab)}
+                    onSelect={handleTabChange}
+                    fitted
+                />
             </Box>
 
+            {/* SEARCH + FILTERS — Below tabs, never hides them */}
+            <Box
+                paddingInlineStart="400"
+                paddingInlineEnd="400"
+                paddingBlockEnd="400"
+            >
+                <Filters
+                    queryValue={queryValue}
+                    onQueryChange={setQueryValue}
+                    onQueryClear={() => setQueryValue("")}
+                    filters={filters}
+                    appliedFilters={appliedFilters}
+                    onClearAll={handleClearAll}
+                    queryPlaceholder="Search products, vendors, SKUs..."
+                />
+            </Box>
+
+            {/* Table */}
             <IndexTable
                 resourceName={{ singular: "variant", plural: "variants" }}
                 itemCount={
@@ -416,6 +443,7 @@ export default function SkuPreviewTable({
                 {rowMarkup}
             </IndexTable>
 
+            {/* Pagination & Actions */}
             {!loading && (
                 <>
                     {activeTab === "duplicates" && totalDuplicatePages > 1 && (
