@@ -46,108 +46,83 @@ class SkuController extends Controller
     }
 
 
-
-
     public function preview(Request $request)
     {
         $shop = Auth::user();
-        $page     = max(1, (int)$request->input('page', 1));
-        $perPage  = 25;
-        $tab      = $request->input('tab', 'all'); // 'all' or 'duplicates'
+        $page    = max(1, (int)$request->input('page', 1));
+        $perPage = 25;
+        $tab     = $request->input('tab', 'all');
 
-        // Base query
+        // Base query - always get ALL matching variants (for accurate stats)
         $query = Variant::with(['product'])
             ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
 
-        // Filters
-        if ($request->boolean('only_missing')) {
-            $query->whereNull('sku');
-        }
-
+        // Filters (vendor, type, collections)
         if ($request->filled('vendor')) {
             $query->whereHas('product', fn($q) => $q->where('vendor', 'like', '%' . trim($request->vendor) . '%'));
         }
-
         if ($request->filled('type')) {
             $query->whereHas('product', fn($q) => $q->where('product_type', 'like', '%' . trim($request->type) . '%'));
         }
-
         if ($request->filled('collections') && is_array($request->collections) && count($request->collections)) {
             $query->whereHas('product.collections', fn($q) => $q->whereIn('collection_id', $request->collections));
         }
 
-        // Get ALL matching variants first (needed for accurate duplicate detection + total)
         $allVariants = $query->get();
 
-        // Duplicate detection (across ALL matching variants)
+        // === ACCURATE BADGE STATS (always calculated on full dataset) ===
+        $missingCount = $allVariants->whereNull('sku')->count();
+
         $duplicateSkus = $allVariants
             ->whereNotNull('sku')
-            ->countBy('sku')
+            ->pluck('sku')
+            ->countBy()
             ->filter(fn($count) => $count > 1)
             ->keys()
             ->all();
 
-        // Source settings
-        $sourceField     = $request->input('source_field', 'none');     // none | title | vendor
-        $sourcePos       = $request->input('source_pos', 'first');      // first | last
-        $sourceLen       = max(1, (int)$request->input('source_len', 2));
-        $sourcePlacement = $request->input('source_placement', 'before'); // before | after
+        $duplicateCount = count($duplicateSkus);
 
+        // === BUILD PREVIEW BASED ON CURRENT TAB ===
+        $preview = [];
         $counter   = (int)($request->input('auto_start', 1));
         $padLength = strlen($request->input('auto_start', '0001'));
 
-        $preview = [];
-
         foreach ($allVariants as $variant) {
-            $product   = $variant->product;
-            $oldSku    = $variant->sku;
+            $product = $variant->product;
+            $oldSku  = $variant->sku;
             $isDuplicate = $oldSku && in_array($oldSku, $duplicateSkus, true);
+            $isMissing   = is_null($oldSku);
 
-            // Skip non-duplicates when in duplicates tab
-            if ($tab === 'duplicates' && !$isDuplicate) {
-                continue;
-            }
+            // Tab filtering
+            if ($tab === 'duplicates' && !$isDuplicate) continue;
+            if ($tab === 'missing' && !$isMissing) continue;
+            // 'all' tab = everything
 
-            // ——— Smart Source Fragment ———
+            // Source fragment
             $source = '';
-            if ($sourceField !== 'none') {
-                $text = $sourceField === 'title' ? ($product->title ?? '') : ($product->vendor ?? '');
-                $text = preg_replace('/[^A-Za-z0-9]/', '', $text); // clean
-
-                if ($sourcePos === 'last') {
-                    $source = strtoupper(substr($text, -$sourceLen));
-                } else {
-                    $source = strtoupper(substr($text, 0, $sourceLen));
-                }
+            if ($request->input('source_field') !== 'none') {
+                $text = $request->input('source_field') === 'title' ? ($product->title ?? '') : ($product->vendor ?? '');
+                $text = preg_replace('/[^A-Za-z0-9]/', '', $text);
+                $len  = max(1, (int)$request->input('source_len', 2));
+                $source = strtoupper(
+                    $request->input('source_pos') === 'last'
+                        ? substr($text, -$len)
+                        : substr($text, 0, $len)
+                );
             }
 
-            $num = str_pad($counter, $padLength, '0', STR_PAD_LEFT);
+            $num = str_pad($counter++, $padLength, '0', STR_PAD_LEFT);
 
-            // Build parts
             $parts = [];
-
-            if ($request->filled('prefix')) {
-                $parts[] = strtoupper($request->prefix);
-            }
-
-            if ($source && $sourcePlacement === 'before') {
-                $parts[] = $source;
-            }
-
+            if ($request->filled('prefix')) $parts[] = strtoupper($request->prefix);
+            if ($source && $request->input('source_placement') === 'before') $parts[] = $source;
             $parts[] = $num;
+            if ($source && $request->input('source_placement') === 'after') $parts[] = $source;
+            if ($request->filled('suffix')) $parts[] = strtoupper($request->suffix);
 
-            if ($source && $sourcePlacement === 'after') {
-                $parts[] = $source;
-            }
+            $newSku = implode($request->input('delimiter', '-'), $parts);
 
-            if ($request->filled('suffix')) {
-                $parts[] = strtoupper($request->suffix);
-            }
-
-            $delimiter = $request->input('delimiter', '-');
-            $newSku    = implode($delimiter, $parts);
-
-            // Cleaning rules
             if ($request->boolean('remove_spaces')) {
                 $newSku = str_replace(' ', '', $newSku);
             }
@@ -160,17 +135,14 @@ class SkuController extends Controller
                 'title'        => $product->title ?? 'Untitled Product',
                 'vendor'       => $product->vendor ?? '',
                 'option'       => trim(($variant->option1 ?? '') . ' ' . ($variant->option2 ?? '') . ' ' . ($variant->option3 ?? '')),
-                // 'image'        => $variant->image_src ?? $product->image_src ?? null,
                 'image'        => $variant->image ?? null,
                 'old_sku'      => $oldSku,
                 'new_sku'      => $newSku,
                 'is_duplicate' => $isDuplicate,
             ];
-
-            $counter++;
         }
 
-        // Client-side search (safe & fast)
+        // Client-side search
         if ($request->filled('search')) {
             $q = strtolower(trim($request->search));
             $preview = array_values(array_filter($preview, function ($item) use ($q) {
@@ -188,6 +160,10 @@ class SkuController extends Controller
         return response()->json([
             'preview' => $paginated,
             'total'   => $totalAfterFilters,
+            'stats'   => [
+                'missing'    => $missingCount,
+                'duplicates' => $duplicateCount,
+            ],
         ]);
     }
 }
