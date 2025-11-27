@@ -16,19 +16,19 @@ import { HashtagIcon, SettingsIcon } from "@shopify/polaris-icons";
 export default function SkuSidebar({ form, handleChange }) {
     return (
         <aside className="lg:col-span-4">
-            <BlockStack gap="400">
+            <BlockStack gap="300">
                 {/* Pattern Builder */}
-                <Card>
-                    <BlockStack gap="400">
-                        <InlineStack gap="200" align="start">
-                            <Icon source={HashtagIcon} tone="base" />
-                            <Text variant="headingMd" as="h2">
+                <Card sectioned>
+                    <BlockStack gap="200">
+                        <InlineStack gap="150" align="center">
+                            <Icon source={HashtagIcon} />
+                            <Text variant="headingSm" as="h2">
                                 Pattern Builder
                             </Text>
                         </InlineStack>
 
                         <FormLayout>
-                            <FormLayout.Group>
+                            <FormLayout.Group condensed>
                                 <TextField
                                     label="Prefix"
                                     value={form.prefix}
@@ -47,7 +47,7 @@ export default function SkuSidebar({ form, handleChange }) {
                                 />
                             </FormLayout.Group>
 
-                            <FormLayout.Group>
+                            <FormLayout.Group condensed>
                                 <Select
                                     label="Delimiter"
                                     value={form.delimiter}
@@ -70,7 +70,7 @@ export default function SkuSidebar({ form, handleChange }) {
                                 />
                             </FormLayout.Group>
 
-                            <FormLayout.Group>
+                            <FormLayout.Group condensed>
                                 <Select
                                     label="Add from"
                                     value={form.source_field}
@@ -137,23 +137,16 @@ export default function SkuSidebar({ form, handleChange }) {
                 </Card>
 
                 {/* Generation Rules */}
-                <Card>
-                    <BlockStack gap="400">
-                        <InlineStack gap="200" align="start">
-                            <Icon source={SettingsIcon} tone="base" />
-                            <Text variant="headingMd" as="h2">
+                <Card sectioned>
+                    <BlockStack gap="200">
+                        <InlineStack gap="150" align="center">
+                            <Icon source={SettingsIcon} />
+                            <Text variant="headingSm" as="h2">
                                 Generation Rules
                             </Text>
                         </InlineStack>
 
-                        <BlockStack gap="300">
-                            <Checkbox
-                                label="Only missing SKUs"
-                                checked={form.only_missing}
-                                onChange={(v) =>
-                                    handleChange("only_missing", v)
-                                }
-                            />
+                        <BlockStack gap="150">
                             <Checkbox
                                 label="Remove spaces from final SKU"
                                 checked={form.remove_spaces}
