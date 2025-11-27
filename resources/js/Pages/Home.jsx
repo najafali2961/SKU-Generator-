@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
     Page,
     Layout,
@@ -19,9 +19,13 @@ import {
     StarFilledIcon,
     ArrowRightIcon,
     AlertTriangleIcon,
+    XIcon,
 } from "@shopify/polaris-icons";
 
 export default function Home({ stats = {} }) {
+    // State to control feedback card visibility
+    const [showFeedback, setShowFeedback] = useState(true);
+
     const data = {
         total_variants: stats.total_variants || 0,
         variants_with_sku: stats.variants_with_sku || 0,
@@ -136,6 +140,80 @@ export default function Home({ stats = {} }) {
                     </div>
                 </Layout.Section>
 
+                {showFeedback && (
+                    <Layout.Section>
+                        <Card
+                            padding="400"
+                            style={{
+                                borderRadius: "12px",
+                                position: "relative",
+                            }}
+                        >
+                            <InlineStack
+                                gap="400"
+                                align="space-between"
+                                blockAlign="center"
+                                wrap={false}
+                                style={{ width: "100%" }}
+                            >
+                                {" "}
+                                <Text
+                                    variant="bodyMd"
+                                    fontWeight="medium"
+                                    alignment="start"
+                                >
+                                    How was your experience with the app?{" "}
+                                </Text>
+                                {/* Added a larger gap between Close button and feedback buttons */}
+                                <InlineStack gap="200">
+                                    <button
+                                        style={{
+                                            backgroundColor: "#ffffff",
+                                            border: "1px solid #dbe2ef",
+                                            borderRadius: "8px",
+                                            padding: "8px 16px",
+                                            fontSize: "12px",
+                                            cursor: "pointer",
+                                            whiteSpace: "nowrap",
+                                        }}
+                                    >
+                                        😊 Good
+                                    </button>
+                                    <button
+                                        style={{
+                                            backgroundColor: "#ffffff",
+                                            border: "1px solid #dbe2ef",
+                                            borderRadius: "8px",
+                                            padding: "8px 16px",
+                                            fontSize: "12px",
+                                            cursor: "pointer",
+                                            whiteSpace: "nowrap",
+                                        }}
+                                    >
+                                        😞 Bad
+                                    </button>
+                                </InlineStack>
+                            </InlineStack>
+
+                            {/* Close Button */}
+                            <div
+                                style={{
+                                    position: "absolute",
+                                    top: "8px",
+                                    right: "8px",
+                                    cursor: "pointer",
+                                    padding: "3px",
+                                    borderRadius: "2px",
+                                    background: "rgba(255,255,255,0.95)",
+                                    zIndex: 10,
+                                }}
+                                onClick={() => setShowFeedback(false)}
+                            >
+                                <Icon source={XIcon} color="base" />
+                            </div>
+                        </Card>
+                    </Layout.Section>
+                )}
                 {/* Stats Grid */}
                 <Layout.Section>
                     <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="500">
@@ -182,10 +260,20 @@ export default function Home({ stats = {} }) {
                                     }}
                                 />
 
-                                <InlineStack gap="400" align="center">
-                                    <IconBox icon={stat.icon} />
+                                <InlineStack gap="400" align="start">
+                                    <div
+                                        style={{
+                                            width: 40,
+                                            height: 40,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                        }}
+                                    >
+                                        <IconBox icon={stat.icon} />
+                                    </div>
 
-                                    <BlockStack gap="200">
+                                    <BlockStack gap="100">
                                         <InlineStack gap="200" align="center">
                                             <Text
                                                 variant="headingLg"
@@ -193,7 +281,6 @@ export default function Home({ stats = {} }) {
                                             >
                                                 {stat.value.toLocaleString()}
                                             </Text>
-
                                             {stat.badge && (
                                                 <Badge tone="info">
                                                     {stat.badge}
@@ -225,7 +312,6 @@ export default function Home({ stats = {} }) {
                                     icon: AlertTriangleIcon,
                                     route: "/sku-generator?auto=missing",
                                     cta: `Fix ${data.variants_missing_sku} Missing SKUs`,
-                                    size: "small",
                                 },
                                 {
                                     title: "Generate Barcodes",
@@ -233,7 +319,6 @@ export default function Home({ stats = {} }) {
                                     icon: BarcodeIcon,
                                     route: "/barcode-generator?auto=missing",
                                     cta: `Fix ${data.variants_missing_barcode} Barcodes`,
-                                    size: "small",
                                 },
                                 {
                                     title: "Print / QR Codes",
@@ -241,7 +326,6 @@ export default function Home({ stats = {} }) {
                                     icon: MagicIcon,
                                     route: "/print-generator",
                                     cta: "Start Printing",
-                                    size: "small",
                                 },
                             ].map((action) => (
                                 <Link
@@ -249,7 +333,6 @@ export default function Home({ stats = {} }) {
                                     key={action.title}
                                     style={{ textDecoration: "none" }}
                                 >
-                                    {/* WRAPPER FOR GRADIENT BORDER & HOVER EFFECT */}
                                     <div className="quick-action-wrapper">
                                         <Card
                                             padding="600"
@@ -257,15 +340,13 @@ export default function Home({ stats = {} }) {
                                             roundedAbove="lg"
                                         >
                                             <BlockStack gap="400">
-                                                {/* FIXED: ICON + TITLE INLINE */}
                                                 <InlineStack
-                                                    gap="400"
+                                                    gap="300"
                                                     blockAlign="center"
                                                 >
                                                     <IconBox
                                                         icon={action.icon}
                                                     />
-
                                                     <BlockStack gap="050">
                                                         <Text
                                                             variant="headingMd"
@@ -279,9 +360,8 @@ export default function Home({ stats = {} }) {
                                                     </BlockStack>
                                                 </InlineStack>
 
-                                                {/* CTA */}
                                                 <InlineStack
-                                                    gap="100"
+                                                    gap="10"
                                                     blockAlign="center"
                                                 >
                                                     <Text
@@ -289,7 +369,7 @@ export default function Home({ stats = {} }) {
                                                         color="primary"
                                                     >
                                                         {action.cta.replace(
-                                                            " →",
+                                                            "→",
                                                             ""
                                                         )}
                                                     </Text>
@@ -314,47 +394,37 @@ export default function Home({ stats = {} }) {
                         </InlineGrid>
                     </BlockStack>
 
-                    {/* FULL CSS FIX */}
                     <style>{`
-        .quick-action-wrapper {
-            position: relative;
-            border-radius: 16px;
-            transition: all 0.3s ease;
-
-        }
-
-        .quick-action-wrapper::after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            border-radius: 16px;
-            padding: 2px;
-            background: linear-gradient(135deg, #1e90ff, #87cefa);
-            -webkit-mask:
-                linear-gradient(#fff 0 0) content-box,
-                linear-gradient(#fff 0 0);
-            -webkit-mask-composite: xor;
-                    mask-composite: exclude;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            pointer-events: none;
-        }
-
-        .quick-action-wrapper:hover::after {
-            opacity: 1;
-        }
-
-        .quick-action-wrapper:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 20px 40px rgba(14, 165, 233, 0.18);
-            border-color: transparent;
-        }
-
-        .quick-action-wrapper:hover .hover-arrow {
-            opacity: 1 !important;
-            transform: translateX(4px) !important;
-        }
-    `}</style>
+                        .quick-action-wrapper {
+                            position: relative;
+                            border-radius: 16px;
+                            transition: all 0.3s ease;
+                        }
+                        .quick-action-wrapper::after {
+                            content: "";
+                            position: absolute;
+                            inset: 0;
+                            border-radius: 10px;
+                            padding: 2px;
+                            background: linear-gradient(135deg, #1e90ff, #87cefa);
+                            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+                            -webkit-mask-composite: xor;
+                            mask-composite: exclude;
+                            opacity: 0;
+                            transition: opacity 0.3s ease;
+                            pointer-events: none;
+                        }
+                        .quick-action-wrapper:hover::after { opacity: 1; }
+                        .quick-action-wrapper:hover {
+                            transform: translateY(-6px);
+                            box-shadow: 0 20px 40px rgba(14, 165, 233, 0.18);
+                            border-color: transparent;
+                        }
+                        .quick-action-wrapper:hover .hover-arrow {
+                            opacity: 1 !important;
+                            transform: translateX(4px) !important;
+                        }
+                    `}</style>
                 </Layout.Section>
             </Layout>
         </Page>
