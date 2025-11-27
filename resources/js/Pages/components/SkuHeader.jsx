@@ -69,7 +69,7 @@ export default function SkuHeader({ onPreset, onExport }) {
     };
 
     return (
-        <Box paddingBlockStart="400" paddingBlockEnd="100">
+        <Box paddingBlockStart="100" paddingBlockEnd="10">
             <InlineStack align="space-between" blockAlign="center" gap="400">
                 {/* ← Back button + Title (Shopify style) */}
                 <InlineStack gap="400" align="center">

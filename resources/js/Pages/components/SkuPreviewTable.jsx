@@ -134,7 +134,9 @@ export default function SkuPreviewTable({
             </IndexTable.Cell>
 
             <IndexTable.Cell>
-                <Badge status="success">{item.new_sku}</Badge>
+                <Badge tone="success" status="success">
+                    {item.new_sku}
+                </Badge>
             </IndexTable.Cell>
         </IndexTable.Row>
     );
