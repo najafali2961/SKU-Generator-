@@ -72,40 +72,38 @@ class SkuController extends Controller
         // === SAFE STATS ===
         $missingCount = $allVariants->whereNull('sku')->count();
 
-        // Find duplicate SKUs safely
         $skuCounts = $allVariants
             ->whereNotNull('sku')
             ->pluck('sku')
             ->countBy();
 
-        $dupSkuList = $skuCounts->filter(fn($count) => $count > 1)->keys()->all();
+        $dupSkuList = $skuCounts->filter(fn($c) => $c > 1)->keys()->all();
         $duplicateCount = $allVariants->whereNotNull('sku')->whereIn('sku', $dupSkuList)->count();
 
-        // === SAFE DUPLICATE GROUPS (only when needed and safe) ===
+        // === DUPLICATE GROUPS (only for duplicates tab) ===
         $duplicateGroups = collect();
 
         if ($tab === 'duplicates' && !empty($dupSkuList)) {
             $duplicateGroups = $allVariants
                 ->whereNotNull('sku')
                 ->whereIn('sku', $dupSkuList)
-                ->sortByDesc(fn($v) => $skuCounts[$v->sku] ?? 0)
                 ->groupBy('sku')
-                ->map(function ($items, $sku) {
-                    return [
-                        'sku'     => $sku,
-                        'count'   => $items->count(),
-                        'variants' => $items->pluck('id')->all(),
-                    ];
-                })
+                ->map(fn($items, $sku) => [
+                    'sku'     => $sku,
+                    'count'   => $items->count(),
+                    'variants' => $items->pluck('id')->all(),
+                ])
+                ->sortByDesc('count')
                 ->values();
         }
 
-        // === COUNTERS ===
-        $globalCounter = (int)($request->input('auto_start', 1));
+        // === COUNTERS (THIS IS THE FINAL FIX) ===
+        $startNumber   = (int)($request->input('auto_start', 1));
         $padLength     = strlen((string)$request->input('auto_start', '0001'));
 
-        $dupCounters   = []; // per duplicate SKU
-        $prodCounters  = []; // per product (if enabled)
+        $globalCounter      = $startNumber;           // For normal & missing SKUs
+        $duplicateCounter   = $startNumber;           // ONE shared counter for ALL duplicates ← KEY FIX
+        $perProductCounters = [];                     // Only if "restart per product" is ON
 
         $preview = [];
 
@@ -118,25 +116,23 @@ class SkuController extends Controller
             if ($tab === 'duplicates' && !$isDuplicate) continue;
             if ($tab === 'missing'    && !$isMissing)   continue;
 
-            // === Choose counter ===
+            // === CHOOSE WHICH COUNTER TO USE ===
             if ($isDuplicate) {
-                if (!isset($dupCounters[$oldSku])) {
-                    $dupCounters[$oldSku] = $globalCounter;
-                }
-                $number = $dupCounters[$oldSku]++;
+                // ALL duplicates share ONE counter → 100% unique SKUs
+                $number = $duplicateCounter++;
             } elseif ($request->boolean('restart_per_product')) {
                 $pid = $variant->product_id;
-                if (!isset($prodCounters[$pid])) {
-                    $prodCounters[$pid] = (int)$request->input('auto_start', 1);
+                if (!isset($perProductCounters[$pid])) {
+                    $perProductCounters[$pid] = $startNumber;
                 }
-                $number = $prodCounters[$pid]++;
+                $number = $perProductCounters[$pid]++;
             } else {
                 $number = $globalCounter++;
             }
 
             $num = str_pad($number, $padLength, '0', STR_PAD_LEFT);
 
-            // Source (title/vendor)
+            // === SOURCE (Title / Vendor) ===
             $source = '';
             if ($request->input('source_field', 'none') !== 'none') {
                 $text = $request->input('source_field') === 'title'
@@ -152,7 +148,7 @@ class SkuController extends Controller
                 );
             }
 
-            // Build new SKU
+            // === BUILD NEW SKU ===
             $parts = [];
             if ($request->filled('prefix')) $parts[] = strtoupper($request->prefix);
             if ($source && $request->input('source_placement') === 'before') $parts[] = $source;
@@ -185,15 +181,17 @@ class SkuController extends Controller
             ];
         }
 
-        // Search filter
+        // === SEARCH ===
         if ($request->filled('search')) {
             $q = strtolower(trim($request->search));
-            $preview = array_values(array_filter($preview, function ($item) use ($q) {
-                return str_contains(strtolower($item['title']), $q) ||
-                    str_contains(strtolower($item['vendor'] ?? ''), $q) ||
-                    str_contains(strtolower($item['old_sku'] ?? ''), $q) ||
-                    str_contains(strtolower($item['new_sku'] ?? ''), $q);
-            }));
+            $preview = array_values(array_filter(
+                $preview,
+                fn($i) =>
+                str_contains(strtolower($i['title']), $q) ||
+                    str_contains(strtolower($i['vendor'] ?? ''), $q) ||
+                    str_contains(strtolower($i['old_sku'] ?? ''), $q) ||
+                    str_contains(strtolower($i['new_sku'] ?? ''), $q)
+            ));
         }
 
         $total     = count($preview);
@@ -202,7 +200,7 @@ class SkuController extends Controller
         return response()->json([
             'preview'         => $paginated,
             'total'           => $total,
-            'duplicateGroups' => $duplicateGroups->all(), // ← always array, never null
+            'duplicateGroups' => $duplicateGroups->all(),
             'stats'           => [
                 'missing'     => $missingCount,
                 'duplicates'  => $duplicateCount,
