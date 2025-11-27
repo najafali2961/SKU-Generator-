@@ -36,16 +36,17 @@ export default function Home({ stats = {} }) {
         data.total_variants > 0
             ? Math.round((data.variants_with_sku / data.total_variants) * 100)
             : 0;
+
     const barcodeCoverage =
         data.total_variants > 0
             ? Math.round(
                   (data.variants_with_barcode / data.total_variants) * 100
               )
             : 0;
-    const heroGradient =
-        "linear-gradient(195deg,  #1e90ff 0%, #87cefa 50%, #ffffff 100%)";
-    const cardGradient = "linear-gradient(135deg, #1e90ff, #87cefa)"; // keep icon squares vibrant
 
+    const heroGradient =
+        "linear-gradient(135deg,  #1e90ff 0%, #87cefa 50%, #ffffff 100%)";
+    const cardGradient = "linear-gradient(135deg, #1e90ff, #87cefa)";
     const borderBlue = "#bae6fd";
 
     const IconBox = ({ icon }) => (
@@ -67,14 +68,13 @@ export default function Home({ stats = {} }) {
                     alignItems: "center",
                 }}
             >
-                {" "}
-                <Icon source={icon} />{" "}
-            </span>{" "}
+                <Icon source={icon} />
+            </span>
         </Box>
     );
 
     return (
-        <Page fullWidth>
+        <Page>
             <Layout>
                 {/* Hero Header */}
                 <Layout.Section>
@@ -181,10 +181,10 @@ export default function Home({ stats = {} }) {
                                         background: cardGradient,
                                     }}
                                 />
-                                <InlineStack gap="400" align="start">
-                                    <Box paddingBlockStart="100">
-                                        <IconBox icon={stat.icon} />
-                                    </Box>
+
+                                <InlineStack gap="400" align="center">
+                                    <IconBox icon={stat.icon} />
+
                                     <BlockStack gap="200">
                                         <InlineStack gap="200" align="center">
                                             <Text
@@ -193,12 +193,14 @@ export default function Home({ stats = {} }) {
                                             >
                                                 {stat.value.toLocaleString()}
                                             </Text>
+
                                             {stat.badge && (
                                                 <Badge tone="info">
                                                     {stat.badge}
                                                 </Badge>
                                             )}
                                         </InlineStack>
+
                                         <Text variant="bodyMd" tone="subdued">
                                             {stat.title}{" "}
                                             {stat.percentage
@@ -212,31 +214,31 @@ export default function Home({ stats = {} }) {
                     </InlineGrid>
                 </Layout.Section>
 
-                {/* Quick Actions - Icons like Stats */}
+                {/* Quick Actions */}
                 <Layout.Section>
                     <BlockStack gap="600">
                         <InlineGrid columns={{ xs: 1, md: 3 }} gap="500">
                             {[
                                 {
-                                    title: "Generate Missing SKUs",
-                                    desc: "Smart auto-fill for all variants without SKUs",
+                                    title: "Generate SKUs",
+                                    desc: "Smart auto-fill for all variants",
                                     icon: AlertTriangleIcon,
                                     route: "/sku-generator?auto=missing",
-                                    cta: `Fix ${data.variants_missing_sku} Missing SKUs →`,
+                                    cta: `Fix ${data.variants_missing_sku} Missing SKUs`,
                                 },
                                 {
-                                    title: "Generate Valid Barcodes",
-                                    desc: "EAN-13 / UPC-A instantly generated",
+                                    title: "Generate Barcodes",
+                                    desc: "Instantly generated",
                                     icon: BarcodeIcon,
                                     route: "/barcode-generator?auto=missing",
-                                    cta: `Fix ${data.variants_missing_barcode} Barcodes →`,
+                                    cta: `Fix ${data.variants_missing_barcode} Barcodes`,
                                 },
                                 {
-                                    title: "Bulk Fix Everything",
-                                    desc: "Run full SKU + Barcode generation",
+                                    title: "Printing Labels",
+                                    desc: "Print Labels for your products",
                                     icon: MagicIcon,
                                     route: "/bulk-process",
-                                    cta: "Start Full Scan & Fix →",
+                                    cta: "Print Now",
                                 },
                             ].map((action) => (
                                 <Link
@@ -268,8 +270,13 @@ export default function Home({ stats = {} }) {
                                         />
 
                                         <BlockStack gap="400">
-                                            <InlineStack gap="400">
-                                                {/* Use IconBox like Stats */}
+                                            <InlineStack
+                                                gap="400"
+                                                align="center"
+                                                style={{
+                                                    alignItems: "flex-start",
+                                                }}
+                                            >
                                                 <IconBox icon={action.icon} />
 
                                                 <BlockStack gap="100">
@@ -279,6 +286,7 @@ export default function Home({ stats = {} }) {
                                                     >
                                                         {action.title}
                                                     </Text>
+
                                                     <Text tone="subdued">
                                                         {action.desc}
                                                     </Text>
@@ -287,7 +295,7 @@ export default function Home({ stats = {} }) {
 
                                             <InlineStack
                                                 gap="100"
-                                                blockAlign="center"
+                                                align="center"
                                             >
                                                 <Text
                                                     fontWeight="medium"
@@ -298,6 +306,7 @@ export default function Home({ stats = {} }) {
                                                         ""
                                                     )}
                                                 </Text>
+
                                                 <Icon
                                                     source={ArrowRightIcon}
                                                     color="primary"
@@ -314,15 +323,15 @@ export default function Home({ stats = {} }) {
                                         </BlockStack>
 
                                         <style>{`
-                            .quick-action-card:hover {
-                                transform: translateY(-6px);
-                                box-shadow: 0 20px 40px rgba(14, 165, 233, 0.18);
-                            }
-                            .quick-action-card:hover .hover-arrow {
-                                opacity: 1 !important;
-                                transform: translateX(4px) !important;
-                            }
-                        `}</style>
+                                            .quick-action-card:hover {
+                                                transform: translateY(-6px);
+                                                box-shadow: 0 20px 40px rgba(14, 165, 233, 0.18);
+                                            }
+                                            .quick-action-card:hover .hover-arrow {
+                                                opacity: 1 !important;
+                                                transform: translateX(4px) !important;
+                                            }
+                                        `}</style>
                                     </Card>
                                 </Link>
                             ))}
