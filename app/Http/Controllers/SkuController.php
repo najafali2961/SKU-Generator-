@@ -41,7 +41,7 @@ class SkuController extends Controller
     {
         $shop    = Auth::user();
         $page    = max(1, (int)$request->input('page', 1));
-        $perPage = 25;
+        $perPage = 10;
         $tab     = $request->input('tab', 'all');
 
         $query = Variant::with(['product'])
