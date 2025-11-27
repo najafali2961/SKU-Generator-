@@ -225,6 +225,7 @@ export default function Home({ stats = {} }) {
                                     icon: AlertTriangleIcon,
                                     route: "/sku-generator?auto=missing",
                                     cta: `Fix ${data.variants_missing_sku} Missing SKUs`,
+                                    size: "small",
                                 },
                                 {
                                     title: "Generate Barcodes",
@@ -232,13 +233,15 @@ export default function Home({ stats = {} }) {
                                     icon: BarcodeIcon,
                                     route: "/barcode-generator?auto=missing",
                                     cta: `Fix ${data.variants_missing_barcode} Barcodes`,
+                                    size: "small",
                                 },
                                 {
-                                    title: "Printing Labels",
-                                    desc: "Print Labels for your products",
+                                    title: "Print / QR Codes",
+                                    desc: "Generate labels",
                                     icon: MagicIcon,
-                                    route: "/bulk-process",
-                                    cta: "Print Now",
+                                    route: "/print-generator",
+                                    cta: "Start Printing",
+                                    size: "small",
                                 },
                             ].map((action) => (
                                 <Link
@@ -246,97 +249,112 @@ export default function Home({ stats = {} }) {
                                     key={action.title}
                                     style={{ textDecoration: "none" }}
                                 >
-                                    <Card
-                                        padding="600"
-                                        background="bg-surface"
-                                        roundedAbove="lg"
-                                        className="quick-action-card"
-                                        style={{
-                                            border: `1px solid ${borderBlue}`,
-                                            cursor: "pointer",
-                                            transition:
-                                                "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                                            position: "relative",
-                                            overflow: "hidden",
-                                        }}
-                                    >
-                                        <Box
-                                            position="absolute"
-                                            top="0"
-                                            left="0"
-                                            width="full"
-                                            height="4px"
-                                            background="primary"
-                                        />
-
-                                        <BlockStack gap="400">
-                                            <InlineStack
-                                                gap="400"
-                                                align="center"
-                                                style={{
-                                                    alignItems: "flex-start",
-                                                }}
-                                            >
-                                                <IconBox icon={action.icon} />
-
-                                                <BlockStack gap="100">
-                                                    <Text
-                                                        variant="headingLg"
-                                                        fontWeight="semibold"
-                                                    >
-                                                        {action.title}
-                                                    </Text>
-
-                                                    <Text tone="subdued">
-                                                        {action.desc}
-                                                    </Text>
-                                                </BlockStack>
-                                            </InlineStack>
-
-                                            <InlineStack
-                                                gap="100"
-                                                align="center"
-                                            >
-                                                <Text
-                                                    fontWeight="medium"
-                                                    color="primary"
+                                    {/* WRAPPER FOR GRADIENT BORDER & HOVER EFFECT */}
+                                    <div className="quick-action-wrapper">
+                                        <Card
+                                            padding="600"
+                                            background="bg-surface"
+                                            roundedAbove="lg"
+                                        >
+                                            <BlockStack gap="400">
+                                                {/* FIXED: ICON + TITLE INLINE */}
+                                                <InlineStack
+                                                    gap="400"
+                                                    blockAlign="center"
                                                 >
-                                                    {action.cta.replace(
-                                                        " →",
-                                                        ""
-                                                    )}
-                                                </Text>
+                                                    <IconBox
+                                                        icon={action.icon}
+                                                    />
 
-                                                <Icon
-                                                    source={ArrowRightIcon}
-                                                    color="primary"
-                                                    style={{
-                                                        opacity: 0,
-                                                        transform:
-                                                            "translateX(-10px)",
-                                                        transition:
-                                                            "all 0.3s ease",
-                                                    }}
-                                                    className="hover-arrow"
-                                                />
-                                            </InlineStack>
-                                        </BlockStack>
+                                                    <BlockStack gap="050">
+                                                        <Text
+                                                            variant="headingMd"
+                                                            fontWeight="semibold"
+                                                        >
+                                                            {action.title}
+                                                        </Text>
+                                                        <Text tone="subdued">
+                                                            {action.desc}
+                                                        </Text>
+                                                    </BlockStack>
+                                                </InlineStack>
 
-                                        <style>{`
-                                            .quick-action-card:hover {
-                                                transform: translateY(-6px);
-                                                box-shadow: 0 20px 40px rgba(14, 165, 233, 0.18);
-                                            }
-                                            .quick-action-card:hover .hover-arrow {
-                                                opacity: 1 !important;
-                                                transform: translateX(4px) !important;
-                                            }
-                                        `}</style>
-                                    </Card>
+                                                {/* CTA */}
+                                                <InlineStack
+                                                    gap="100"
+                                                    blockAlign="center"
+                                                >
+                                                    <Text
+                                                        fontWeight="medium"
+                                                        color="primary"
+                                                    >
+                                                        {action.cta.replace(
+                                                            " →",
+                                                            ""
+                                                        )}
+                                                    </Text>
+                                                    <Icon
+                                                        source={ArrowRightIcon}
+                                                        color="primary"
+                                                        className="hover-arrow"
+                                                        style={{
+                                                            opacity: 0,
+                                                            transform:
+                                                                "translateX(-10px)",
+                                                            transition:
+                                                                "all 0.3s ease",
+                                                        }}
+                                                    />
+                                                </InlineStack>
+                                            </BlockStack>
+                                        </Card>
+                                    </div>
                                 </Link>
                             ))}
                         </InlineGrid>
                     </BlockStack>
+
+                    {/* FULL CSS FIX */}
+                    <style>{`
+        .quick-action-wrapper {
+            position: relative;
+            border-radius: 16px;
+            transition: all 0.3s ease;
+
+        }
+
+        .quick-action-wrapper::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 16px;
+            padding: 2px;
+            background: linear-gradient(135deg, #1e90ff, #87cefa);
+            -webkit-mask:
+                linear-gradient(#fff 0 0) content-box,
+                linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+                    mask-composite: exclude;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .quick-action-wrapper:hover::after {
+            opacity: 1;
+        }
+
+        .quick-action-wrapper:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 20px 40px rgba(14, 165, 233, 0.18);
+            border-color: transparent;
+        }
+
+        .quick-action-wrapper:hover .hover-arrow {
+            opacity: 1 !important;
+            transform: translateX(4px) !important;
+        }
+    `}</style>
                 </Layout.Section>
             </Layout>
         </Page>
