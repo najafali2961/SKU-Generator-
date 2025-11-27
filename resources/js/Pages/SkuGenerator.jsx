@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { router } from "@inertiajs/react";
 import SkuHeader from "./components/SkuHeader";
@@ -15,10 +15,8 @@ export default function SkuGenerator({ initialCollections = [] }) {
         auto_start: "0001",
         suffix: "",
         delimiter: "-",
-        only_missing: true,
         remove_spaces: true,
         alphanumeric: false,
-        auto_number_per_product: true,
         vendor: "",
         type: "",
         collections: [],
@@ -27,9 +25,11 @@ export default function SkuGenerator({ initialCollections = [] }) {
         source_len: 2,
         source_placement: "before",
         search: "",
+        restart_per_product: false,
     });
 
     const [preview, setPreview] = useState([]);
+    const [duplicateGroups, setDuplicateGroups] = useState([]); // ← NEW
     const [total, setTotal] = useState(0);
     const [stats, setStats] = useState({ missing: 0, duplicates: 0 });
     const [selected, setSelected] = useState(new Set());
@@ -41,53 +41,24 @@ export default function SkuGenerator({ initialCollections = [] }) {
 
     const debounceRef = useRef(null);
 
-    const duplicates = preview.filter((p) => p.is_duplicate);
-
-    const duplicateGroups = useMemo(() => {
-        const groups = {};
-        duplicates.forEach((p) => {
-            const key = p.old_sku || "(Blank)";
-            if (!groups[key]) groups[key] = [];
-            groups[key].push(p);
-        });
-        return groups;
-    }, [duplicates]);
-
-    const handleChange = (key, value) => {
-        setForm((f) => ({ ...f, [key]: value }));
-        setPage(1);
-    };
-
-    const toggleCollection = (id) => {
-        setForm((f) => ({
-            ...f,
-            collections: f.collections.includes(id)
-                ? f.collections.filter((c) => c !== id)
-                : [...f.collections, id],
-        }));
-        setPage(1);
-    };
-
-    const fetchPreview = async (keepSelected = false) => {
-        if (!keepSelected) setSelected(new Set());
+    const fetchPreview = async (keepPage = false) => {
+        if (!keepPage) setPage(1);
+        setSelected(new Set());
         setLoading(true);
 
         try {
             const res = await axios.post("/sku-generator/preview", {
                 ...form,
-                page,
-                per_page: 25,
+                page: keepPage ? page : 1,
                 tab: activeTab,
-                only_missing: activeTab === "missing",
             });
 
             setPreview(res.data.preview || []);
+            setDuplicateGroups(res.data.duplicateGroups || []);
             setTotal(res.data.total || 0);
-            if (res.data.stats) {
-                setStats(res.data.stats);
-            }
+            setStats(res.data.stats || { missing: 0, duplicates: 0 });
         } catch (e) {
-            console.error(e);
+            console.error("Preview error:", e);
         } finally {
             setLoading(false);
         }
@@ -95,25 +66,17 @@ export default function SkuGenerator({ initialCollections = [] }) {
 
     // Debounce form changes
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setPage(1); // always reset page on filter change
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
             fetchPreview();
         }, DEBOUNCE_MS);
 
-        return () => clearTimeout(timer);
-    }, [form]);
+        return () => clearTimeout(debounceRef.current);
+    }, [form, activeTab]);
 
-    // Immediate refresh on tab change
+    // Page change
     useEffect(() => {
-        setPage(1);
-        fetchPreview();
-    }, [activeTab]);
-
-    // Page change only
-    useEffect(() => {
-        if (page > 1) {
-            fetchPreview(true); // keep selection
-        }
+        if (page > 1) fetchPreview(true);
     }, [page]);
 
     // Progress polling
@@ -123,16 +86,21 @@ export default function SkuGenerator({ initialCollections = [] }) {
             try {
                 const { data } = await axios.get("/sku-generator/progress");
                 setProgress(data.progress || 0);
-                if (data.progress >= total) setApplying(false);
+                if (data.progress >= 100) {
+                    setApplying(false);
+                    setProgress(0);
+                    fetchPreview();
+                }
             } catch {}
         }, 1000);
         return () => clearInterval(i);
-    }, [applying, total]);
+    }, [applying]);
 
     const applySKUs = (scope = "selected") => {
         const ids = scope === "selected" ? Array.from(selected) : [];
         setApplying(true);
         setProgress(0);
+
         router.post(
             "/sku-generator/apply",
             {
@@ -143,67 +111,51 @@ export default function SkuGenerator({ initialCollections = [] }) {
             {
                 onFinish: () => {
                     setApplying(false);
+                    setSelected(new Set());
                     fetchPreview();
                 },
             }
         );
     };
 
-    // Fixed: removed the stray }; that caused the TS error
-
-    const exportCSV = () => {
-        const data = activeTab === "duplicates" ? duplicates : preview;
-        const rows = data.map((p) => [
-            p.title,
-            p.vendor || "",
-            p.old_sku || "",
-            p.new_sku || "",
-            p.is_duplicate ? "DUP" : "OK",
-        ]);
-
-        const csv = [
-            ["Title", "Vendor", "Old SKU", "New SKU", "Status"],
-            ...rows,
-        ]
-            .map((r) =>
-                r.map((c) => `"${(c + "").replace(/"/g, '""')}"`).join(",")
-            )
-            .join("\n");
-
-        const blob = new Blob([csv], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `sku-${activeTab}-${new Date()
-            .toISOString()
-            .slice(0, 10)}.csv`;
-        a.click();
-    };
-
     const mediaUrl = (p) => p.image || null;
 
+    const handleChange = (key, value) => {
+        setForm((f) => ({ ...f, [key]: value }));
+    };
+
+    const toggleCollection = (id) => {
+        setForm((f) => ({
+            ...f,
+            collections: f.collections.includes(id)
+                ? f.collections.filter((c) => c !== id)
+                : [...f.collections, id],
+        }));
+    };
+
     return (
-        <div className="min-h-screen">
-            <div className="p-4 mx-auto max-w-7xl">
+        <div className="min-h-screen bg-gray-50">
+            <div className="p-6 mx-auto max-w-7xl">
                 <SkuHeader
-                    onQuick={(p, s, e) =>
-                        setForm((f) => ({
-                            ...f,
-                            prefix: p,
-                            auto_start: s,
-                            ...e,
-                        }))
-                    }
-                    onPreset={(c) => setForm((f) => ({ ...f, ...c }))}
-                    onExport={exportCSV}
+                    onExport={() => {
+                        /* your export */
+                    }}
                 />
-                <div className="grid gap-6 mt-6 lg:grid-cols-12">
+
+                <div className="grid gap-8 mt-8 lg:grid-cols-12">
                     <div className="lg:col-span-4">
-                        <SkuSidebar form={form} handleChange={handleChange} />
+                        <SkuSidebar
+                            form={form}
+                            handleChange={handleChange}
+                            initialCollections={initialCollections}
+                            toggleCollection={toggleCollection}
+                        />
                     </div>
+
                     <div className="space-y-6 lg:col-span-8">
                         <SkuPreviewTable
                             preview={preview}
+                            duplicateGroups={duplicateGroups}
                             total={total}
                             stats={stats}
                             page={page}
@@ -213,16 +165,11 @@ export default function SkuGenerator({ initialCollections = [] }) {
                             selected={selected}
                             setSelected={setSelected}
                             loading={loading}
-                            duplicates={duplicates}
-                            duplicateGroups={duplicateGroups}
                             applySKUs={applySKUs}
                             applying={applying}
                             mediaUrl={mediaUrl}
-                            form={form}
-                            handleChange={handleChange}
-                            initialCollections={initialCollections}
-                            toggleCollection={toggleCollection}
                         />
+
                         <SkuProgressBar
                             applying={applying}
                             progress={progress}
