@@ -26,7 +26,7 @@ export default function SkuSidebar({ form, setForm }) {
                 <BlockStack gap="500">
                     <BlockStack gap="400">
                         <InlineStack gap="300" blockAlign="center">
-                            <Icon source={HashtagIcon} tone="primary" />
+                            {/* <Icon source={HashtagIcon} tone="primary" /> */}
                             <Text variant="headingLg" as="h2">
                                 Pattern Builder
                             </Text>
@@ -41,7 +41,6 @@ export default function SkuSidebar({ form, setForm }) {
                                         handleChange("prefix", v.toUpperCase())
                                     }
                                     placeholder="PROD"
-                                    helpText="Will be converted to uppercase"
                                     autoComplete="off"
                                 />
                                 <TextField
@@ -51,7 +50,6 @@ export default function SkuSidebar({ form, setForm }) {
                                         handleChange("auto_start", v)
                                     }
                                     placeholder="0001"
-                                    helpText="Leading zeros are preserved"
                                     autoComplete="off"
                                 />
                             </FormLayout.Group>
@@ -76,7 +74,6 @@ export default function SkuSidebar({ form, setForm }) {
                                         handleChange("suffix", v.toUpperCase())
                                     }
                                     placeholder="V2"
-                                    helpText="Will be converted to uppercase"
                                     autoComplete="off"
                                 />
                             </FormLayout.Group>
@@ -170,7 +167,7 @@ export default function SkuSidebar({ form, setForm }) {
             <Card title="Generation Rules" sectioned>
                 <BlockStack gap="500">
                     <InlineStack gap="300" blockAlign="center">
-                        <Icon source={SettingsIcon} tone="base" />
+                        {/* <Icon source={SettingsIcon} tone="base" /> */}
                         <Text variant="headingLg" as="h2">
                             Generation Rules
                         </Text>

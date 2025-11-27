@@ -406,18 +406,7 @@ export default function SkuPreviewTable({
                 ]}
                 loading={loading}
             >
-                {loading ? (
-                    <Box padding="1600" width="100%">
-                        <InlineStack align="center" gap="400">
-                            <Spinner size="large" />
-                            <Text variant="headingLg">
-                                Generating preview...
-                            </Text>
-                        </InlineStack>
-                    </Box>
-                ) : (
-                    rowMarkup
-                )}
+                {rowMarkup}
             </IndexTable>
 
             {!loading && (
