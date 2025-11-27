@@ -10,31 +10,48 @@ import {
     InlineStack,
     BlockStack,
     Box,
-    Tabs,
     Pagination,
     Button,
     Thumbnail,
     ButtonGroup,
+    TextField,
+    Tabs,
 } from "@shopify/polaris";
-import { HashtagIcon, CheckCircleIcon } from "@shopify/polaris-icons";
+import {
+    HashtagIcon,
+    CheckCircleIcon,
+    SearchIcon,
+} from "@shopify/polaris-icons";
 
 export default function SkuPreviewTable({
     preview,
     duplicateGroups,
     total,
     stats,
+    visibleIds,
     page,
     setPage,
+    duplicatePage,
+    setDuplicatePage,
     activeTab,
     setActiveTab,
+    queryValue,
+    setQueryValue,
     selected,
     setSelected,
     loading,
-    applySKUs,
     applying,
+    applySKUs,
     mediaUrl,
 }) {
-    const totalPages = Math.ceil(total / 25);
+    const DUPLICATES_PER_PAGE = 10;
+    const totalDuplicatePages = Math.ceil(
+        duplicateGroups.length / DUPLICATES_PER_PAGE
+    );
+    const paginatedGroups = duplicateGroups.slice(
+        (duplicatePage - 1) * DUPLICATES_PER_PAGE,
+        duplicatePage * DUPLICATES_PER_PAGE
+    );
 
     const tabs = [
         {
@@ -50,7 +67,7 @@ export default function SkuPreviewTable({
             content: (
                 <>
                     Duplicates{" "}
-                    <Badge status="critical">{stats.duplicates} items</Badge>
+                    <Badge status="critical">{stats.duplicates}</Badge>
                 </>
             ),
         },
@@ -64,37 +81,41 @@ export default function SkuPreviewTable({
         },
     ];
 
-    const handleSelectionChange = (toggle, id) => {
-        setSelected((prev) => {
-            const next = new Set(prev);
-            toggle ? next.add(id) : next.delete(id);
-            return next;
-        });
-    };
-
-    const renderRow = (p) => (
-        <IndexTable.Row key={p.id} id={p.id} selected={selected.has(p.id)}>
+    const renderRow = (item) => (
+        <IndexTable.Row
+            id={item.id}
+            selected={selected.has(item.id)}
+            onClick={() =>
+                setSelected((prev) => {
+                    const next = new Set(prev);
+                    next.has(item.id)
+                        ? next.delete(item.id)
+                        : next.add(item.id);
+                    return next;
+                })
+            }
+        >
             <IndexTable.Cell>
-                <Thumbnail source={mediaUrl(p) || ""} size="small" alt="" />
+                <Thumbnail source={mediaUrl(item) || ""} size="small" alt="" />
             </IndexTable.Cell>
             <IndexTable.Cell>
-                <Text fontWeight="semibold">{p.title}</Text>
+                <Text fontWeight="semibold">{item.title}</Text>
                 <Text variant="bodySm" tone="subdued">
-                    {p.vendor} • {p.option || "Default Title"}
+                    {item.vendor} • {item.option || "Default Title"}
                 </Text>
             </IndexTable.Cell>
             <IndexTable.Cell>
-                <Text tone={p.old_sku ? "subdued" : "critical"}>
-                    {p.old_sku || "—"}
+                <Text tone={item.old_sku ? "subdued" : "critical"}>
+                    {item.old_sku || "—"}
                 </Text>
             </IndexTable.Cell>
             <IndexTable.Cell>
                 <Text fontWeight="bold" tone="success">
-                    {p.new_sku}
+                    {item.new_sku}
                 </Text>
             </IndexTable.Cell>
             <IndexTable.Cell>
-                {p.is_duplicate ? (
+                {item.is_duplicate ? (
                     <Badge tone="critical" icon={HashtagIcon}>
                         Duplicate
                     </Badge>
@@ -108,8 +129,7 @@ export default function SkuPreviewTable({
     );
 
     const renderDuplicateGroup = (group) => {
-        const { sku, count, variants } = group; // variants is FULL array now
-
+        const { sku, count, variants } = group;
         return (
             <IndexTable.Row key={sku}>
                 <IndexTable.Cell colSpan={5}>
@@ -156,7 +176,6 @@ export default function SkuPreviewTable({
                                 </Button>
                             </ButtonGroup>
                         </InlineStack>
-
                         <BlockStack gap="200">
                             {variants.map((v) => (
                                 <Box
@@ -174,10 +193,13 @@ export default function SkuPreviewTable({
                                             type="checkbox"
                                             checked={selected.has(v.id)}
                                             onChange={() =>
-                                                handleSelectionChange(
-                                                    !selected.has(v.id),
-                                                    v.id
-                                                )
+                                                setSelected((prev) => {
+                                                    const next = new Set(prev);
+                                                    next.has(v.id)
+                                                        ? next.delete(v.id)
+                                                        : next.add(v.id);
+                                                    return next;
+                                                })
                                             }
                                         />
                                         <Thumbnail
@@ -216,11 +238,11 @@ export default function SkuPreviewTable({
             duplicateGroups.length === 0 ? (
                 <IndexTable.Row>
                     <IndexTable.Cell colSpan={5}>
-                        <EmptyState heading="No duplicates!" />
+                        <EmptyState heading="No duplicates found!" />
                     </IndexTable.Cell>
                 </IndexTable.Row>
             ) : (
-                duplicateGroups.map(renderDuplicateGroup)
+                paginatedGroups.map(renderDuplicateGroup)
             )
         ) : (
             preview.map(renderRow)
@@ -228,104 +250,153 @@ export default function SkuPreviewTable({
 
     return (
         <Card>
-            <Tabs
-                tabs={tabs}
-                selected={tabs.findIndex((t) => t.id === activeTab)}
-                onSelect={(i) => setActiveTab(tabs[i].id)}
-            >
-                <BlockStack gap="400">
-                    <IndexTable
-                        resourceName={{
-                            singular: "variant",
-                            plural: "variants",
+            <Box padding="400">
+                <InlineStack align="space-between" blockAlign="center">
+                    <Tabs
+                        tabs={tabs}
+                        selected={tabs.findIndex((t) => t.id === activeTab)}
+                        onSelect={(i) => {
+                            setActiveTab(tabs[i].id);
+                            setPage(1);
+                            setDuplicatePage(1);
+                            setSelected(new Set());
                         }}
-                        itemCount={total}
-                        selectedItemsCount={selected.size}
-                        onSelectionChange={(type, toggle, id) => {
-                            if (type === "all") {
-                                setSelected(
-                                    toggle
-                                        ? new Set(preview.map((p) => p.id))
-                                        : new Set()
-                                );
-                            } else {
-                                handleSelectionChange(toggle, id);
-                            }
-                        }}
-                        headings={
+                    />
+                    <TextField
+                        value={queryValue}
+                        onChange={setQueryValue}
+                        placeholder="Search products, SKUs..."
+                        prefix={<Icon source={SearchIcon} />}
+                        clearButton
+                        onClearButtonClick={() => setQueryValue("")}
+                        autoComplete="off"
+                    />
+                </InlineStack>
+            </Box>
+
+            <IndexTable
+                resourceName={{ singular: "variant", plural: "variants" }}
+                itemCount={
+                    activeTab === "duplicates" ? duplicateGroups.length : total
+                }
+                selectedItemsCount={
+                    selected.size || (selected.size === 0 ? 0 : "All")
+                }
+                onSelectionChange={(type, toggle) => {
+                    if (type === "all") {
+                        const ids =
                             activeTab === "duplicates"
-                                ? [{ title: "Duplicate Groups" }]
-                                : [
-                                      { title: "Image" },
-                                      { title: "Product" },
-                                      { title: "Old SKU" },
-                                      { title: "New SKU" },
-                                      { title: "Status" },
-                                  ]
-                        }
-                        loading={loading}
-                    >
-                        {loading ? (
-                            <Box padding="800">
-                                <InlineStack align="center" gap="400">
-                                    <Spinner size="large" />
-                                    <Text>Generating preview...</Text>
-                                </InlineStack>
-                            </Box>
-                        ) : (
-                            rowMarkup
-                        )}
-                    </IndexTable>
-
-                    {totalPages > 1 && activeTab !== "duplicates" && (
-                        <Box padding="400">
-                            <InlineStack align="space-between">
-                                <Text variant="bodySm">
-                                    Page {page} of {totalPages}
-                                </Text>
-                                <Pagination
-                                    hasPrevious={page > 1}
-                                    onPrevious={() => setPage((p) => p - 1)}
-                                    hasNext={page < totalPages}
-                                    onNext={() => setPage((p) => p + 1)}
-                                />
-                            </InlineStack>
-                        </Box>
-                    )}
-
-                    <Box
-                        padding="400"
-                        background="bg-surface-secondary"
-                        borderBlockStartWidth="1"
-                    >
-                        <InlineStack align="space-between">
-                            <ButtonGroup>
-                                <Button onClick={() => setSelected(new Set())}>
-                                    Clear
-                                </Button>
-                                <Button
-                                    onClick={() =>
-                                        setSelected(
-                                            new Set(preview.map((p) => p.id))
-                                        )
-                                    }
-                                >
-                                    Select All
-                                </Button>
-                            </ButtonGroup>
-                            <Button
-                                primary
-                                size="large"
-                                loading={applying}
-                                disabled={selected.size === 0}
-                                onClick={() => applySKUs("selected")}
-                            >
-                                Apply to Selected ({selected.size})
-                            </Button>
+                                ? duplicateGroups.flatMap((g) =>
+                                      g.variants.map((v) => v.id)
+                                  )
+                                : preview.map((p) => p.id);
+                        setSelected(toggle ? new Set(ids) : new Set());
+                    }
+                }}
+                hasZebraStriping
+                headings={
+                    activeTab === "duplicates"
+                        ? [{ title: "Duplicate Groups" }]
+                        : [
+                              { title: "Image" },
+                              { title: "Product" },
+                              { title: "Old SKU" },
+                              { title: "New SKU" },
+                              { title: "Status" },
+                          ]
+                }
+                bulkActions={[
+                    {
+                        content: "Apply to Selected",
+                        onAction: () => applySKUs("selected"),
+                    },
+                ]}
+                promotedBulkActions={[
+                    {
+                        content: "Apply to Visible",
+                        onAction: () => applySKUs("visible"),
+                    },
+                ]}
+                loading={loading}
+            >
+                {loading ? (
+                    <Box padding="800">
+                        <InlineStack align="center" gap="400">
+                            <Spinner size="large" />
+                            <Text>Generating preview...</Text>
                         </InlineStack>
                     </Box>
-                </BlockStack>
-            </Tabs>
+                ) : (
+                    rowMarkup
+                )}
+            </IndexTable>
+
+            {activeTab === "duplicates"
+                ? totalDuplicatePages > 1 && (
+                      <Box padding="400">
+                          <InlineStack align="space-between">
+                              <Text variant="bodySm">
+                                  Page {duplicatePage} of {totalDuplicatePages}
+                              </Text>
+                              <Pagination
+                                  hasPrevious={duplicatePage > 1}
+                                  onPrevious={() =>
+                                      setDuplicatePage((p) => p - 1)
+                                  }
+                                  hasNext={duplicatePage < totalDuplicatePages}
+                                  onNext={() => setDuplicatePage((p) => p + 1)}
+                              />
+                          </InlineStack>
+                      </Box>
+                  )
+                : Math.ceil(total / 25) > 1 && (
+                      <Box padding="400">
+                          <InlineStack align="space-between">
+                              <Text variant="bodySm">
+                                  Page {page} of {Math.ceil(total / 25)}
+                              </Text>
+                              <Pagination
+                                  hasPrevious={page > 1}
+                                  onPrevious={() => setPage((p) => p - 1)}
+                                  hasNext={page < Math.ceil(total / 25)}
+                                  onNext={() => setPage((p) => p + 1)}
+                              />
+                          </InlineStack>
+                      </Box>
+                  )}
+
+            <Box
+                padding="400"
+                background="bg-surface-secondary"
+                borderBlockStartWidth="1"
+            >
+                <InlineStack align="space-between">
+                    <ButtonGroup>
+                        <Button onClick={() => setSelected(new Set())}>
+                            Clear
+                        </Button>
+                        <Button onClick={() => applySKUs("visible")}>
+                            Apply to Visible ({preview.length})
+                        </Button>
+                        <Button onClick={() => applySKUs("all")}>
+                            {activeTab === "duplicates"
+                                ? "Fix All Duplicates"
+                                : activeTab === "missing"
+                                ? "Fix All Missing"
+                                : "Apply to All"}
+                        </Button>
+                    </ButtonGroup>
+                    <Button
+                        primary
+                        size="large"
+                        loading={applying}
+                        disabled={selected.size === 0}
+                        onClick={() => applySKUs("selected")}
+                    >
+                        Apply to Selected ({selected.size})
+                    </Button>
+                </InlineStack>
+            </Box>
         </Card>
     );
 }

@@ -7,26 +7,18 @@ use App\Jobs\GenerateSkuJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Arr;
 use Inertia\Inertia;
-use App\Services\ShopifyService;
 
 class SkuController extends Controller
 {
     public function index()
     {
         $shop = Auth::user();
-        $shopify = new ShopifyService($shop);
-
-        // Fetch collections from Shopify
-        $collections = $shopify->getCollections(); // method we will create
-
-        $variants = Variant::with('product')
-            ->whereHas('product', fn($q) => $q->where('user_id', $shop->id))
-            ->take(20)
-            ->get();
+        $shopify = new \App\Services\ShopifyService($shop);
+        $collections = $shopify->getCollections() ?? [];
 
         return Inertia::render('SkuGenerator', [
-            'initialVariants' => $variants,
             'initialCollections' => $collections,
         ]);
     }
@@ -35,14 +27,14 @@ class SkuController extends Controller
     {
         $shop = Auth::user();
         GenerateSkuJob::dispatch($shop->id, $request->all());
-        return back()->with('success', 'SKU generation started.');
+        return back()->with('success', 'SKU generation started in background.');
     }
 
     public function progress()
     {
         $shop = Auth::user();
         $progress = Cache::get("sku_progress_{$shop->id}", 0);
-        return response()->json(['progress' => $progress]);
+        return response()->json(['progress' => (int)$progress]);
     }
 
     public function preview(Request $request)
@@ -68,168 +60,137 @@ class SkuController extends Controller
 
         $allVariants = $query->get();
 
-        // === STATS ===
+        // Stats
         $missingCount = $allVariants->whereNull('sku')->count();
-
-        $skuCounts = $allVariants
-            ->whereNotNull('sku')
-            ->pluck('sku')
-            ->countBy();
-
-        $dupSkuList = $skuCounts->filter(fn($c) => $c > 1)->keys()->all();
+        $skuCounts = $allVariants->whereNotNull('sku')->pluck('sku')->countBy();
+        $dupSkuList = $skuCounts->filter(fn($c) => $c > 1)->keys()->toArray();
         $duplicateCount = $allVariants->whereNotNull('sku')->whereIn('sku', $dupSkuList)->count();
 
-        // === GLOBAL COUNTERS ===
-        $startNumber      = (int)($request->input('auto_start', 1));
-        $padLength        = strlen((string)$request->input('auto_start', '0001'));
-        $globalCounter    = $startNumber;
-        $duplicateCounter = $startNumber;  // ONE counter for ALL duplicates
+        // Counters
+        $startNumber = (int)($request->input('auto_start', 1));
+        $padLength   = strlen((string)$request->input('auto_start', '0001'));
+        $globalCounter = $startNumber;
+        $duplicateCounter = $startNumber;
         $perProductCounters = [];
 
-        // === PREVIEW + FULL DUPLICATE DATA ===
         $preview = [];
         $fullDuplicateGroups = collect();
 
+        // Build duplicate groups
         if ($tab === 'duplicates' && !empty($dupSkuList)) {
-            $grouped = $allVariants
-                ->whereNotNull('sku')
-                ->whereIn('sku', $dupSkuList)
-                ->groupBy('sku');
+            $grouped = $allVariants->whereNotNull('sku')->whereIn('sku', $dupSkuList)->groupBy('sku');
 
             $fullDuplicateGroups = $grouped->map(function ($items, $sku) use (&$duplicateCounter, $padLength, $request) {
-                $groupVariants = [];
+                $variants = [];
                 foreach ($items as $variant) {
                     $num = str_pad($duplicateCounter++, $padLength, '0', STR_PAD_LEFT);
-
-                    // Build source
-                    $source = '';
-                    if ($request->input('source_field', 'none') !== 'none') {
-                        $text = $request->input('source_field') === 'title'
-                            ? ($variant->product->title ?? '')
-                            : ($variant->product->vendor ?? '');
-                        $text = preg_replace('/[^A-Za-z0-9]/', '', $text);
-                        $len = max(1, (int)$request->input('source_len', 2));
-                        $source = strtoupper($request->input('source_pos') === 'last' ? substr($text, -$len) : substr($text, 0, $len));
-                    }
-
-                    $parts = [];
-                    if ($request->filled('prefix')) $parts[] = strtoupper($request->prefix);
-                    if ($source && $request->input('source_placement') === 'before') $parts[] = $source;
-                    $parts[] = $num;
-                    if ($source && $request->input('source_placement') === 'after') $parts[] = $source;
-                    if ($request->filled('suffix')) $parts[] = strtoupper($request->suffix);
-
-                    $newSku = implode($request->input('delimiter', '-'), array_filter($parts));
-                    if ($request->boolean('remove_spaces')) $newSku = str_replace(' ', '', $newSku);
-                    if ($request->boolean('alphanumeric')) $newSku = preg_replace('/[^A-Za-z0-9]/', '', $newSku);
-
-                    $groupVariants[] = [
-                        'id'       => $variant->id,
-                        'title'    => $variant->product->title ?? 'Untitled',
-                        'vendor'   => $variant->product->vendor ?? '',
-                        'option'   => trim(implode(' ', array_filter([$variant->option1, $variant->option2, $variant->option3]))),
-                        'image'    => $variant->image,
-                        'old_sku'  => $variant->sku,
-                        'new_sku'  => $newSku,
-                    ];
+                    $source = $this->getSource($variant, $request);
+                    $newSku = $this->buildSku($request, $source, $num);
+                    $variants[] = $this->formatVariant($variant, $newSku, true);
                 }
-
-                return [
-                    'sku'      => $sku,
-                    'count'    => $items->count(),
-                    'variants' => $groupVariants,
-                ];
+                return ['sku' => $sku, 'count' => $items->count(), 'variants' => $variants];
             })->sortByDesc('count')->values();
         }
 
-        // === BUILD PREVIEW (for current page) ===
+        // Build normal preview
         foreach ($allVariants as $variant) {
-            $oldSku      = $variant->sku;
+            $oldSku = $variant->sku;
             $isDuplicate = $oldSku && in_array($oldSku, $dupSkuList, true);
-            $isMissing   = is_null($oldSku);
+            $isMissing = is_null($oldSku);
 
             if ($tab === 'duplicates' && !$isDuplicate) continue;
-            if ($tab === 'missing'    && !$isMissing)   continue;
+            if ($tab === 'missing' && !$isMissing) continue;
+            if ($tab === 'duplicates' && $isDuplicate) continue;
 
-            if ($isDuplicate) {
-                // Skip — already added in fullDuplicateGroups above
-                continue;
-            }
-
-            // Normal flow (non-duplicates)
-            if ($request->boolean('restart_per_product')) {
-                $pid = $variant->product_id;
-                if (!isset($perProductCounters[$pid])) $perProductCounters[$pid] = $startNumber;
-                $number = $perProductCounters[$pid]++;
-            } else {
-                $number = $globalCounter++;
-            }
+            $number = $request->boolean('restart_per_product')
+                ? ($perProductCounters[$variant->product_id] ??= $startNumber)
+                : $globalCounter++;
 
             $num = str_pad($number, $padLength, '0', STR_PAD_LEFT);
+            $source = $this->getSource($variant, $request);
+            $newSku = $this->buildSku($request, $source, $num);
 
-            $source = '';
-            if ($request->input('source_field', 'none') !== 'none') {
-                $text = $request->input('source_field') === 'title'
-                    ? ($variant->product->title ?? '')
-                    : ($variant->product->vendor ?? '');
-                $text = preg_replace('/[^A-Za-z0-9]/', '', $text);
-                $len = max(1, (int)$request->input('source_len', 2));
-                $source = strtoupper($request->input('source_pos') === 'last' ? substr($text, -$len) : substr($text, 0, $len));
-            }
-
-            $parts = [];
-            if ($request->filled('prefix')) $parts[] = strtoupper($request->prefix);
-            if ($source && $request->input('source_placement') === 'before') $parts[] = $source;
-            $parts[] = $num;
-            if ($source && $request->input('source_placement') === 'after') $parts[] = $source;
-            if ($request->filled('suffix')) $parts[] = strtoupper($request->suffix);
-
-            $newSku = implode($request->input('delimiter', '-'), array_filter($parts));
-            if ($request->boolean('remove_spaces')) $newSku = str_replace(' ', '', $newSku);
-            if ($request->boolean('alphanumeric')) $newSku = preg_replace('/[^A-Za-z0-9]/', '', $newSku);
-
-            $preview[] = [
-                'id'           => $variant->id,
-                'title'        => $variant->product->title ?? 'Untitled',
-                'vendor'       => $variant->product->vendor ?? '',
-                'option'       => trim(implode(' ', array_filter([$variant->option1, $variant->option2, $variant->option3]))),
-                'image'        => $variant->image,
-                'old_sku'      => $oldSku,
-                'new_sku'      => $newSku,
-                'is_duplicate' => $isDuplicate,
-            ];
+            $preview[] = $this->formatVariant($variant, $newSku, $isDuplicate);
         }
 
-        // For duplicates tab: use full groups as preview
         if ($tab === 'duplicates') {
             $preview = $fullDuplicateGroups->pluck('variants')->flatten(1)->all();
-            $total   = $preview ? count($preview) : 0;
         }
 
         // Search
         if ($request->filled('search') && !empty($preview)) {
             $q = strtolower(trim($request->search));
-            $preview = array_values(array_filter(
-                $preview,
-                fn($i) =>
-                str_contains(strtolower($i['title'] ?? ''), $q) ||
-                    str_contains(strtolower($i['vendor'] ?? ''), $q) ||
-                    str_contains(strtolower($i['old_sku'] ?? ''), $q) ||
-                    str_contains(strtolower($i['new_sku'] ?? ''), $q)
-            ));
+            $preview = array_values(array_filter($preview, function ($item) use ($q) {
+                return str_contains(strtolower($item['title'] ?? ''), $q) ||
+                    str_contains(strtolower($item['vendor'] ?? ''), $q) ||
+                    str_contains(strtolower($item['old_sku'] ?? ''), $q) ||
+                    str_contains(strtolower($item['new_sku'] ?? ''), $q);
+            }));
         }
 
-        $total     = count($preview);
+        $total = count($preview);
         $paginated = array_slice($preview, ($page - 1) * $perPage, $perPage);
+        $visibleIds = Arr::pluck($paginated, 'id');
 
         return response()->json([
             'preview'         => $paginated,
             'total'           => $total,
-            'duplicateGroups' => $tab === 'duplicates' ? $fullDuplicateGroups->all() : [],
+            'duplicateGroups' => $tab === 'duplicates' ? $fullDuplicateGroups->toArray() : [],
+            'visibleIds'      => $visibleIds,
             'stats'           => [
                 'missing'     => $missingCount,
                 'duplicates'  => $duplicateCount,
             ],
         ]);
+    }
+
+    private function getSource($variant, $request)
+    {
+        if ($request->input('source_field', 'none') === 'none') return '';
+
+        $text = $request->input('source_field') === 'title'
+            ? ($variant->product->title ?? '')
+            : ($variant->product->vendor ?? '');
+
+        $text = preg_replace('/[^A-Za-z0-9]/', '', $text);
+        $len = max(1, (int)$request->input('source_len', 2));
+
+        return strtoupper(
+            $request->input('source_pos') === 'last'
+                ? substr($text, -$len)
+                : substr($text, 0, $len)
+        );
+    }
+
+    private function buildSku($request, $source, $num)
+    {
+        $parts = [];
+
+        if ($request->filled('prefix')) $parts[] = strtoupper($request->prefix);
+        if ($source && $request->input('source_placement') === 'before') $parts[] = $source;
+        $parts[] = $num;
+        if ($source && $request->input('source_placement') === 'after') $parts[] = $source;
+        if ($request->filled('suffix')) $parts[] = strtoupper($request->suffix);
+
+        $sku = implode($request->input('delimiter', '-'), array_filter($parts));
+
+        if ($request->boolean('remove_spaces')) $sku = str_replace(' ', '', $sku);
+        if ($request->boolean('alphanumeric')) $sku = preg_replace('/[^A-Za-z0-9]/', '', $sku);
+
+        return $sku;
+    }
+
+    private function formatVariant($variant, $newSku, $isDuplicate)
+    {
+        return [
+            'id'           => $variant->id,
+            'title'        => $variant->product->title ?? 'Untitled Product',
+            'vendor'       => $variant->product->vendor ?? '',
+            'option'       => trim(implode(' ', array_filter([$variant->option1, $variant->option2, $variant->option3]))),
+            'image'        => $variant->image_src ?? $variant->image ?? null,
+            'old_sku'      => $variant->sku,
+            'new_sku'      => $newSku,
+            'is_duplicate' => $isDuplicate,
+        ];
     }
 }
