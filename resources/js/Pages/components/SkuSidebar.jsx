@@ -1,4 +1,3 @@
-// resources/js/Pages/components/SkuSidebar.jsx
 import React from "react";
 import {
     Card,
@@ -10,25 +9,31 @@ import {
     InlineStack,
     BlockStack,
     Icon,
+    Box,
+    Divider,
 } from "@shopify/polaris";
 import { HashtagIcon, SettingsIcon } from "@shopify/polaris-icons";
 
-export default function SkuSidebar({ form, handleChange }) {
+export default function SkuSidebar({ form, setForm }) {
+    const handleChange = (key, value) => {
+        setForm((prev) => ({ ...prev, [key]: value }));
+    };
+
     return (
-        <aside className="lg:col-span-4">
-            <BlockStack gap="300">
-                {/* Pattern Builder */}
-                <Card sectioned>
-                    <BlockStack gap="200">
-                        <InlineStack gap="150" align="center">
-                            <Icon source={HashtagIcon} />
-                            <Text variant="headingSm" as="h2">
+        <BlockStack gap="600">
+            {/* Pattern Builder */}
+            <Card title="Pattern Builder" sectioned>
+                <BlockStack gap="500">
+                    <BlockStack gap="400">
+                        <InlineStack gap="300" blockAlign="center">
+                            <Icon source={HashtagIcon} tone="primary" />
+                            <Text variant="headingLg" as="h2">
                                 Pattern Builder
                             </Text>
                         </InlineStack>
 
                         <FormLayout>
-                            <FormLayout.Group condensed>
+                            <FormLayout.Group>
                                 <TextField
                                     label="Prefix"
                                     value={form.prefix}
@@ -36,6 +41,8 @@ export default function SkuSidebar({ form, handleChange }) {
                                         handleChange("prefix", v.toUpperCase())
                                     }
                                     placeholder="PROD"
+                                    helpText="Will be converted to uppercase"
+                                    autoComplete="off"
                                 />
                                 <TextField
                                     label="Start Number"
@@ -44,10 +51,12 @@ export default function SkuSidebar({ form, handleChange }) {
                                         handleChange("auto_start", v)
                                     }
                                     placeholder="0001"
+                                    helpText="Leading zeros are preserved"
+                                    autoComplete="off"
                                 />
                             </FormLayout.Group>
 
-                            <FormLayout.Group condensed>
+                            <FormLayout.Group>
                                 <Select
                                     label="Delimiter"
                                     value={form.delimiter}
@@ -67,111 +76,132 @@ export default function SkuSidebar({ form, handleChange }) {
                                         handleChange("suffix", v.toUpperCase())
                                     }
                                     placeholder="V2"
+                                    helpText="Will be converted to uppercase"
+                                    autoComplete="off"
                                 />
                             </FormLayout.Group>
 
-                            <FormLayout.Group condensed>
-                                <Select
-                                    label="Add from"
-                                    value={form.source_field}
-                                    onChange={(v) =>
-                                        handleChange("source_field", v)
-                                    }
-                                    options={[
-                                        { label: "No Source", value: "none" },
-                                        { label: "From Title", value: "title" },
-                                        {
-                                            label: "From Vendor",
-                                            value: "vendor",
-                                        },
-                                    ]}
-                                />
-                                <Select
-                                    label="Position"
-                                    value={form.source_pos}
-                                    onChange={(v) =>
-                                        handleChange("source_pos", v)
-                                    }
-                                    options={[
-                                        {
-                                            label: "First Letters",
-                                            value: "first",
-                                        },
-                                        {
-                                            label: "Last Letters",
-                                            value: "last",
-                                        },
-                                    ]}
-                                />
-                                <TextField
-                                    label="Length"
-                                    type="number"
-                                    min="1"
-                                    max="10"
-                                    value={form.source_len}
-                                    onChange={(v) =>
-                                        handleChange("source_len", Number(v))
-                                    }
-                                />
-                            </FormLayout.Group>
+                            <Divider />
+
+                            <Text variant="headingMd" as="h3">
+                                Dynamic Source
+                            </Text>
 
                             <Select
-                                label="Placement"
-                                value={form.source_placement}
+                                label="Add from"
+                                value={form.source_field}
                                 onChange={(v) =>
-                                    handleChange("source_placement", v)
+                                    handleChange("source_field", v)
                                 }
                                 options={[
-                                    {
-                                        label: "Before Number (AB-PROD-0001)",
-                                        value: "before",
-                                    },
-                                    {
-                                        label: "After Number (PROD-0001-AB)",
-                                        value: "after",
-                                    },
+                                    { label: "No Source", value: "none" },
+                                    { label: "From Title", value: "title" },
+                                    { label: "From Vendor", value: "vendor" },
                                 ]}
                             />
+
+                            {form.source_field !== "none" && (
+                                <>
+                                    <FormLayout.Group>
+                                        <Select
+                                            label="Take letters from"
+                                            value={form.source_pos}
+                                            onChange={(v) =>
+                                                handleChange("source_pos", v)
+                                            }
+                                            options={[
+                                                {
+                                                    label: "First Letters",
+                                                    value: "first",
+                                                },
+                                                {
+                                                    label: "Last Letters",
+                                                    value: "last",
+                                                },
+                                            ]}
+                                        />
+                                        <TextField
+                                            label="Number of letters"
+                                            type="number"
+                                            min="1"
+                                            max="10"
+                                            value={String(form.source_len)}
+                                            onChange={(v) =>
+                                                handleChange(
+                                                    "source_len",
+                                                    Math.max(
+                                                        1,
+                                                        Math.min(
+                                                            10,
+                                                            Number(v) || 1
+                                                        )
+                                                    )
+                                                )
+                                            }
+                                            helpText="1–10 characters"
+                                        />
+                                    </FormLayout.Group>
+
+                                    <Select
+                                        label="Placement"
+                                        value={form.source_placement}
+                                        onChange={(v) =>
+                                            handleChange("source_placement", v)
+                                        }
+                                        options={[
+                                            {
+                                                label: "Before Number (AB-PROD-0001)",
+                                                value: "before",
+                                            },
+                                            {
+                                                label: "After Number (PROD-0001-AB)",
+                                                value: "after",
+                                            },
+                                        ]}
+                                    />
+                                </>
+                            )}
                         </FormLayout>
                     </BlockStack>
-                </Card>
+                </BlockStack>
+            </Card>
 
-                {/* Generation Rules */}
-                <Card sectioned>
-                    <BlockStack gap="200">
-                        <InlineStack gap="150" align="center">
-                            <Icon source={SettingsIcon} />
-                            <Text variant="headingSm" as="h2">
-                                Generation Rules
-                            </Text>
-                        </InlineStack>
+            {/* Generation Rules */}
+            <Card title="Generation Rules" sectioned>
+                <BlockStack gap="500">
+                    <InlineStack gap="300" blockAlign="center">
+                        <Icon source={SettingsIcon} tone="base" />
+                        <Text variant="headingLg" as="h2">
+                            Generation Rules
+                        </Text>
+                    </InlineStack>
 
-                        <BlockStack gap="150">
-                            <Checkbox
-                                label="Remove spaces from final SKU"
-                                checked={form.remove_spaces}
-                                onChange={(v) =>
-                                    handleChange("remove_spaces", v)
-                                }
-                            />
-                            <Checkbox
-                                label="Alphanumeric only (no special chars)"
-                                checked={form.alphanumeric}
-                                onChange={(v) =>
-                                    handleChange("alphanumeric", v)
-                                }
-                            />
-                            <Checkbox
-                                label="Restart numbering per product"
-                                checked={form.auto_number_per_product}
-                                onChange={(v) =>
-                                    handleChange("auto_number_per_product", v)
-                                }
-                            />
-                        </BlockStack>
+                    <BlockStack gap="400">
+                        <Checkbox
+                            label="Remove spaces from final SKU"
+                            checked={form.remove_spaces}
+                            onChange={(v) => handleChange("remove_spaces", v)}
+                            helpText="Converts multiple spaces to single, or removes entirely"
+                        />
+
+                        <Checkbox
+                            label="Alphanumeric only"
+                            checked={form.alphanumeric}
+                            onChange={(v) => handleChange("alphanumeric", v)}
+                            helpText="Removes special characters like !@#$%, etc."
+                        />
+
+                        <Checkbox
+                            label="Restart numbering per product"
+                            checked={form.restart_per_product}
+                            onChange={(v) =>
+                                handleChange("restart_per_product", v)
+                            }
+                            helpText="Each product starts from the defined start number"
+                        />
                     </BlockStack>
-                </Card>
-            </BlockStack>
-        </aside>
+                </BlockStack>
+            </Card>
+        </BlockStack>
     );
 }
