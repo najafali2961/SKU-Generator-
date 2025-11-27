@@ -108,8 +108,7 @@ export default function SkuPreviewTable({
     );
 
     const renderDuplicateGroup = (group) => {
-        const { sku, count } = group;
-        const items = preview.filter((p) => p.old_sku === sku);
+        const { sku, count, variants } = group; // variants is FULL array now
 
         return (
             <IndexTable.Row key={sku}>
@@ -137,18 +136,18 @@ export default function SkuPreviewTable({
                                 <Button
                                     onClick={() =>
                                         setSelected(
-                                            new Set(items.map((i) => i.id))
+                                            new Set(variants.map((v) => v.id))
                                         )
                                     }
                                 >
-                                    Select Group ({items.length} shown)
+                                    Select All {count}
                                 </Button>
                                 <Button
                                     primary
                                     disabled={applying}
                                     onClick={() => {
                                         setSelected(
-                                            new Set(items.map((i) => i.id))
+                                            new Set(variants.map((v) => v.id))
                                         );
                                         applySKUs("selected");
                                     }}
@@ -159,7 +158,7 @@ export default function SkuPreviewTable({
                         </InlineStack>
 
                         <BlockStack gap="200">
-                            {items.map((v) => (
+                            {variants.map((v) => (
                                 <Box
                                     key={v.id}
                                     padding="400"
@@ -217,7 +216,7 @@ export default function SkuPreviewTable({
             duplicateGroups.length === 0 ? (
                 <IndexTable.Row>
                     <IndexTable.Cell colSpan={5}>
-                        <EmptyState heading="No duplicates found!" />
+                        <EmptyState heading="No duplicates!" />
                     </IndexTable.Cell>
                 </IndexTable.Row>
             ) : (
