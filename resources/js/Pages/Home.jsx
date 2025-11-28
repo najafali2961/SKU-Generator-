@@ -49,7 +49,7 @@ export default function Home({ stats = {} }) {
             : 0;
 
     const heroGradient =
-        "linear-gradient(135deg,  #1e90ff 0%, #87cefa 50%, #ffffff 100%)";
+        "linear-gradient(195deg,  #1e90ff 1%, #87cefa 45%, #ffffff 100%)";
     const cardGradient = "linear-gradient(135deg, #1e90ff, #87cefa)";
     const borderBlue = "#bae6fd";
 
