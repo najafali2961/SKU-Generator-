@@ -106,29 +106,6 @@ export default function SkuGenerator({ initialCollections = [] }) {
         }
     }, [page]);
 
-    // useEffect(() => {
-    //     if (!applying) return;
-
-    //     const interval = setInterval(async () => {
-    //         try {
-    //             const { data } = await axios.get("/sku-generator/progress");
-    //             setProgress(data.progress || 0);
-
-    //             if (data.progress >= 100) {
-    //                 clearInterval(interval);
-    //                 setApplying(false);
-    //                 setProgress(0);
-    //                 setSelected(new Set());
-    //                 fetchPreview();
-    //             }
-    //         } catch (err) {
-    //             console.error("Progress poll error:", err);
-    //         }
-    //     }, 1000);
-
-    //     return () => clearInterval(interval);
-    // }, [applying, fetchPreview]);
-
     const applySKUs = async (scope = "selected") => {
         let ids = [];
 
