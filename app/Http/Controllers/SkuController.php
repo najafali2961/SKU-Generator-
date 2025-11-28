@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Variant;
 use App\Jobs\GenerateSkuJob;
+use App\Models\JobLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -23,13 +24,31 @@ class SkuController extends Controller
         ]);
     }
 
+    // public function apply(Request $request)
+    // {
+    //     $shop = Auth::user();
+    //     GenerateSkuJob::dispatch($shop->id, $request->all());
+    //     return back()->with('success', 'SKU generation started in background.');
+    // }
+
     public function apply(Request $request)
     {
         $shop = Auth::user();
-        GenerateSkuJob::dispatch($shop->id, $request->all());
-        return back()->with('success', 'SKU generation started in background.');
-    }
 
+        $jobLog = JobLog::create([
+            'user_id' => $shop->id,
+            'type' => 'sku_generation',
+            'title' => 'SKU Generation Job',
+            'description' => 'Generating SKUs for selected variants...',
+            'payload' => $request->all(),
+            'status' => 'pending',
+        ]);
+
+        GenerateSkuJob::dispatch($shop->id, $request->all(), $jobLog->id);
+
+        return redirect()->route('jobs.show', $jobLog)
+            ->with('success', 'SKU generation started! Redirecting to progress page...');
+    }
     public function progress()
     {
         $shop = Auth::user();

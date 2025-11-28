@@ -5,6 +5,7 @@ namespace App\Jobs;
 
 use App\Models\Variant;
 use App\Models\User;
+use App\Models\JobLog;
 use App\Services\ShopifyService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -12,29 +13,30 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use Throwable;
+use Illuminate\Bus\Batchable;
 
 class GenerateSkuBatchJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, Batchable;
 
     public $shopId;
     public $variantIds;
     public $settings;
+    public $jobLogId;
 
-    public function __construct($shopId, $settings, array $variantIds)
+    public function __construct($shopId, $settings, array $variantIds, $jobLogId = null)
     {
         $this->shopId = $shopId;
         $this->settings = $settings;
         $this->variantIds = $variantIds;
+        $this->jobLogId = $jobLogId;
     }
 
     public function handle()
     {
         $shop = User::find($this->shopId);
-        if (!$shop) {
-            return;
-        }
+        if (!$shop) return;
 
         $shopify = new ShopifyService($shop);
 
@@ -42,9 +44,7 @@ class GenerateSkuBatchJob implements ShouldQueue
             ->whereIn('id', $this->variantIds)
             ->get();
 
-        if ($variants->isEmpty()) {
-            return;
-        }
+        if ($variants->isEmpty()) return;
 
         foreach ($variants->groupBy('product_id') as $productId => $productVariants) {
             $skuMap = [];
@@ -59,8 +59,24 @@ class GenerateSkuBatchJob implements ShouldQueue
                 $skuMap[$variant->id] = $sku;
             }
 
-            // Update Shopify in bulk
             $shopify->updateVariantSkus((int)$productId, $skuMap);
+        }
+
+        // CORRECT PROGRESS UPDATE — THIS FIXES THE ERROR
+        if ($this->jobLogId) {
+            JobLog::where('id', $this->jobLogId)
+                ->increment('processed_items', count($this->variantIds));
+        }
+    }
+
+    public function failed(Throwable $exception)
+    {
+        if ($this->jobLogId) {
+            JobLog::where('id', $this->jobLogId)->update([
+                'status' => 'failed',
+                'error_message' => $exception->getMessage(),
+                'finished_at' => now(),
+            ]);
         }
     }
 
@@ -90,10 +106,7 @@ class GenerateSkuBatchJob implements ShouldQueue
 
             DB::table('sku_counters')
                 ->where('id', $row->id)
-                ->update([
-                    'counter' => $next,
-                    'updated_at' => now(),
-                ]);
+                ->update(['counter' => $next, 'updated_at' => now()]);
 
             return $next;
         });
@@ -102,11 +115,8 @@ class GenerateSkuBatchJob implements ShouldQueue
     private function generateSku(int $counter): string
     {
         $s = $this->settings;
-
-        // Determine padding length from auto_start (e.g. if user sets 1000 → 4 digits)
         $start = $s['auto_start'] ?? 1;
         $padLength = max(strlen((string)$start), 4);
-
         $num = str_pad($counter, $padLength, '0', STR_PAD_LEFT);
 
         $sku = ($s['prefix'] ?? '') . ($s['delimiter'] ?? '') . $num;
@@ -120,7 +130,7 @@ class GenerateSkuBatchJob implements ShouldQueue
         }
 
         if (!empty($s['alphanumeric'])) {
-            $sku = preg_replace('/[^A-Za-z0-9\-]/', '', $sku);
+            $seven = preg_replace('/[^A-Za-z0-9\-]/', '', $sku);
         }
 
         return $sku;
