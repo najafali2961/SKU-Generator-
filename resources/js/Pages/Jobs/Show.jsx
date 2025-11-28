@@ -4,7 +4,6 @@ import {
     Layout,
     Card,
     Text,
-    Badge,
     ProgressBar,
     InlineStack,
     BlockStack,
@@ -13,9 +12,9 @@ import {
     Icon,
     ResourceList,
     ResourceItem,
-    Avatar,
     Spinner,
     Banner,
+    Badge,
 } from "@shopify/polaris";
 import {
     CheckCircleIcon,
@@ -38,7 +37,50 @@ export default function JobShow({ job: initialJob }) {
     const total = job.total_items || 0;
     const failed = job.failed_items || 0;
 
-    // Initialize logs from initial data (page load)
+    // HUMANIZED TIME — "2s ago", "1m ago", "Just now"
+    const formatRelativeTime = (timeString) => {
+        if (!timeString) return "Just now";
+
+        // If backend already sent "2 seconds ago" → return as-is
+        if (
+            typeof timeString === "string" &&
+            (timeString.includes("ago") ||
+                timeString.includes("from now") ||
+                timeString.includes("Just now") ||
+                timeString.includes("minute") ||
+                timeString.includes("second") ||
+                timeString.includes("hour"))
+        ) {
+            return timeString;
+        }
+
+        // Try to parse as date
+        const past = new Date(timeString);
+        if (isNaN(past)) return timeString;
+
+        const now = new Date();
+        const secondsAgo = Math.floor((now - past) / 1000);
+
+        if (secondsAgo < 60) return `${secondsAgo}s ago`;
+        if (secondsAgo < 3600) return `${Math.floor(secondsAgo / 60)}m ago`;
+        if (secondsAgo < 86400) return `${Math.floor(secondsAgo / 3600)}h ago`;
+
+        return past.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+        });
+    };
+
+    const formatTime = (seconds) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
+    };
+
+    const successRate = total > 0 ? ((processed - failed) / total) * 100 : 0;
+
+    // Initialize logs from page load
     useEffect(() => {
         if (initialJob.activityLogs?.length > 0) {
             const formatted = initialJob.activityLogs
@@ -46,15 +88,14 @@ export default function JobShow({ job: initialJob }) {
                     type: log.level,
                     title: log.title,
                     message: log.message || null,
-                    time: new Date(log.logged_at).toLocaleTimeString(),
+                    time: log.logged_at,
                 }))
-                .reverse(); // oldest first
-
+                .reverse();
             setLogs(formatted);
         }
     }, []);
 
-    // Single polling effect — handles both progress + live logs
+    // Poll for updates
     useEffect(() => {
         if (isDone) return;
 
@@ -62,19 +103,16 @@ export default function JobShow({ job: initialJob }) {
             try {
                 const res = await fetch(`/jobs/${job.id}/progress`);
                 if (!res.ok) return;
-
                 const data = await res.json();
 
-                // Update job state
                 setJob((prev) => ({ ...prev, ...data }));
 
-                // Append new logs (avoid duplicates)
                 if (data.logs?.length > 0) {
                     const newLogs = data.logs.map((log) => ({
-                        type: log.type,
+                        type: log.type || log.level,
                         title: log.title,
                         message: log.message || null,
-                        time: log.time, // comes from diffForHumans() → "2 seconds ago"
+                        time: log.time || log.logged_at,
                     }));
 
                     setLogs((prev) => {
@@ -87,11 +125,10 @@ export default function JobShow({ job: initialJob }) {
                                     `${l.title}-${l.message}-${l.time}`
                                 )
                         );
-                        return [...prev, ...filtered].slice(-300); // limit to last 300
+                        return [...prev, ...filtered].slice(-300);
                     });
                 }
 
-                // Stop polling when job ends
                 if (data.status === "completed" || data.status === "failed") {
                     clearInterval(interval);
                 }
@@ -103,7 +140,7 @@ export default function JobShow({ job: initialJob }) {
         return () => clearInterval(interval);
     }, [job.id, isDone]);
 
-    // Elapsed time tracker
+    // Elapsed time
     useEffect(() => {
         if (!job.started_at) return;
 
@@ -126,33 +163,13 @@ export default function JobShow({ job: initialJob }) {
         return () => clearInterval(interval);
     }, [job.started_at, job.finished_at, isDone]);
 
-    const formatTime = (seconds) => {
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        const s = seconds % 60;
-        return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
-    };
-
-    const successRate = total > 0 ? ((processed - failed) / total) * 100 : 0;
-
-    // Avatar + color per log type
-    const getLogAvatar = (type) => {
-        const styles = {
-            success: { bg: "#34C759", char: "Success" },
-            info: { bg: "#007AFF", char: "Info" },
-            warning: { bg: "#FF9500", char: "Warning" },
-            error: { bg: "#FF3B30", char: "Error" },
-        };
-        const { bg = "#8E8E93", char = "Question" } = styles[type] || {};
-        return <Avatar size="sm" initials={char} background={bg} />;
-    };
-
-    // CORRECT FILTER — WORKS FOR BOTH .type AND .level
+    // Filter logs
     const filteredLogs = logs.filter((log) => {
         if (filter === "all") return true;
-        const logType = log.type || log.level;
+        const logType = log.type || log.level || "info";
         return logType === filter;
     });
+
     return (
         <Page
             title={`Job #${job.id} – SKU Generation`}
@@ -171,9 +188,8 @@ export default function JobShow({ job: initialJob }) {
             ]}
         >
             <Layout>
-                {/* Main Content */}
                 <Layout.Section>
-                    {/* Success / Failure Banner */}
+                    {/* Success Banner */}
                     {isDone && (
                         <Box paddingBlockEnd="600">
                             <Banner
@@ -194,17 +210,11 @@ export default function JobShow({ job: initialJob }) {
                                         : job.error_message ||
                                           "An unknown error occurred."}
                                 </Text>
-                                {job.status === "failed" && processed > 0 && (
-                                    <Text tone="subdued" size="small">
-                                        {processed} variants were processed
-                                        before failure.
-                                    </Text>
-                                )}
                             </Banner>
                         </Box>
                     )}
 
-                    {/* Live Processing Indicator */}
+                    {/* Live Indicator */}
                     {!isDone && job.status === "running" && (
                         <Box paddingBlockEnd="600">
                             <Card
@@ -236,13 +246,13 @@ export default function JobShow({ job: initialJob }) {
                                 gap: "16px",
                             }}
                         >
-                            {/* Progress Circle */}
+                            {/* Progress */}
                             <Card background="bg-surface-secondary">
                                 <BlockStack gap="500">
                                     <Text
                                         variant="headingSm"
-                                        fontWeight="semibold"
                                         tone="subdued"
+                                        fontWeight="semibold"
                                     >
                                         OVERALL PROGRESS
                                     </Text>
@@ -451,7 +461,7 @@ export default function JobShow({ job: initialJob }) {
                         </div>
                     </Box>
 
-                    {/* SKU Details Card */}
+                    {/* SKU Details */}
                     <Card title="SKU Generation Details" sectioned>
                         <BlockStack gap="600">
                             <InlineStack
@@ -484,9 +494,7 @@ export default function JobShow({ job: initialJob }) {
                                     )}
                                 </InlineStack>
                             </InlineStack>
-
                             <Divider />
-
                             <Card
                                 background="bg-surface-success-subdued"
                                 roundedAbove="sm"
@@ -532,7 +540,7 @@ export default function JobShow({ job: initialJob }) {
                     </Card>
                 </Layout.Section>
 
-                {/* Live Activity Sidebar — NOW FILTER WORKS 100% */}
+                {/* LIVE ACTIVITY SIDEBAR — FINAL VERSION */}
                 <Layout.Section variant="oneThird">
                     <Card title="Live Activity" roundedAbove="sm">
                         <BlockStack gap="400">
@@ -540,7 +548,8 @@ export default function JobShow({ job: initialJob }) {
                                 Real-time job updates
                             </Text>
 
-                            {/* Filter Buttons — NOW WORKING */}
+                            {/* CLICKABLE FILTER BUTTONS */}
+                            {/* CLEAN, SMALL, ICON-COLOR MATCHING FILTERS */}
                             <InlineStack gap="200">
                                 {[
                                     "all",
@@ -548,63 +557,113 @@ export default function JobShow({ job: initialJob }) {
                                     "info",
                                     "warning",
                                     "error",
-                                ].map((type) => (
-                                    <Badge
-                                        key={type}
-                                        tone={
-                                            filter === type
-                                                ? type === "all"
-                                                    ? "info"
-                                                    : type === "error"
-                                                    ? "critical"
-                                                    : type === "warning"
-                                                    ? "warning"
-                                                    : type
-                                                : undefined
-                                        }
-                                        onClick={() => setFilter(type)}
-                                        role="button"
-                                        style={{ cursor: "pointer" }}
-                                    >
-                                        {type.charAt(0).toUpperCase() +
-                                            type.slice(1)}
-                                    </Badge>
-                                ))}
+                                ].map((type) => {
+                                    const isActive = filter === type;
+                                    const toneMap = {
+                                        all: "info",
+                                        success: "success",
+                                        info: "info",
+                                        warning: "warning",
+                                        error: "critical",
+                                    };
+                                    const tone = toneMap[type];
+
+                                    return (
+                                        <div
+                                            key={type}
+                                            onClick={() => setFilter(type)}
+                                            style={{
+                                                padding: "2px 5px",
+                                                borderRadius: "12px",
+                                                backgroundColor: isActive
+                                                    ? "var(--p-color-bg-" +
+                                                      tone +
+                                                      "-subdued)"
+                                                    : "transparent",
+                                                border: isActive
+                                                    ? "1px solid var(--p-color-border-" +
+                                                      tone +
+                                                      ")"
+                                                    : "1px solid transparent",
+                                                cursor: "pointer",
+                                                transition: "all 0.2s ease",
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (!isActive) {
+                                                    e.currentTarget.style.backgroundColor =
+                                                        "var(--p-color-bg-surface-hover)";
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (!isActive) {
+                                                    e.currentTarget.style.backgroundColor =
+                                                        "transparent";
+                                                }
+                                            }}
+                                        >
+                                            <Text
+                                                fontWeight={
+                                                    isActive
+                                                        ? "semibold"
+                                                        : "medium"
+                                                }
+                                                tone={
+                                                    isActive ? tone : "subdued"
+                                                }
+                                                size="small"
+                                            >
+                                                {type.charAt(0).toUpperCase() +
+                                                    type.slice(1)}
+                                            </Text>
+                                        </div>
+                                    );
+                                })}
                             </InlineStack>
 
                             <Divider />
 
-                            {/* Scrollable logs */}
                             <div
                                 style={{ maxHeight: "65vh", overflowY: "auto" }}
                             >
                                 <ResourceList
                                     items={filteredLogs}
                                     renderItem={(item) => {
-                                        const logType = item.type || item.level; // Support both
+                                        const logType = (
+                                            item.type ||
+                                            item.level ||
+                                            "info"
+                                        ).toLowerCase();
 
-                                        let iconSource, iconTone;
-                                        if (logType === "success") {
-                                            iconSource = CheckCircleIcon;
-                                            iconTone = "success";
-                                        } else if (logType === "error") {
-                                            iconSource = XCircleIcon;
-                                            iconTone = "critical";
-                                        } else if (logType === "warning") {
-                                            iconSource = AlertDiamondIcon;
-                                            iconTone = "warning";
-                                        } else {
-                                            iconSource = PlayIcon;
-                                            iconTone = "info";
-                                        }
+                                        const iconConfig = {
+                                            success: {
+                                                source: CheckCircleIcon,
+                                                tone: "success",
+                                            },
+                                            error: {
+                                                source: XCircleIcon,
+                                                tone: "critical",
+                                            },
+                                            warning: {
+                                                source: AlertDiamondIcon,
+                                                tone: "warning",
+                                            },
+                                            info: {
+                                                source: PlayIcon,
+                                                tone: "info",
+                                            },
+                                        };
+
+                                        const config =
+                                            iconConfig[logType] ||
+                                            iconConfig.info;
 
                                         return (
                                             <ResourceItem
                                                 id={`${item.title}-${item.time}`}
                                                 media={
                                                     <Icon
-                                                        source={iconSource}
-                                                        tone={iconTone}
+                                                        source={config.source}
+                                                        tone={config.tone}
                                                     />
                                                 }
                                             >
@@ -634,7 +693,9 @@ export default function JobShow({ job: initialJob }) {
                                                             tone="subdued"
                                                             size="small"
                                                         >
-                                                            {item.time}
+                                                            {formatRelativeTime(
+                                                                item.time
+                                                            )}
                                                         </Text>
                                                     </InlineStack>
                                                     {item.message && (
