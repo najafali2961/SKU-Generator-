@@ -15,6 +15,7 @@ import {
     Spinner,
     Banner,
     Badge,
+    Button,
 } from "@shopify/polaris";
 import {
     CheckCircleIcon,
@@ -23,9 +24,30 @@ import {
     PlayIcon,
     AlertDiamondIcon,
     PackageIcon,
+    ArrowLeftIcon,
 } from "@shopify/polaris-icons";
 
+// SAFE NAVIGATION — NO APP-BRIDGE NEEDED!
+const useAppNavigate = () => {
+    return (path) => {
+        const params = new URLSearchParams(window.location.search);
+        const shop = params.get("shop");
+        const host = params.get("host");
+
+        if (shop && host) {
+            // Proper Shopify embedded app navigation
+            window.location.href = `/?shop=${shop}&host=${host}&target=${encodeURIComponent(
+                path
+            )}`;
+        } else {
+            // Fallback
+            window.location.href = path;
+        }
+    };
+};
+
 export default function JobShow({ job: initialJob }) {
+    const navigate = useAppNavigate();
     const [job, setJob] = useState(initialJob);
     const [logs, setLogs] = useState([]);
     const [filter, setFilter] = useState("all");
@@ -37,34 +59,23 @@ export default function JobShow({ job: initialJob }) {
     const total = job.total_items || 0;
     const failed = job.failed_items || 0;
 
-    // HUMANIZED TIME — "2s ago", "1m ago", "Just now"
     const formatRelativeTime = (timeString) => {
         if (!timeString) return "Just now";
-
-        // If backend already sent "2 seconds ago" → return as-is
         if (
             typeof timeString === "string" &&
             (timeString.includes("ago") ||
                 timeString.includes("from now") ||
-                timeString.includes("Just now") ||
-                timeString.includes("minute") ||
-                timeString.includes("second") ||
-                timeString.includes("hour"))
+                timeString.includes("Just now"))
         ) {
             return timeString;
         }
-
-        // Try to parse as date
         const past = new Date(timeString);
         if (isNaN(past)) return timeString;
-
         const now = new Date();
         const secondsAgo = Math.floor((now - past) / 1000);
-
         if (secondsAgo < 60) return `${secondsAgo}s ago`;
         if (secondsAgo < 3600) return `${Math.floor(secondsAgo / 60)}m ago`;
         if (secondsAgo < 86400) return `${Math.floor(secondsAgo / 3600)}h ago`;
-
         return past.toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -80,7 +91,6 @@ export default function JobShow({ job: initialJob }) {
 
     const successRate = total > 0 ? ((processed - failed) / total) * 100 : 0;
 
-    // Initialize logs from page load
     useEffect(() => {
         if (initialJob.activityLogs?.length > 0) {
             const formatted = initialJob.activityLogs
@@ -95,7 +105,6 @@ export default function JobShow({ job: initialJob }) {
         }
     }, []);
 
-    // Poll for updates
     useEffect(() => {
         if (isDone) return;
 
@@ -117,13 +126,10 @@ export default function JobShow({ job: initialJob }) {
 
                     setLogs((prev) => {
                         const existing = new Set(
-                            prev.map((l) => `${l.title}-${l.message}-${l.time}`)
+                            prev.map((l) => `${l.title}-${l.time}`)
                         );
                         const filtered = newLogs.filter(
-                            (l) =>
-                                !existing.has(
-                                    `${l.title}-${l.message}-${l.time}`
-                                )
+                            (l) => !existing.has(`${l.title}-${l.time}`)
                         );
                         return [...prev, ...filtered].slice(-300);
                     });
@@ -140,10 +146,8 @@ export default function JobShow({ job: initialJob }) {
         return () => clearInterval(interval);
     }, [job.id, isDone]);
 
-    // Elapsed time
     useEffect(() => {
         if (!job.started_at) return;
-
         if (isDone && job.finished_at) {
             const diff = Math.floor(
                 (new Date(job.finished_at) - new Date(job.started_at)) / 1000
@@ -151,7 +155,6 @@ export default function JobShow({ job: initialJob }) {
             setElapsedTime(diff);
             return;
         }
-
         const interval = setInterval(() => {
             setElapsedTime(
                 Math.floor(
@@ -159,37 +162,30 @@ export default function JobShow({ job: initialJob }) {
                 )
             );
         }, 1000);
-
         return () => clearInterval(interval);
     }, [job.started_at, job.finished_at, isDone]);
 
-    // Filter logs
     const filteredLogs = logs.filter((log) => {
         if (filter === "all") return true;
-        const logType = log.type || log.level || "info";
+        const logType = (log.type || log.level || "info").toLowerCase();
         return logType === filter;
     });
 
     return (
         <Page
             title={`Job #${job.id} – SKU Generation`}
-            backUrl="/sku-generator"
-            primaryAction={{
-                content: "Back to Generator",
-                onAction: () => (window.location.href = "/sku-generator"),
-            }}
-            secondaryActions={[
-                {
-                    content: isDone ? "New Job" : "Cancel Job",
-                    destructive: !isDone,
-                    onAction: () =>
-                        isDone && (window.location.href = "/sku-generator"),
-                },
-            ]}
+            primaryAction={
+                <Button
+                    primary
+                    icon={ArrowLeftIcon}
+                    onClick={() => navigate("/sku-generator")}
+                >
+                    Generate New SKU
+                </Button>
+            }
         >
             <Layout>
                 <Layout.Section>
-                    {/* Success Banner */}
                     {isDone && (
                         <Box paddingBlockEnd="600">
                             <Banner
@@ -214,7 +210,6 @@ export default function JobShow({ job: initialJob }) {
                         </Box>
                     )}
 
-                    {/* Live Indicator */}
                     {!isDone && job.status === "running" && (
                         <Box paddingBlockEnd="600">
                             <Card
@@ -236,7 +231,6 @@ export default function JobShow({ job: initialJob }) {
                         </Box>
                     )}
 
-                    {/* Stats Grid */}
                     <Box paddingBlockEnd="600">
                         <div
                             style={{
@@ -246,7 +240,6 @@ export default function JobShow({ job: initialJob }) {
                                 gap: "16px",
                             }}
                         >
-                            {/* Progress */}
                             <Card background="bg-surface-secondary">
                                 <BlockStack gap="500">
                                     <Text
@@ -326,7 +319,6 @@ export default function JobShow({ job: initialJob }) {
                                 </BlockStack>
                             </Card>
 
-                            {/* Timing */}
                             <Card background="bg-surface-secondary">
                                 <BlockStack gap="300">
                                     <Text
@@ -371,7 +363,6 @@ export default function JobShow({ job: initialJob }) {
                                 </BlockStack>
                             </Card>
 
-                            {/* Success Rate */}
                             <Card background="bg-surface-secondary">
                                 <BlockStack gap="300">
                                     <Text
@@ -412,7 +403,6 @@ export default function JobShow({ job: initialJob }) {
                                 </BlockStack>
                             </Card>
 
-                            {/* Status */}
                             <Card background="bg-surface-secondary">
                                 <BlockStack gap="300">
                                     <Text
@@ -461,7 +451,6 @@ export default function JobShow({ job: initialJob }) {
                         </div>
                     </Box>
 
-                    {/* SKU Details */}
                     <Card title="SKU Generation Details" sectioned>
                         <BlockStack gap="600">
                             <InlineStack
@@ -540,7 +529,6 @@ export default function JobShow({ job: initialJob }) {
                     </Card>
                 </Layout.Section>
 
-                {/* LIVE ACTIVITY SIDEBAR — FINAL VERSION */}
                 <Layout.Section variant="oneThird">
                     <Card title="Live Activity" roundedAbove="sm">
                         <BlockStack gap="400">
@@ -548,9 +536,7 @@ export default function JobShow({ job: initialJob }) {
                                 Real-time job updates
                             </Text>
 
-                            {/* CLICKABLE FILTER BUTTONS */}
-                            {/* CLEAN, SMALL, ICON-COLOR MATCHING FILTERS */}
-                            <InlineStack gap="200">
+                            <InlineStack gap="40">
                                 {[
                                     "all",
                                     "success",
@@ -573,33 +559,27 @@ export default function JobShow({ job: initialJob }) {
                                             key={type}
                                             onClick={() => setFilter(type)}
                                             style={{
-                                                padding: "2px 5px",
+                                                padding: "2px 8px",
                                                 borderRadius: "12px",
                                                 backgroundColor: isActive
-                                                    ? "var(--p-color-bg-" +
-                                                      tone +
-                                                      "-subdued)"
+                                                    ? `var(--p-color-bg-${tone}-subdued)`
                                                     : "transparent",
                                                 border: isActive
-                                                    ? "1px solid var(--p-color-border-" +
-                                                      tone +
-                                                      ")"
+                                                    ? `1px solid var(--p-color-border-${tone})`
                                                     : "1px solid transparent",
                                                 cursor: "pointer",
-                                                transition: "all 0.2s ease",
+                                                transition: "all 0.15s ease",
                                             }}
-                                            onMouseEnter={(e) => {
-                                                if (!isActive) {
-                                                    e.currentTarget.style.backgroundColor =
-                                                        "var(--p-color-bg-surface-hover)";
-                                                }
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                if (!isActive) {
-                                                    e.currentTarget.style.backgroundColor =
-                                                        "transparent";
-                                                }
-                                            }}
+                                            onMouseEnter={(e) =>
+                                                !isActive &&
+                                                (e.currentTarget.style.backgroundColor =
+                                                    "var(--p-color-bg-surface-hover)")
+                                            }
+                                            onMouseLeave={(e) =>
+                                                !isActive &&
+                                                (e.currentTarget.style.backgroundColor =
+                                                    "transparent")
+                                            }
                                         >
                                             <Text
                                                 fontWeight={
@@ -633,7 +613,6 @@ export default function JobShow({ job: initialJob }) {
                                             item.level ||
                                             "info"
                                         ).toLowerCase();
-
                                         const iconConfig = {
                                             success: {
                                                 source: CheckCircleIcon,
@@ -652,7 +631,6 @@ export default function JobShow({ job: initialJob }) {
                                                 tone: "info",
                                             },
                                         };
-
                                         const config =
                                             iconConfig[logType] ||
                                             iconConfig.info;
