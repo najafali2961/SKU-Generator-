@@ -24,13 +24,6 @@ class SkuController extends Controller
         ]);
     }
 
-    // public function apply(Request $request)
-    // {
-    //     $shop = Auth::user();
-    //     GenerateSkuJob::dispatch($shop->id, $request->all());
-    //     return back()->with('success', 'SKU generation started in background.');
-    // }
-
     public function apply(Request $request)
     {
         $shop = Auth::user();
@@ -203,17 +196,39 @@ class SkuController extends Controller
         return $sku;
     }
 
+    // private function formatVariant($variant, $newSku, $isDuplicate)
+    // {
+    //     return [
+    //         'id'           => $variant->id,
+    //         'title'        => $variant->product->title ?? 'Untitled Product',
+    //         'vendor'       => $variant->product->vendor ?? '',
+    //         'option'       => trim(implode(' ', array_filter([$variant->option1, $variant->option2, $variant->option3]))),
+    //         'image'        => $variant->image_src ?? $variant->image ?? null,
+    //         'old_sku'      => $variant->sku,
+    //         'new_sku'      => $newSku,
+    //         'is_duplicate' => $isDuplicate,
+    //     ];
+    // }
+
     private function formatVariant($variant, $newSku, $isDuplicate)
     {
         return [
-            'id'           => $variant->id,
-            'title'        => $variant->product->title ?? 'Untitled Product',
-            'vendor'       => $variant->product->vendor ?? '',
-            'option'       => trim(implode(' ', array_filter([$variant->option1, $variant->option2, $variant->option3]))),
-            'image'        => $variant->image_src ?? $variant->image ?? null,
-            'old_sku'      => $variant->sku,
-            'new_sku'      => $newSku,
-            'is_duplicate' => $isDuplicate,
+            'id'                    => $variant->id,
+            'title'                 => $variant->product->title ?? 'Untitled Product',
+            'vendor'                => $variant->product->vendor ?? '',
+            'option1'               => $variant->option1,
+            'option2'               => $variant->option2,
+            'option3'               => $variant->option3,
+            'price'                 => $variant->price,
+            'inventory_quantity'    => $variant->inventory_quantity,
+            'barcode'               => $variant->barcode,
+            'shopify_variant_id'    => $variant->shopify_variant_id,
+            'image'                 => $variant->image_src ?? $variant->image ?? null,
+            'old_sku'               => $variant->sku,
+            'new_sku'               => $newSku,
+            'is_duplicate'          => $isDuplicate,
+            'created_at'            => $variant->created_at,
+            'updated_at'            => $variant->updated_at,
         ];
     }
 }

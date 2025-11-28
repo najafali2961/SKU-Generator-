@@ -25,6 +25,7 @@ import {
     AlertCircleIcon,
     HashtagIcon,
     ArrowRightIcon,
+    XCircleIcon,
 } from "@shopify/polaris-icons";
 
 export default function SkuPreviewTable({
@@ -573,86 +574,262 @@ export default function SkuPreviewTable({
                     </>
                 )}
             </Card>
-
-            {/* BEAUTIFUL MODAL */}
             {selectedVariant && (
                 <div
                     style={{
                         position: "fixed",
                         inset: 0,
-                        backgroundColor: "rgba(0,0,0,0.5)",
+                        backgroundColor: "rgba(0,0,0,0.6)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         zIndex: 1000,
-                        padding: "20px",
+                        padding: "16px",
                     }}
                     onClick={() => setSelectedVariant(null)}
                 >
                     <Card
                         sectioned
-                        title={
-                            <InlineStack gap="400" blockAlign="center">
-                                <Thumbnail
-                                    source={mediaUrl(selectedVariant)}
-                                    size="large"
-                                />
-                                <BlockStack>
-                                    <Text variant="headingLg" fontWeight="bold">
-                                        {selectedVariant.title}
-                                    </Text>
-                                    <Text tone="subdued">
-                                        {selectedVariant.vendor}
-                                    </Text>
-                                </BlockStack>
-                            </InlineStack>
-                        }
                         onClick={(e) => e.stopPropagation()}
-                        style={{ maxWidth: "680px", width: "100%" }}
+                        style={{
+                            maxWidth: "650px",
+                            width: "100%",
+                            maxHeight: "90vh",
+                            overflowY: "auto",
+                            borderRadius: "12px",
+                        }}
                     >
-                        <BlockStack gap="600">
-                            <BlockStack gap="400">
-                                <Divider />
-                                <InlineStack gap="600" blockAlign="center">
-                                    <BlockStack gap="200">
-                                        <Text tone="subdued">Current SKU</Text>
-                                        {selectedVariant.old_sku ? (
-                                            <Badge tone="info" size="large">
-                                                {selectedVariant.old_sku}
-                                            </Badge>
-                                        ) : (
-                                            <Badge tone="critical" size="large">
-                                                Missing
-                                            </Badge>
-                                        )}
-                                    </BlockStack>
-                                    <Icon
-                                        source={ArrowRightIcon}
-                                        tone="subdued"
+                        {/* HEADER */}
+                        <Box
+                            padding="400"
+                            background="bg-surface-brand"
+                            borderBlockEndWidth="1"
+                            borderColor="border-brand"
+                            borderRadius="300"
+                        >
+                            <InlineStack
+                                align="space-between"
+                                blockAlign="center"
+                            >
+                                <InlineStack gap="400" blockAlign="center">
+                                    <Thumbnail
+                                        source={
+                                            selectedVariant.image ||
+                                            selectedVariant.image_src
+                                        }
+                                        size="large"
+                                        alt={selectedVariant.title}
                                     />
-                                    <BlockStack gap="200">
-                                        <Text tone="subdued">New SKU</Text>
-                                        <Badge tone="success" size="large">
-                                            {selectedVariant.new_sku}
-                                        </Badge>
+                                    <BlockStack gap="100">
+                                        <Text
+                                            variant="headingLg"
+                                            fontWeight="bold"
+                                            color="text-inverse"
+                                        >
+                                            {selectedVariant.title}
+                                        </Text>
+                                        <Text
+                                            variant="bodyMd"
+                                            tone="subdued"
+                                            color="text-inverse"
+                                        >
+                                            {selectedVariant.vendor ||
+                                                "No vendor"}
+                                        </Text>
                                     </BlockStack>
                                 </InlineStack>
-                                <Divider />
-                                <BlockStack gap="200">
-                                    <Text tone="subdued">Variant Options</Text>
-                                    <Text>
-                                        {selectedVariant.option ||
-                                            "Default variant"}
+                            </InlineStack>
+                        </Box>
+
+                        {/* MAIN CONTENT */}
+                        <Box padding="500">
+                            <BlockStack gap="500">
+                                {/* PRICE & STOCK */}
+                                <InlineStack gap="400">
+                                    <Box
+                                        background="bg-surface-success-subdued"
+                                        padding="400"
+                                        borderRadius="200"
+                                        flex="1"
+                                    >
+                                        <Text variant="bodySm" tone="subdued">
+                                            Price
+                                        </Text>
+                                        <Text
+                                            variant="headingLg"
+                                            fontWeight="bold"
+                                        >
+                                            Rs.{" "}
+                                            {(
+                                                Number(selectedVariant.price) ||
+                                                0
+                                            ).toFixed(2)}
+                                        </Text>
+                                    </Box>
+                                    <Box
+                                        background={
+                                            selectedVariant.inventory_quantity >
+                                            0
+                                                ? "bg-surface-warning-subdued"
+                                                : "bg-surface-critical-subdued"
+                                        }
+                                        padding="400"
+                                        borderRadius="200"
+                                        flex="1"
+                                    >
+                                        <Text variant="bodySm" tone="subdued">
+                                            Stock
+                                        </Text>
+                                        <Text
+                                            variant="headingLg"
+                                            fontWeight="bold"
+                                        >
+                                            {+selectedVariant.inventory_quantity ||
+                                                0}
+                                        </Text>
+                                    </Box>
+                                </InlineStack>
+
+                                {/* SKU MIGRATION */}
+                                <Box
+                                    background="bg-surface-secondary"
+                                    padding="400"
+                                    borderRadius="300"
+                                >
+                                    <Text variant="headingMd" fontWeight="bold">
+                                        SKU Migration
                                     </Text>
-                                </BlockStack>
+                                    <InlineStack
+                                        gap="400"
+                                        blockAlign="center"
+                                        paddingBlockStart="300"
+                                    >
+                                        <BlockStack gap="200" align="center">
+                                            <Text
+                                                variant="bodySm"
+                                                tone="subdued"
+                                            >
+                                                Current
+                                            </Text>
+                                            <Badge
+                                                tone={
+                                                    selectedVariant.old_sku
+                                                        ? "info"
+                                                        : "critical"
+                                                }
+                                                size="large"
+                                            >
+                                                {selectedVariant.old_sku ||
+                                                    "Missing"}
+                                            </Badge>
+                                        </BlockStack>
+                                        <Icon
+                                            source={ArrowRightIcon}
+                                            tone="subdued"
+                                        />
+                                        <BlockStack gap="200" align="center">
+                                            <Text
+                                                variant="bodySm"
+                                                tone="subdued"
+                                            >
+                                                New
+                                            </Text>
+                                            <Badge tone="success" size="large">
+                                                {selectedVariant.new_sku}
+                                            </Badge>
+                                        </BlockStack>
+                                    </InlineStack>
+                                </Box>
+
+                                {/* VARIANT OPTIONS */}
+                                {(selectedVariant.option1 ||
+                                    selectedVariant.option2 ||
+                                    selectedVariant.option3) && (
+                                    <Box>
+                                        <Text
+                                            variant="headingMd"
+                                            fontWeight="semibold"
+                                        >
+                                            Options
+                                        </Text>
+                                        <InlineStack
+                                            gap="300"
+                                            paddingBlockStart="200"
+                                        >
+                                            {selectedVariant.option1 && (
+                                                <Badge tone="attention">
+                                                    {selectedVariant.option1}
+                                                </Badge>
+                                            )}
+                                            {selectedVariant.option2 && (
+                                                <Badge tone="attention">
+                                                    {selectedVariant.option2}
+                                                </Badge>
+                                            )}
+                                            {selectedVariant.option3 && (
+                                                <Badge tone="attention">
+                                                    {selectedVariant.option3}
+                                                </Badge>
+                                            )}
+                                        </InlineStack>
+                                    </Box>
+                                )}
+
+                                {/* IDENTIFIERS */}
+                                <Box>
+                                    <Text
+                                        variant="headingMd"
+                                        fontWeight="semibold"
+                                    >
+                                        Identifiers
+                                    </Text>
+                                    <InlineStack
+                                        gap="400"
+                                        paddingBlockStart="200"
+                                    >
+                                        <BlockStack gap="050">
+                                            <Text
+                                                variant="bodySm"
+                                                tone="subdued"
+                                            >
+                                                Barcode
+                                            </Text>
+                                            <Text>
+                                                {selectedVariant.barcode || "—"}
+                                            </Text>
+                                        </BlockStack>
+                                        <BlockStack gap="050">
+                                            <Text
+                                                variant="bodySm"
+                                                tone="subdued"
+                                            >
+                                                Shopify ID
+                                            </Text>
+                                            <Text>
+                                                {selectedVariant.shopify_variant_id ||
+                                                    "—"}
+                                            </Text>
+                                        </BlockStack>
+                                    </InlineStack>
+                                </Box>
                             </BlockStack>
-                            <Button
-                                fullWidth
-                                onClick={() => setSelectedVariant(null)}
-                            >
-                                Close
-                            </Button>
-                        </BlockStack>
+                        </Box>
+                        {/* FOOTER */}
+                        <Box
+                            padding="400"
+                            background="bg-surface-secondary"
+                            borderBlockStartWidth="1"
+                            borderColor="border"
+                            borderRadius="300"
+                        >
+                            <InlineStack align="end" gap="300">
+                                <Button
+                                    onClick={() => setSelectedVariant(null)}
+                                >
+                                    Close
+                                </Button>
+                            </InlineStack>
+                        </Box>
                     </Card>
                 </div>
             )}
