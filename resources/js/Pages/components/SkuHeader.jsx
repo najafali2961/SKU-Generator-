@@ -9,7 +9,7 @@ import {
     Box,
 } from "@shopify/polaris";
 import { ArrowLeftIcon, MagicIcon, ExportIcon } from "@shopify/polaris-icons";
-import { Link, usePage } from "@inertiajs/react"; // ← Inertia instead of Remix
+import { Link } from "@inertiajs/react";
 
 const SMART_PRESETS = [
     {
@@ -41,7 +41,6 @@ const SMART_PRESETS = [
         source_len: 2,
         source_placement: "before",
     },
-    { prefix: "PROD", auto_start: "0001", delimiter: "", suffix: "-V2" },
     {
         prefix: "BRAND",
         auto_start: "01",
@@ -71,7 +70,6 @@ export default function SkuHeader({ onPreset, onExport }) {
     return (
         <Box paddingBlockStart="100" paddingBlockEnd="10">
             <InlineStack align="space-between" blockAlign="center" gap="400">
-                {/* ← Back button + Title (Shopify style) */}
                 <InlineStack gap="400" align="center">
                     <Link href={route("home")}>
                         <Icon source={ArrowLeftIcon} color="base" />
@@ -87,7 +85,6 @@ export default function SkuHeader({ onPreset, onExport }) {
                     </div>
                 </InlineStack>
 
-                {/* Right-side action buttons – clean & equal */}
                 <InlineStack gap="200">
                     <Tooltip
                         content="Apply a smart random pattern"
