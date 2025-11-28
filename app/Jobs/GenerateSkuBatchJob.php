@@ -1,5 +1,4 @@
 <?php
-// app/Jobs/GenerateSkuBatchJob.php
 
 namespace App\Jobs;
 
@@ -7,6 +6,7 @@ use App\Models\Variant;
 use App\Models\User;
 use App\Models\JobLog;
 use App\Services\ShopifyService;
+use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -14,7 +14,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Throwable;
-use Illuminate\Bus\Batchable;
 
 class GenerateSkuBatchJob implements ShouldQueue
 {
@@ -25,7 +24,7 @@ class GenerateSkuBatchJob implements ShouldQueue
     public $settings;
     public $jobLogId;
 
-    public function __construct($shopId, $settings, array $variantIds, $jobLogId = null)
+    public function __construct($shopId, $settings, array $variantIds, $jobLogId)
     {
         $this->shopId = $shopId;
         $this->settings = $settings;
@@ -35,6 +34,9 @@ class GenerateSkuBatchJob implements ShouldQueue
 
     public function handle()
     {
+        $jobLog = JobLog::find($this->jobLogId);
+        if (!$jobLog) return;
+
         $shop = User::find($this->shopId);
         if (!$shop) return;
 
@@ -46,37 +48,58 @@ class GenerateSkuBatchJob implements ShouldQueue
 
         if ($variants->isEmpty()) return;
 
+        $jobLog->info("Processing Batch", "Starting batch of {$variants->count()} variants");
+
+        $processed = 0;
+        $failed = 0;
+
         foreach ($variants->groupBy('product_id') as $productId => $productVariants) {
             $skuMap = [];
 
             foreach ($productVariants as $variant) {
-                $nextCounter = $this->getNextGlobalCounter();
-                $sku = $this->generateSku($nextCounter);
+                try {
+                    $counter = $this->getNextGlobalCounter();
+                    $sku = $this->generateSku($counter);
 
-                $variant->sku = $sku;
-                $variant->save();
+                    $variant->sku = $sku;
+                    $variant->save();
 
-                $skuMap[$variant->id] = $sku;
+                    $skuMap[$variant->id] = $sku;
+
+                    $jobLog->success("SKU Assigned", "Variant #{$variant->id} → {$sku}");
+                    $processed++;
+                } catch (\Exception $e) {
+                    $jobLog->error("SKU Generation Failed", "Variant #{$variant->id}: " . $e->getMessage());
+                    $failed++;
+                }
             }
 
-            $shopify->updateVariantSkus((int)$productId, $skuMap);
+            if (!empty($skuMap)) {
+                try {
+                    $shopify->updateVariantSkus((int)$productId, $skuMap);
+                    $jobLog->info("Synced to Shopify", "Product ID {$productId} updated");
+                } catch (\Exception $e) {
+                    $jobLog->error("Shopify Sync Failed", "Product ID {$productId}: " . $e->getMessage());
+                    $failed += count($skuMap);
+                }
+            }
         }
 
-        // CORRECT PROGRESS UPDATE — THIS FIXES THE ERROR
-        if ($this->jobLogId) {
-            JobLog::where('id', $this->jobLogId)
-                ->increment('processed_items', count($this->variantIds));
+        // Update progress
+        $jobLog->increment('processed_items', $processed);
+        if ($failed > 0) {
+            $jobLog->increment('failed_items', $failed);
         }
     }
 
     public function failed(Throwable $exception)
     {
         if ($this->jobLogId) {
-            JobLog::where('id', $this->jobLogId)->update([
-                'status' => 'failed',
-                'error_message' => $exception->getMessage(),
-                'finished_at' => now(),
-            ]);
+            $jobLog = JobLog::find($this->jobLogId);
+            if ($jobLog) {
+                $jobLog->error('Batch Failed', $exception->getMessage());
+                $jobLog->markAsFailed("Batch job failed: " . $exception->getMessage());
+            }
         }
     }
 
@@ -103,7 +126,6 @@ class GenerateSkuBatchJob implements ShouldQueue
             }
 
             $next = $row->counter + 1;
-
             DB::table('sku_counters')
                 ->where('id', $row->id)
                 ->update(['counter' => $next, 'updated_at' => now()]);
@@ -127,10 +149,6 @@ class GenerateSkuBatchJob implements ShouldQueue
 
         if (!empty($s['remove_spaces'])) {
             $sku = str_replace(' ', '', $sku);
-        }
-
-        if (!empty($s['alphanumeric'])) {
-            $seven = preg_replace('/[^A-Za-z0-9\-]/', '', $sku);
         }
 
         return $sku;
