@@ -42,12 +42,6 @@ class SkuController extends Controller
         return redirect()->route('jobs.show', $jobLog)
             ->with('success', 'SKU generation started! Redirecting to progress page...');
     }
-    public function progress()
-    {
-        $shop = Auth::user();
-        $progress = Cache::get("sku_progress_{$shop->id}", 0);
-        return response()->json(['progress' => (int)$progress]);
-    }
 
     public function preview(Request $request)
     {
@@ -196,19 +190,6 @@ class SkuController extends Controller
         return $sku;
     }
 
-    // private function formatVariant($variant, $newSku, $isDuplicate)
-    // {
-    //     return [
-    //         'id'           => $variant->id,
-    //         'title'        => $variant->product->title ?? 'Untitled Product',
-    //         'vendor'       => $variant->product->vendor ?? '',
-    //         'option'       => trim(implode(' ', array_filter([$variant->option1, $variant->option2, $variant->option3]))),
-    //         'image'        => $variant->image_src ?? $variant->image ?? null,
-    //         'old_sku'      => $variant->sku,
-    //         'new_sku'      => $newSku,
-    //         'is_duplicate' => $isDuplicate,
-    //     ];
-    // }
 
     private function formatVariant($variant, $newSku, $isDuplicate)
     {

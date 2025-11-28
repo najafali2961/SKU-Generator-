@@ -5,7 +5,6 @@ import { router } from "@inertiajs/react";
 import SkuHeader from "./components/SkuHeader";
 import SkuSidebar from "./components/SkuSidebar";
 import SkuPreviewTable from "./components/SkuPreviewTable";
-import SkuProgressBar from "./components/SkuProgressBar";
 
 const DEBOUNCE_DELAY = 500;
 
@@ -107,28 +106,28 @@ export default function SkuGenerator({ initialCollections = [] }) {
         }
     }, [page]);
 
-    useEffect(() => {
-        if (!applying) return;
+    // useEffect(() => {
+    //     if (!applying) return;
 
-        const interval = setInterval(async () => {
-            try {
-                const { data } = await axios.get("/sku-generator/progress");
-                setProgress(data.progress || 0);
+    //     const interval = setInterval(async () => {
+    //         try {
+    //             const { data } = await axios.get("/sku-generator/progress");
+    //             setProgress(data.progress || 0);
 
-                if (data.progress >= 100) {
-                    clearInterval(interval);
-                    setApplying(false);
-                    setProgress(0);
-                    setSelected(new Set());
-                    fetchPreview();
-                }
-            } catch (err) {
-                console.error("Progress poll error:", err);
-            }
-        }, 1000);
+    //             if (data.progress >= 100) {
+    //                 clearInterval(interval);
+    //                 setApplying(false);
+    //                 setProgress(0);
+    //                 setSelected(new Set());
+    //                 fetchPreview();
+    //             }
+    //         } catch (err) {
+    //             console.error("Progress poll error:", err);
+    //         }
+    //     }, 1000);
 
-        return () => clearInterval(interval);
-    }, [applying, fetchPreview]);
+    //     return () => clearInterval(interval);
+    // }, [applying, fetchPreview]);
 
     const applySKUs = async (scope = "selected") => {
         let ids = [];
@@ -225,14 +224,6 @@ export default function SkuGenerator({ initialCollections = [] }) {
                             selectedTypes={selectedTypes}
                             setSelectedTypes={setSelectedTypes}
                         />
-
-                        {applying && (
-                            <SkuProgressBar
-                                applying={applying}
-                                progress={progress}
-                                total={total}
-                            />
-                        )}
                     </div>
                 </div>
             </div>
