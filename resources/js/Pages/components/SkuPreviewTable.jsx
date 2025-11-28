@@ -47,8 +47,6 @@ export default function SkuPreviewTable({
     applySKUs,
     mediaUrl,
     initialCollections = [],
-
-    // Filter states
     selectedCollectionIds,
     setSelectedCollectionIds,
     selectedVendors,
@@ -56,6 +54,8 @@ export default function SkuPreviewTable({
     selectedTypes,
     setSelectedTypes,
 }) {
+    const [selectedVariant, setSelectedVariant] = React.useState(null);
+
     const DUPLICATES_PER_PAGE = 10;
     const totalDuplicatePages = Math.ceil(
         duplicateGroups.length / DUPLICATES_PER_PAGE
@@ -168,20 +168,24 @@ export default function SkuPreviewTable({
         },
     ];
 
+    const toggleRowSelection = (itemId) => {
+        setSelected((prev) => {
+            const next = new Set(prev);
+            if (next.has(itemId)) {
+                next.delete(itemId);
+            } else {
+                next.add(itemId);
+            }
+            return next;
+        });
+    };
+
     const renderRow = (item) => (
         <IndexTable.Row
             key={item.id}
             id={item.id}
             selected={selected.has(item.id)}
-            onClick={() =>
-                setSelected((prev) => {
-                    const next = new Set(prev);
-                    next.has(item.id)
-                        ? next.delete(item.id)
-                        : next.add(item.id);
-                    return next;
-                })
-            }
+            onClick={() => toggleRowSelection(item.id)}
         >
             <IndexTable.Cell>
                 <Thumbnail
@@ -190,14 +194,53 @@ export default function SkuPreviewTable({
                     alt={item.title}
                 />
             </IndexTable.Cell>
+
             <IndexTable.Cell>
                 <BlockStack gap="100">
-                    <Text fontWeight="semibold">{item.title}</Text>
+                    {/* TITLE — clickable, opens modal */}
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedVariant(item);
+                        }}
+                        style={{
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            margin: 0,
+                            textAlign: "left",
+                            cursor: "pointer",
+                            font: "inherit",
+                            color: "var(--p-color-text-brand)",
+                            fontWeight: 600,
+                        }}
+                        onMouseEnter={(e) =>
+                            (e.currentTarget.style.textDecoration = "underline")
+                        }
+                        onMouseLeave={(e) =>
+                            (e.currentTarget.style.textDecoration = "none")
+                        }
+                    >
+                        <div
+                            style={{
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                maxWidth: "340px",
+                            }}
+                            title={item.title}
+                        >
+                            {item.title}
+                        </div>
+                    </button>
+
                     <Text variant="bodySm" tone="subdued">
                         {item.vendor} {item.option && `• ${item.option}`}
                     </Text>
                 </BlockStack>
             </IndexTable.Cell>
+
             <IndexTable.Cell>
                 {item.old_sku ? (
                     <Badge tone="info">{item.old_sku}</Badge>
@@ -208,6 +251,7 @@ export default function SkuPreviewTable({
                     </InlineStack>
                 )}
             </IndexTable.Cell>
+
             <IndexTable.Cell>
                 <Badge tone="success">{item.new_sku}</Badge>
             </IndexTable.Cell>
@@ -267,25 +311,25 @@ export default function SkuPreviewTable({
                         <Divider />
                         <BlockStack gap="200">
                             {group.variants.map((v) => (
-                                <Box
+                                <div
                                     key={v.id}
-                                    padding="300"
-                                    background={
-                                        selected.has(v.id)
-                                            ? "bg-surface-selected"
-                                            : "bg-surface-hover"
-                                    }
-                                    borderRadius="200"
-                                    onClick={() =>
+                                    style={{
+                                        padding: "12px",
+                                        backgroundColor: selected.has(v.id)
+                                            ? "var(--p-color-bg-selected)"
+                                            : "var(--p-color-bg-hover)",
+                                        borderRadius: "4px",
+                                        cursor: "pointer",
+                                    }}
+                                    onClick={() => {
                                         setSelected((prev) => {
                                             const next = new Set(prev);
                                             next.has(v.id)
                                                 ? next.delete(v.id)
                                                 : next.add(v.id);
                                             return next;
-                                        })
-                                    }
-                                    style={{ cursor: "pointer" }}
+                                        });
+                                    }}
                                 >
                                     <InlineStack
                                         gap="400"
@@ -327,7 +371,7 @@ export default function SkuPreviewTable({
                                             </Badge>
                                         </InlineStack>
                                     </InlineStack>
-                                </Box>
+                                </div>
                             ))}
                         </BlockStack>
                     </BlockStack>
@@ -366,163 +410,252 @@ export default function SkuPreviewTable({
         );
 
     return (
-        <Card>
-            {/* TABS — Always visible */}
-            <Box padding="400">
-                <Tabs
-                    tabs={tabs}
-                    selected={tabs.findIndex((t) => t.id === activeTab)}
-                    onSelect={handleTabChange}
-                    fitted
-                />
-            </Box>
+        <>
+            <Card>
+                <Box padding="400">
+                    <Tabs
+                        tabs={tabs}
+                        selected={tabs.findIndex((t) => t.id === activeTab)}
+                        onSelect={handleTabChange}
+                        fitted
+                    />
+                </Box>
 
-            {/* SEARCH + FILTERS — Below tabs, never hides them */}
-            <Box
-                paddingInlineStart="400"
-                paddingInlineEnd="400"
-                paddingBlockEnd="400"
-            >
-                <Filters
-                    queryValue={queryValue}
-                    onQueryChange={setQueryValue}
-                    onQueryClear={() => setQueryValue("")}
-                    filters={filters}
-                    appliedFilters={appliedFilters}
-                    onClearAll={handleClearAll}
-                    queryPlaceholder="Search products, vendors, SKUs..."
-                />
-            </Box>
+                <Box
+                    paddingInlineStart="400"
+                    paddingInlineEnd="400"
+                    paddingBlockEnd="400"
+                >
+                    <Filters
+                        queryValue={queryValue}
+                        onQueryChange={setQueryValue}
+                        onQueryClear={() => setQueryValue("")}
+                        filters={filters}
+                        appliedFilters={appliedFilters}
+                        onClearAll={handleClearAll}
+                        queryPlaceholder="Search products, vendors, SKUs..."
+                    />
+                </Box>
 
-            {/* Table */}
-            <IndexTable
-                resourceName={{ singular: "variant", plural: "variants" }}
-                itemCount={
-                    activeTab === "duplicates" ? duplicateGroups.length : total
-                }
-                selectedItemsCount={
-                    selected.size === total ? "All" : selected.size
-                }
-                onSelectionChange={(selectionType, toggle) => {
-                    if (selectionType === "all") {
-                        const ids =
-                            activeTab === "duplicates"
-                                ? duplicateGroups.flatMap((g) =>
-                                      g.variants.map((v) => v.id)
-                                  )
-                                : preview.map((p) => p.id);
-                        setSelected(toggle ? new Set(ids) : new Set());
+                <IndexTable
+                    resourceName={{ singular: "variant", plural: "variants" }}
+                    itemCount={
+                        activeTab === "duplicates"
+                            ? duplicateGroups.length
+                            : total
                     }
-                }}
-                hasZebraStriping
-                headings={
-                    activeTab === "duplicates"
-                        ? [{ title: "Duplicate Groups" }]
-                        : [
-                              { title: "" },
-                              { title: "Product" },
-                              { title: "Current SKU" },
-                              { title: "New SKU" },
-                          ]
-                }
-                bulkActions={[
-                    {
-                        content: `Apply to Selected (${selected.size})`,
-                        onAction: () => applySKUs("selected"),
-                        disabled: selected.size === 0,
-                    },
-                ]}
-                promotedBulkActions={[
-                    {
-                        content: "Apply to Visible",
-                        onAction: () => applySKUs("visible"),
-                    },
-                ]}
-                loading={loading}
-            >
-                {rowMarkup}
-            </IndexTable>
+                    selectedItemsCount={
+                        selected.size === total ? "All" : selected.size
+                    }
+                    onSelectionChange={(selectionType, toggle) => {
+                        if (selectionType === "all") {
+                            const ids =
+                                activeTab === "duplicates"
+                                    ? duplicateGroups.flatMap((g) =>
+                                          g.variants.map((v) => v.id)
+                                      )
+                                    : preview.map((p) => p.id);
+                            setSelected(toggle ? new Set(ids) : new Set());
+                        }
+                    }}
+                    hasZebraStriping
+                    headings={
+                        activeTab === "duplicates"
+                            ? [{ title: "Duplicate Groups" }]
+                            : [
+                                  { title: "" },
+                                  { title: "Product" },
+                                  { title: "Current SKU" },
+                                  { title: "New SKU" },
+                              ]
+                    }
+                    bulkActions={[
+                        {
+                            content: `Apply to Selected (${selected.size})`,
+                            onAction: () => applySKUs("selected"),
+                            disabled: selected.size === 0,
+                        },
+                    ]}
+                    promotedBulkActions={[
+                        {
+                            content: "Apply to Visible",
+                            onAction: () => applySKUs("visible"),
+                        },
+                    ]}
+                    loading={loading}
+                >
+                    {rowMarkup}
+                </IndexTable>
 
-            {/* Pagination & Actions */}
-            {!loading && (
-                <>
-                    {activeTab === "duplicates" && totalDuplicatePages > 1 && (
-                        <>
-                            <Divider />
-                            <Box padding="400">
-                                <Pagination
-                                    hasPrevious={duplicatePage > 1}
-                                    onPrevious={() =>
-                                        setDuplicatePage((p) => p - 1)
-                                    }
-                                    hasNext={
-                                        duplicatePage < totalDuplicatePages
-                                    }
-                                    onNext={() =>
-                                        setDuplicatePage((p) => p + 1)
-                                    }
-                                    label={`${duplicatePage} of ${totalDuplicatePages}`}
+                {!loading && (
+                    <>
+                        {activeTab === "duplicates" &&
+                            totalDuplicatePages > 1 && (
+                                <>
+                                    <Divider />
+                                    <Box padding="400">
+                                        <Pagination
+                                            hasPrevious={duplicatePage > 1}
+                                            onPrevious={() =>
+                                                setDuplicatePage((p) => p - 1)
+                                            }
+                                            hasNext={
+                                                duplicatePage <
+                                                totalDuplicatePages
+                                            }
+                                            onNext={() =>
+                                                setDuplicatePage((p) => p + 1)
+                                            }
+                                            label={`${duplicatePage} of ${totalDuplicatePages}`}
+                                        />
+                                    </Box>
+                                </>
+                            )}
+
+                        {activeTab !== "duplicates" &&
+                            Math.ceil(total / 25) > 1 && (
+                                <>
+                                    <Divider />
+                                    <Box padding="400">
+                                        <Pagination
+                                            hasPrevious={page > 1}
+                                            onPrevious={() =>
+                                                setPage((p) => p - 1)
+                                            }
+                                            hasNext={
+                                                page < Math.ceil(total / 25)
+                                            }
+                                            onNext={() => setPage((p) => p + 1)}
+                                            label={`${page} of ${Math.ceil(
+                                                total / 25
+                                            )}`}
+                                        />
+                                    </Box>
+                                </>
+                            )}
+
+                        <Box padding="400" background="bg-surface-secondary">
+                            <InlineStack align="space-between">
+                                <ButtonGroup>
+                                    <Button
+                                        onClick={() => setSelected(new Set())}
+                                        disabled={selected.size === 0}
+                                    >
+                                        Clear Selection
+                                    </Button>
+                                    <Button
+                                        onClick={() => applySKUs("visible")}
+                                        disabled={preview.length === 0}
+                                    >
+                                        Apply to Visible ({preview.length})
+                                    </Button>
+                                </ButtonGroup>
+
+                                <ButtonGroup>
+                                    <Button onClick={() => applySKUs("all")}>
+                                        {activeTab === "duplicates"
+                                            ? `Fix All Duplicates (${stats.duplicates})`
+                                            : activeTab === "missing"
+                                            ? `Fix All Missing (${stats.missing})`
+                                            : `Apply to All (${total})`}
+                                    </Button>
+                                    <Button
+                                        variant="primary"
+                                        loading={applying}
+                                        disabled={selected.size === 0}
+                                        onClick={() => applySKUs("selected")}
+                                    >
+                                        Apply to Selected ({selected.size})
+                                    </Button>
+                                </ButtonGroup>
+                            </InlineStack>
+                        </Box>
+                    </>
+                )}
+            </Card>
+
+            {/* BEAUTIFUL MODAL */}
+            {selectedVariant && (
+                <div
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        backgroundColor: "rgba(0,0,0,0.5)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        zIndex: 1000,
+                        padding: "20px",
+                    }}
+                    onClick={() => setSelectedVariant(null)}
+                >
+                    <Card
+                        sectioned
+                        title={
+                            <InlineStack gap="400" blockAlign="center">
+                                <Thumbnail
+                                    source={mediaUrl(selectedVariant)}
+                                    size="large"
                                 />
-                            </Box>
-                        </>
-                    )}
-
-                    {activeTab !== "duplicates" &&
-                        Math.ceil(total / 25) > 1 && (
-                            <>
+                                <BlockStack>
+                                    <Text variant="headingLg" fontWeight="bold">
+                                        {selectedVariant.title}
+                                    </Text>
+                                    <Text tone="subdued">
+                                        {selectedVariant.vendor}
+                                    </Text>
+                                </BlockStack>
+                            </InlineStack>
+                        }
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ maxWidth: "680px", width: "100%" }}
+                    >
+                        <BlockStack gap="600">
+                            <BlockStack gap="400">
                                 <Divider />
-                                <Box padding="400">
-                                    <Pagination
-                                        hasPrevious={page > 1}
-                                        onPrevious={() => setPage((p) => p - 1)}
-                                        hasNext={page < Math.ceil(total / 25)}
-                                        onNext={() => setPage((p) => p + 1)}
-                                        label={`${page} of ${Math.ceil(
-                                            total / 25
-                                        )}`}
+                                <InlineStack gap="600" blockAlign="center">
+                                    <BlockStack gap="200">
+                                        <Text tone="subdued">Current SKU</Text>
+                                        {selectedVariant.old_sku ? (
+                                            <Badge tone="info" size="large">
+                                                {selectedVariant.old_sku}
+                                            </Badge>
+                                        ) : (
+                                            <Badge tone="critical" size="large">
+                                                Missing
+                                            </Badge>
+                                        )}
+                                    </BlockStack>
+                                    <Icon
+                                        source={ArrowRightIcon}
+                                        tone="subdued"
                                     />
-                                </Box>
-                            </>
-                        )}
-
-                    <Box padding="400" background="bg-surface-secondary">
-                        <InlineStack align="space-between">
-                            <ButtonGroup>
-                                <Button
-                                    onClick={() => setSelected(new Set())}
-                                    disabled={selected.size === 0}
-                                >
-                                    Clear Selection
-                                </Button>
-                                <Button
-                                    onClick={() => applySKUs("visible")}
-                                    disabled={preview.length === 0}
-                                >
-                                    Apply to Visible ({preview.length})
-                                </Button>
-                            </ButtonGroup>
-
-                            <ButtonGroup>
-                                <Button onClick={() => applySKUs("all")}>
-                                    {activeTab === "duplicates"
-                                        ? `Fix All Duplicates (${stats.duplicates})`
-                                        : activeTab === "missing"
-                                        ? `Fix All Missing (${stats.missing})`
-                                        : `Apply to All (${total})`}
-                                </Button>
-                                <Button
-                                    variant="primary"
-                                    loading={applying}
-                                    disabled={selected.size === 0}
-                                    onClick={() => applySKUs("selected")}
-                                >
-                                    Apply to Selected ({selected.size})
-                                </Button>
-                            </ButtonGroup>
-                        </InlineStack>
-                    </Box>
-                </>
+                                    <BlockStack gap="200">
+                                        <Text tone="subdued">New SKU</Text>
+                                        <Badge tone="success" size="large">
+                                            {selectedVariant.new_sku}
+                                        </Badge>
+                                    </BlockStack>
+                                </InlineStack>
+                                <Divider />
+                                <BlockStack gap="200">
+                                    <Text tone="subdued">Variant Options</Text>
+                                    <Text>
+                                        {selectedVariant.option ||
+                                            "Default variant"}
+                                    </Text>
+                                </BlockStack>
+                            </BlockStack>
+                            <Button
+                                fullWidth
+                                onClick={() => setSelectedVariant(null)}
+                            >
+                                Close
+                            </Button>
+                        </BlockStack>
+                    </Card>
+                </div>
             )}
-        </Card>
+        </>
     );
 }
