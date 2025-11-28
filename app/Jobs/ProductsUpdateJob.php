@@ -188,13 +188,6 @@ class ProductsUpdateJob implements ShouldQueue
                     ['product_id', 'barcode_value', 'format', 'image_url', 'is_duplicate', 'updated_at']
                 );
             }
-
-            Log::info("ProductsUpdateJob SUCCESS", [
-                'product_id'         => $shopifyProductId,
-                'is_graphql'         => $isGraphQL,
-                'variants_processed' => count($variantInserts),
-                'images_saved'       => collect($variantInserts)->filter(fn($v) => !empty($v['image']))->count()
-            ]);
         } catch (\Throwable $e) {
             Log::error("ProductsUpdateJob FAILED", [
                 'error' => $e->getMessage(),

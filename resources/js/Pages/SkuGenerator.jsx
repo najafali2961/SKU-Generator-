@@ -78,20 +78,34 @@ export default function SkuGenerator({ initialCollections = [] }) {
         selectedTypes,
     ]);
 
+    // 1. Debounced effect — ONLY for filters/search/tab (resets page to 1)
     useEffect(() => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
 
         debounceRef.current = setTimeout(() => {
-            setPage(1); // Reset page on any filter change
-            fetchPreview();
+            if (page !== 1) {
+                setPage(1);
+            } else {
+                fetchPreview();
+            }
         }, DEBOUNCE_DELAY);
 
         return () => clearTimeout(debounceRef.current);
-    }, [fetchPreview]);
+    }, [
+        form,
+        queryValue,
+        activeTab,
+        selectedCollectionIds,
+        selectedVendors,
+        selectedTypes,
+    ]);
 
+    // 2. Pagination effect — ONLY runs when page changes (does NOT reset)
     useEffect(() => {
-        fetchPreview();
-    }, []);
+        if (page > 1 || page === 1) {
+            fetchPreview();
+        }
+    }, [page]);
 
     useEffect(() => {
         if (!applying) return;
@@ -116,7 +130,7 @@ export default function SkuGenerator({ initialCollections = [] }) {
         return () => clearInterval(interval);
     }, [applying, fetchPreview]);
 
-    const applySKUs = (scope = "selected") => {
+    const applySKUs = async (scope = "selected") => {
         let ids = [];
 
         if (scope === "selected") {
@@ -124,20 +138,30 @@ export default function SkuGenerator({ initialCollections = [] }) {
         } else if (scope === "visible") {
             ids = visibleIds;
         } else if (scope === "all") {
-            if (activeTab === "duplicates") {
-                ids = duplicateGroups.flatMap((g) =>
-                    g.variants.map((v) => v.id)
-                );
-            } else if (activeTab === "missing") {
-                ids = preview.filter((p) => !p.old_sku).map((p) => p.id);
-            } else {
-                ids = preview.map((p) => p.id);
+            setApplying(true);
+            setProgress(0);
+
+            // FETCH ALL VARIANT IDS FROM SERVER (the only reliable way)
+            try {
+                const res = await axios.post("/sku-generator/preview", {
+                    ...form,
+                    search: queryValue.trim(),
+                    page: 1,
+                    tab: activeTab,
+                    collections: selectedCollectionIds,
+                    vendor: selectedVendors[0] || null,
+                    type: selectedTypes[0] || null,
+                    get_all_ids: true, // ← NEW FLAG
+                });
+
+                ids = res.data.all_variant_ids || [];
+            } catch (err) {
+                console.error("Failed to get all IDs:", err);
+                return;
             }
         }
 
-        setApplying(true);
-        setProgress(0);
-
+        // Now send the real full list
         router.post("/sku-generator/apply", {
             ...form,
             search: queryValue.trim(),
@@ -147,6 +171,9 @@ export default function SkuGenerator({ initialCollections = [] }) {
             apply_scope: scope,
             selected_variant_ids: ids,
         });
+
+        setApplying(true);
+        setProgress(0);
     };
 
     const mediaUrl = (item) => item.image || null;

@@ -150,7 +150,11 @@ class SkuController extends Controller
         $total = count($preview);
         $paginated = array_slice($preview, ($page - 1) * $perPage, $perPage);
         $visibleIds = Arr::pluck($paginated, 'id');
-
+        if ($request->boolean('get_all_ids')) {
+            return response()->json([
+                'all_variant_ids' => $allVariants->pluck('id')->toArray(),
+            ]);
+        }
         return response()->json([
             'preview'         => $paginated,
             'total'           => $total,
