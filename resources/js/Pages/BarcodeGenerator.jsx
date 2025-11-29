@@ -204,26 +204,6 @@ export default function BarcodeGenerator() {
                             selectedTypes={[]}
                             setSelectedTypes={() => {}}
                         />
-
-                        {applying && (
-                            <div className="p-6 bg-white border border-gray-200 rounded-lg shadow">
-                                <h3 className="mb-4 text-lg font-medium">
-                                    Applying Barcodes...
-                                </h3>
-                                <div className="space-y-3">
-                                    <div className="w-full h-4 overflow-hidden bg-gray-200 rounded-full">
-                                        <div
-                                            className="h-full transition-all duration-300 bg-blue-600"
-                                            style={{ width: `${progress}%` }}
-                                        />
-                                    </div>
-                                    <p className="text-sm text-center text-gray-600">
-                                        {progress}% – Applying to{" "}
-                                        {overallTotal.toLocaleString()} variants
-                                    </p>
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>
