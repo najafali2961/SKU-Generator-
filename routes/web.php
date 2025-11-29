@@ -18,7 +18,7 @@ Route::middleware(['verify.shopify'])->group(function () {
 
     Route::get('/', [HomeController::class, 'index'])->name('home');
 
-    Route::get('/sku-generator', [SkuController::class, 'index']);
+    Route::get('/sku-generator', [SkuController::class, 'index'])->name('sku-generator');
     Route::post('/sku-generator/preview', [SkuController::class, 'preview']);
     Route::post('/sku-generator/apply', [SkuController::class, 'apply']);
     Route::get('/sku-generator/progress', [SkuController::class, 'progress']);
@@ -27,7 +27,7 @@ Route::middleware(['verify.shopify'])->group(function () {
     Route::get('/barcode-printer', [PrinterController::class, 'index']);
 
     ///barcode
-    Route::get('/barcode-generator', [BarcodeController::class, 'index'])->name('barcode.index');
+    Route::get('/barcode-generator', [BarcodeController::class, 'index'])->name('barcode');
     Route::post('/barcode-generator/preview', [BarcodeController::class, 'preview']);
     Route::post('/barcode/generate', [BarcodeController::class, 'generate']);
     Route::post('/barcode-generator/apply', [BarcodeController::class, 'apply']);
