@@ -31,7 +31,7 @@ export default function BarcodeGenerator() {
     const [total, setTotal] = useState(0);
     const [overallTotal, setOverallTotal] = useState(0);
     const [duplicateGroups, setDuplicateGroups] = useState({});
-    const [stats, setStats] = useState({ missing: 0, duplicates: 0 }); // ← DYNAMIC STATS
+    const [stats, setStats] = useState({ missing: 0, duplicates: 0 }); // ← Real stats
     const [selected, setSelected] = useState(new Set());
     const [page, setPage] = useState(1);
     const [duplicatePage, setDuplicatePage] = useState(1);
@@ -62,9 +62,9 @@ export default function BarcodeGenerator() {
 
                 setBarcodes(res.data.data || []);
                 setTotal(res.data.total || 0);
-                setOverallTotal(res.data.overall_total || res.data.total || 0);
+                setOverallTotal(res.data.overall_total || 0);
                 setDuplicateGroups(res.data.duplicateGroups || {});
-                setStats(res.data.stats || { missing: 0, duplicates: 0 }); // ← NOW DYNAMIC!
+                setStats(res.data.stats || { missing: 0, duplicates: 0 }); // ← Always up-to-date
             } catch (err) {
                 console.error("Preview error:", err);
             } finally {
@@ -126,10 +126,7 @@ export default function BarcodeGenerator() {
     };
 
     const handleExport = () => {
-        if (barcodes.length === 0) {
-            alert("No barcodes to export yet!");
-            return;
-        }
+        if (barcodes.length === 0) return alert("No barcodes to export yet!");
 
         const csv = [
             [
@@ -159,10 +156,8 @@ export default function BarcodeGenerator() {
         const link = document.createElement("a");
         link.href = url;
         link.download = `barcodes-${new Date().toISOString().slice(0, 10)}.csv`;
-        link.style.visibility = "hidden";
-        document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     };
 
     return (
@@ -187,7 +182,7 @@ export default function BarcodeGenerator() {
                             total={total}
                             overall_total={overallTotal}
                             duplicateGroups={duplicateGroups}
-                            stats={stats} // ← NOW 100% DYNAMIC FROM BACKEND
+                            stats={stats} // ← NOW SHOWS: Missing: 1839, Duplicates: 17
                             page={page}
                             setPage={setPage}
                             duplicatePage={duplicatePage}
@@ -216,9 +211,9 @@ export default function BarcodeGenerator() {
                                     Applying Barcodes...
                                 </h3>
                                 <div className="space-y-3">
-                                    <div className="w-full h-4 bg-gray-200 rounded-full">
+                                    <div className="w-full h-4 overflow-hidden bg-gray-200 rounded-full">
                                         <div
-                                            className="h-4 transition-all duration-300 bg-blue-600 rounded-full"
+                                            className="h-full transition-all duration-300 bg-blue-600"
                                             style={{ width: `${progress}%` }}
                                         />
                                     </div>
