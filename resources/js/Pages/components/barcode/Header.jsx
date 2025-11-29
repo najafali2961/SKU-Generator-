@@ -1,6 +1,6 @@
+// resources/js/Pages/components/BarcodeHeader.jsx
 import React from "react";
 import {
-    Card,
     InlineStack,
     Text,
     Button,
@@ -8,68 +8,61 @@ import {
     Tooltip,
     Box,
 } from "@shopify/polaris";
-import { BarcodeIcon, ExportIcon } from "@shopify/polaris-icons";
+import { ArrowLeftIcon, ImportIcon, ExportIcon } from "@shopify/polaris-icons";
+import { Link } from "@inertiajs/react";
 
-export default function BarcodeHeader({ onScan, onExport, onGenerate }) {
+export default function BarcodeHeader({ onImport, onExport }) {
     return (
-        <Card padding="500">
-            <InlineStack align="space-between" blockAlign="center">
-                {/* Title */}
-                <div>
-                    <Text variant="headingXl" as="h1">
-                        Barcode Generator Pro
-                    </Text>
-                    <Text variant="bodyMd" tone="subdued">
-                        Fast • Accurate • Inventory-Ready
-                    </Text>
-                </div>
+        <Box paddingBlockStart="100" paddingBlockEnd="10">
+            <InlineStack align="space-between" blockAlign="center" gap="400">
+                {/* Left side – Back arrow + Title */}
+                <InlineStack gap="400" align="center">
+                    <Link href={route("home")}>
+                        <Icon source={ArrowLeftIcon} color="base" />
+                    </Link>
 
-                {/* Right-side buttons */}
-                <Box maxWidth="420px" width="100%">
-                    <InlineStack gap="300">
-                        {/* Generate Button */}
-                        <Box width="200px">
-                            <Tooltip content="Generate new barcodes based on your settings">
-                                <Button
-                                    primary
-                                    size="large"
-                                    fullWidth
-                                    icon={<Icon source={BarcodeIcon} />}
-                                    onClick={onGenerate}
-                                >
-                                    Generate
-                                </Button>
-                            </Tooltip>
-                        </Box>
+                    <div>
+                        <Text variant="headingXl" as="h1">
+                            Barcode Generator Pro
+                        </Text>
+                        <Text variant="bodyMd" tone="subdued">
+                            EAN • UPC • ISBN • Bulk Ready
+                        </Text>
+                    </div>
+                </InlineStack>
 
-                        {/* Scan Button */}
-                        <Box width="200px">
-                            <Tooltip content="Open camera and scan barcodes">
-                                <Button
-                                    size="large"
-                                    fullWidth
-                                    icon={<Icon source={BarcodeIcon} />}
-                                    onClick={onScan}
-                                >
-                                    Scan
-                                </Button>
-                            </Tooltip>
-                        </Box>
+                {/* Right side – Import & Export buttons */}
+                <InlineStack gap="200">
+                    {/* Import Button */}
+                    <Tooltip
+                        content="Import purchased EAN/UPC/ISBN numbers (CSV)"
+                        preferredPosition="below"
+                    >
+                        <Button
+                            size="large"
+                            icon={<Icon source={ImportIcon} />}
+                            onClick={onImport}
+                        >
+                            Import Codes
+                        </Button>
+                    </Tooltip>
 
-                        {/* Export PDF Button */}
-                        <Box width="200px">
-                            <Button
-                                size="large"
-                                fullWidth
-                                icon={<Icon source={ExportIcon} />}
-                                onClick={onExport}
-                            >
-                                Export PDF
-                            </Button>
-                        </Box>
-                    </InlineStack>
-                </Box>
+                    {/* Export Button */}
+                    <Tooltip
+                        content="Export generated/imported barcodes as CSV"
+                        preferredPosition="below"
+                    >
+                        <Button
+                            size="large"
+                            tone="critical"
+                            icon={<Icon source={ExportIcon} />}
+                            onClick={onExport}
+                        >
+                            Export CSV
+                        </Button>
+                    </Tooltip>
+                </InlineStack>
             </InlineStack>
-        </Card>
+        </Box>
     );
 }

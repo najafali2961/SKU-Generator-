@@ -1,15 +1,9 @@
+// resources/js/Pages/BarcodeGenerator.jsx
 import React, { useEffect, useState, useRef } from "react";
-import {
-    Page,
-    Layout,
-    Card,
-    BlockStack,
-    Text,
-    ProgressBar,
-} from "@shopify/polaris";
 import axios from "axios";
 import { router } from "@inertiajs/react";
 
+import BarcodeHeader from "./components/barcode/Header";
 import BarcodeSidebar from "./components/barcode/BarcodeSidebar";
 import BarcodePreviewTable from "./components/barcode/BarcodePreviewTable";
 
@@ -49,7 +43,7 @@ export default function BarcodeGenerator() {
     const handleChange = (key, value) => {
         setForm((prev) => ({ ...prev, [key]: value }));
         setPage(1);
-        setSelected(new Set()); // Clear selection on change
+        setSelected(new Set());
     };
 
     const fetchPreview = async () => {
@@ -75,13 +69,11 @@ export default function BarcodeGenerator() {
         }, DEBOUNCE_MS);
     };
 
-    // Debounced preview
     useEffect(() => {
         fetchPreview();
         return () => clearTimeout(debounceRef.current);
     }, [form, page, activeTab]);
 
-    // Progress polling when applying
     useEffect(() => {
         if (!applying) return;
 
@@ -116,10 +108,7 @@ export default function BarcodeGenerator() {
                 selected_variant_ids: ids.length > 0 ? ids : undefined,
             },
             {
-                onFinish: () => {
-                    setSelected(new Set());
-                    // Progress polling handles completion
-                },
+                onFinish: () => setSelected(new Set()),
                 onError: (err) => {
                     setApplying(false);
                     alert("Apply failed: " + JSON.stringify(err));
@@ -128,47 +117,95 @@ export default function BarcodeGenerator() {
         );
     };
 
+    const handleImport = () => {
+        alert("Import EAN/UPC/ISBN from CSV – coming soon!");
+    };
+
+    const handleExport = () => {
+        if (barcodes.length === 0) {
+            alert("No barcodes to export yet!");
+            return;
+        }
+
+        const csv = [
+            ["Barcode", "Format", "Variant ID", "Product Title"],
+            ...barcodes.map((b) => [
+                b.barcode || "",
+                b.format || "",
+                b.variant_id || "",
+                b.title || "",
+            ]),
+        ]
+            .map((row) => row.join(","))
+            .join("\n");
+
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `barcodes-${new Date().toISOString().slice(0, 10)}.csv`;
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
-        <Page fullWidth title="Barcode Generator">
-            <Layout>
-                <Layout.Section variant="oneThird">
-                    <BarcodeSidebar form={form} handleChange={handleChange} />
-                </Layout.Section>
+        <div className="min-h-screen bg-gray-50">
+            <div className="p-6 mx-auto max-w-7xl">
+                <BarcodeHeader
+                    onImport={handleImport}
+                    onExport={handleExport}
+                />
 
-                <Layout.Section>
-                    <BarcodePreviewTable
-                        barcodes={barcodes}
-                        total={total}
-                        page={page}
-                        setPage={setPage}
-                        selected={selected}
-                        setSelected={setSelected}
-                        loading={loading}
-                        applying={applying}
-                        duplicateGroups={duplicateGroups}
-                        activeTab={activeTab}
-                        setActiveTab={setActiveTab}
-                        applyBarcodes={applyBarcodes}
-                        form={form}
-                        handleChange={handleChange}
-                    />
+                <div className="grid gap-6 mt-6 lg:grid-cols-12">
+                    <div className="lg:col-span-4">
+                        <BarcodeSidebar
+                            form={form}
+                            handleChange={handleChange}
+                        />
+                    </div>
 
-                    {applying && (
-                        <Card sectioned title="Applying Barcodes...">
-                            <BlockStack gap="400">
-                                <ProgressBar
-                                    progress={progress}
-                                    color="primary"
-                                />
-                                <Text alignment="center">
-                                    {progress}% – Applying to{" "}
-                                    {total.toLocaleString()} variants...
-                                </Text>
-                            </BlockStack>
-                        </Card>
-                    )}
-                </Layout.Section>
-            </Layout>
-        </Page>
+                    <div className="space-y-6 lg:col-span-8">
+                        <BarcodePreviewTable
+                            barcodes={barcodes}
+                            total={total}
+                            page={page}
+                            setPage={setPage}
+                            selected={selected}
+                            setSelected={setSelected}
+                            loading={loading}
+                            applying={applying}
+                            duplicateGroups={duplicateGroups}
+                            activeTab={activeTab}
+                            setActiveTab={setActiveTab}
+                            applyBarcodes={applyBarcodes}
+                            form={form}
+                            handleChange={handleChange}
+                        />
+
+                        {applying && (
+                            <div className="p-6 bg-white border border-gray-200 rounded-lg shadow">
+                                <h3 className="mb-4 text-lg font-medium">
+                                    Applying Barcodes...
+                                </h3>
+                                <div className="space-y-3">
+                                    <div className="w-full h-4 bg-gray-200 rounded-full">
+                                        <div
+                                            className="h-4 transition-all duration-300 bg-blue-600 rounded-full"
+                                            style={{ width: `${progress}%` }}
+                                        />
+                                    </div>
+                                    <p className="text-sm text-center text-gray-600">
+                                        {progress}% – Applying to{" "}
+                                        {total.toLocaleString()} variants
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 }
