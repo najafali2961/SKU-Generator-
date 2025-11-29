@@ -52,7 +52,7 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         $failed = 0;
         $counter = $this->getStartingCounter();
 
-        // Group by product for bulk update (most efficient
+        // Group by product for bulk update
         $productsToSync = [];
 
         foreach ($variants as $variant) {
@@ -61,7 +61,7 @@ class GenerateBarcodeBatchJob implements ShouldQueue
 
                 // Save to local DB
                 $variant->barcode = $newBarcode;
-                $variant->saveQuietly();
+                $variant->save();
 
                 // Collect for bulk Shopify sync
                 $productsToSync[$variant->product_id][$variant->id] = $newBarcode;
@@ -74,6 +74,10 @@ class GenerateBarcodeBatchJob implements ShouldQueue
                 $processed++;
                 $counter++;
             } catch (\Exception $e) {
+                Log::error("[BARCODE-BATCH] Generation failed for variant {$variant->id}", [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
                 $jobLog->error("Generation Failed", "Variant #{$variant->id}: " . $e->getMessage());
                 $failed++;
             }
@@ -82,15 +86,34 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         // BULK SYNC TO SHOPIFY
         foreach ($productsToSync as $productId => $barcodeMap) {
             try {
+                Log::info("[BARCODE-BATCH] Attempting Shopify sync", [
+                    'product_id' => $productId,
+                    'variant_count' => count($barcodeMap),
+                    'barcodes' => $barcodeMap,
+                ]);
+
                 $success = $shopify->updateVariantBarcodes((int)$productId, $barcodeMap);
+
                 if ($success) {
                     $jobLog->info("Synced to Shopify", "Product ID {$productId} – " . count($barcodeMap) . " variants");
+                    Log::info("[BARCODE-BATCH] Shopify sync successful", [
+                        'product_id' => $productId,
+                        'variant_count' => count($barcodeMap),
+                    ]);
                 } else {
+                    Log::warning("[BARCODE-BATCH] Shopify sync returned false", [
+                        'product_id' => $productId,
+                    ]);
                     $jobLog->warning("Shopify Sync Failed", "Product ID {$productId}");
                     $failed += count($barcodeMap);
                 }
             } catch (\Exception $e) {
-                $jobLog->error("Shopify Sync Error" . $e->getMessage());
+                Log::error("[BARCODE-BATCH] Shopify sync exception", [
+                    'product_id' => $productId,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+                $jobLog->error("Shopify Sync Error", "Product ID {$productId}: " . $e->getMessage());
                 $failed += count($barcodeMap);
             }
         }
@@ -99,18 +122,28 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         if ($failed > 0) {
             $jobLog->increment('failed_items', $failed);
         }
+
+        Log::info("[BARCODE-BATCH] Batch complete", [
+            'shop_id' => $this->shopId,
+            'processed' => $processed,
+            'failed' => $failed,
+            'total' => count($this->variantIds),
+        ]);
     }
 
     public function failed(Throwable $exception)
     {
         $jobLog = JobLog::find($this->jobLogId);
         if ($jobLog) {
+            Log::error("[BARCODE-BATCH] Job failed", [
+                'error' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
             $jobLog->error('Batch Failed', $exception->getMessage());
             $jobLog->markAsFailed("Batch failed: " . $exception->getMessage());
         }
     }
 
-    // ... [getStartingCounter(), generateBarcode(), calculateCheckDigit() — keep exactly as you had]
     private function getStartingCounter(): int
     {
         $start = (int)($this->settings['start_number'] ?? 1);
@@ -131,7 +164,7 @@ class GenerateBarcodeBatchJob implements ShouldQueue
 
         if ($format === 'QR') {
             return ($rules['allow_qr_text'] ?? false)
-                ? ($variant->sku ?: "https://{$shop->myshopify_domain}/products/{$variant->product->handle}")
+                ? ($variant->sku ?: "https://{$this->shop->myshopify_domain}/products/{$variant->product->handle}")
                 : 'QR-' . strtoupper(Str::random(12));
         }
 
