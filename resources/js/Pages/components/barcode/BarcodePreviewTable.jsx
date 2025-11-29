@@ -1,438 +1,705 @@
+// resources/js/Pages/components/barcode/BarcodePreviewTable.jsx
 import React from "react";
 import {
     Card,
     IndexTable,
+    Tabs,
+    TextField,
+    Filters,
+    ChoiceList,
     Text,
     Badge,
-    TextField,
     EmptyState,
-    Spinner,
     Icon,
     InlineStack,
     BlockStack,
     Box,
-    Tabs,
     Pagination,
     Button,
     Thumbnail,
     ButtonGroup,
+    Divider,
 } from "@shopify/polaris";
 import {
     SearchIcon,
-    HashtagIcon,
-    CheckCircleIcon,
     AlertCircleIcon,
+    HashtagIcon,
+    ArrowRightIcon,
 } from "@shopify/polaris-icons";
 
-const PAGE_SIZE = 25;
-
-export default function VariantBarcodeTable({
+export default function BarcodePreviewTable({
     barcodes = [],
     total = 0,
-    page = 1,
-    setPage,
-    selected = new Set(),
-    setSelected,
-    loading = false,
     duplicateGroups = {},
-    applyBarcodes = () => {},
-    applying = false,
-    activeTab: controlledTab,
-    setActiveTab: setControlledTab,
-    form = { search: "", vendor: "", type: "" },
-    handleChange = () => {},
+    stats = { missing: 0, duplicates: 0 },
+    page,
+    setPage,
+    duplicatePage,
+    setDuplicatePage,
+    activeTab,
+    setActiveTab,
+    selected,
+    setSelected,
+    loading,
+    applying,
+    applyBarcodes,
+    form,
+    handleChange,
+    initialCollections = [],
+    selectedCollectionIds = [],
+    setSelectedCollectionIds,
+    selectedVendors = [],
+    setSelectedVendors,
+    selectedTypes = [],
+    setSelectedTypes,
 }) {
-    const activeTab = controlledTab || "all";
-    const setActiveTab = setControlledTab || (() => {});
+    const [selectedVariant, setSelectedVariant] = React.useState(null);
 
-    const totalPages = Math.ceil(total / PAGE_SIZE);
+    const duplicateGroupList = React.useMemo(
+        () =>
+            !duplicateGroups || typeof duplicateGroups !== "object"
+                ? []
+                : Object.entries(duplicateGroups).map(
+                      ([barcode, variants]) => ({
+                          barcode,
+                          count: variants.length,
+                          variants,
+                      })
+                  ),
+        [duplicateGroups]
+    );
+
+    const DUPLICATES_PER_PAGE = 10;
+    const totalDuplicatePages = Math.ceil(
+        duplicateGroupList.length / DUPLICATES_PER_PAGE
+    );
+    const paginatedGroups = duplicateGroupList.slice(
+        (duplicatePage - 1) * DUPLICATES_PER_PAGE,
+        duplicatePage * DUPLICATES_PER_PAGE
+    );
 
     const tabs = [
-        {
-            id: "all",
-            content: (
-                <>
-                    All <Badge status="info">{total}</Badge>
-                </>
-            ),
-        },
+        { id: "all", content: `All Variants (${total})` },
         {
             id: "duplicates",
-            content: (
-                <>
-                    Duplicates{" "}
-                    <Badge status="critical">
-                        {Object.keys(duplicateGroups).length}
-                    </Badge>
-                </>
-            ),
+            content: `Duplicates (${duplicateGroupList.length})`,
         },
+        { id: "missing", content: `Missing Barcodes (${stats.missing})` },
     ];
 
     const handleTabChange = (selectedTabIndex) => {
         const tabId = tabs[selectedTabIndex].id;
         setActiveTab(tabId);
-        setSelected(new Set());
         setPage(1);
+        setDuplicatePage(1);
+        setSelected(new Set());
     };
 
-    const handleSelectionChange = (selectionType, shouldSelect, id) => {
-        if (selectionType === "all") {
-            const allIds = barcodes.map((b) => b.id);
-            setSelected(shouldSelect ? new Set(allIds) : new Set());
-        } else if (selectionType === "page") {
-            const pageIds = barcodes
-                .slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-                .map((b) => b.id);
-            setSelected((prev) => {
-                const next = new Set(prev);
-                pageIds.forEach((pid) =>
-                    shouldSelect ? next.add(pid) : next.delete(pid)
-                );
-                return next;
-            });
-        } else if (id !== undefined) {
-            setSelected((prev) => {
-                const next = new Set(prev);
-                shouldSelect ? next.add(id) : next.delete(id);
-                return next;
-            });
-        }
+    const handleClearAll = () => {
+        handleChange("search", "");
+        setSelectedCollectionIds([]);
+        setSelectedVendors([]);
+        setSelectedTypes([]);
     };
 
-    const displayedBarcodes =
-        activeTab === "all"
-            ? barcodes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-            : barcodes;
+    const appliedFilters = [];
+    if (selectedCollectionIds.length > 0) {
+        const names = selectedCollectionIds
+            .map(
+                (id) => initialCollections.find((c) => c.id === id)?.title || id
+            )
+            .join(", ");
+        appliedFilters.push({
+            key: "collections",
+            label: `Collection: ${names}`,
+            onRemove: () => setSelectedCollectionIds([]),
+        });
+    }
+    if (selectedVendors.length > 0) {
+        appliedFilters.push({
+            key: "vendor",
+            label: `Vendor: ${selectedVendors.join(", ")}`,
+            onRemove: () => setSelectedVendors([]),
+        });
+    }
+    if (selectedTypes.length > 0) {
+        appliedFilters.push({
+            key: "type",
+            label: `Type: ${selectedTypes.join(", ")}`,
+            onRemove: () => setSelectedTypes([]),
+        });
+    }
 
-    const rowMarkup =
-        activeTab === "all"
-            ? displayedBarcodes.map((v) => (
-                  <IndexTable.Row
-                      key={v.id}
-                      id={v.id}
-                      selected={selected.has(v.id)}
-                  >
-                      <IndexTable.Cell>
-                          <Thumbnail
-                              source={v.image_url || ""}
-                              size="small"
-                              alt={v.variant_title}
-                          />
-                      </IndexTable.Cell>
+    const filters = [
+        {
+            key: "collections",
+            label: "Collection",
+            filter: (
+                <ChoiceList
+                    title="Collections"
+                    titleHidden
+                    allowMultiple
+                    choices={initialCollections.map((c) => ({
+                        label: c.title,
+                        value: c.id.toString(),
+                    }))}
+                    selected={selectedCollectionIds.map(String)}
+                    onChange={(v) => setSelectedCollectionIds(v.map(Number))}
+                />
+            ),
+            shortcut: true,
+        },
+        {
+            key: "vendor",
+            label: "Vendor",
+            filter: (
+                <TextField
+                    labelHidden
+                    placeholder="Filter by vendor"
+                    value={selectedVendors[0] || ""}
+                    onChange={(v) =>
+                        setSelectedVendors(v.trim() ? [v.trim()] : [])
+                    }
+                    autoComplete="off"
+                />
+            ),
+        },
+        {
+            key: "type",
+            label: "Product type",
+            filter: (
+                <TextField
+                    labelHidden
+                    placeholder="Filter by product type"
+                    value={selectedTypes[0] || ""}
+                    onChange={(v) =>
+                        setSelectedTypes(v.trim() ? [v.trim()] : [])
+                    }
+                    autoComplete="off"
+                />
+            ),
+        },
+    ];
 
-                      <IndexTable.Cell>
-                          <Text fontWeight="medium">
-                              {v.variant_title || "—"}
-                          </Text>
-                          <Text variant="bodySm" tone="subdued">
-                              {v.sku || "—"}
-                          </Text>
-                          <Text variant="bodySm" tone="subdued">
-                              {v.vendor || "—"}
-                          </Text>
-                      </IndexTable.Cell>
+    const toggleRowSelection = (id) => {
+        setSelected((prev) => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
 
-                      <IndexTable.Cell>
-                          <Text fontWeight="medium">
-                              {v.barcode_value || "—"}
-                          </Text>
-                          <Text variant="bodySm" tone="subdued">
-                              {v.old_barcode
-                                  ? `Old: ${v.old_barcode}`
-                                  : "Old: —"}
-                          </Text>
-                          <Text variant="bodySm" tone="subdued">
-                              {v.format || "UPC"}
-                          </Text>
-                      </IndexTable.Cell>
+    const renderRow = (item) => (
+        <IndexTable.Row
+            key={item.id}
+            id={item.id}
+            selected={selected.has(item.id)}
+            onClick={() => toggleRowSelection(item.id)}
+        >
+            <IndexTable.Cell>
+                <Thumbnail
+                    source={item.image_url || ""}
+                    size="small"
+                    alt={item.variant_title}
+                />
+            </IndexTable.Cell>
 
-                      <IndexTable.Cell>
-                          {v.status === "empty" && (
-                              <Badge tone="warning">Empty</Badge>
-                          )}
-                          {v.status === "duplicate" && (
-                              <Badge tone="critical" icon={AlertCircleIcon}>
-                                  Duplicate
-                              </Badge>
-                          )}
-                          {v.status === "unique" && (
-                              <Badge tone="success" icon={CheckCircleIcon}>
-                                  Unique
-                              </Badge>
-                          )}
-                      </IndexTable.Cell>
-                  </IndexTable.Row>
-              ))
-            : Object.entries(duplicateGroups).map(([code, items]) => (
-                  <IndexTable.Row key={code} id={`dup-${code}`} disabled>
-                      <IndexTable.Cell colSpan={4}>
-                          <BlockStack gap="400">
-                              <InlineStack
-                                  align="space-between"
-                                  blockAlign="center"
-                              >
-                                  <InlineStack gap="200">
-                                      <Icon
-                                          source={HashtagIcon}
-                                          tone="critical"
-                                      />
-                                      <Text fontWeight="bold" tone="critical">
-                                          {code}
-                                      </Text>
-                                      <Badge tone="critical">
-                                          {items.length} conflicts
-                                      </Badge>
-                                  </InlineStack>
-
-                                  <ButtonGroup>
-                                      <Button
-                                          size="slim"
-                                          onClick={() =>
-                                              setSelected(
-                                                  new Set(
-                                                      items.map((i) => i.id)
-                                                  )
-                                              )
-                                          }
-                                      >
-                                          Select Group
-                                      </Button>
-                                      <Button
-                                          primary
-                                          size="slim"
-                                          onClick={() => {
-                                              setSelected(
-                                                  new Set(
-                                                      items.map((i) => i.id)
-                                                  )
-                                              );
-                                              applyBarcodes("selected");
-                                          }}
-                                      >
-                                          Fix Group
-                                      </Button>
-                                  </ButtonGroup>
-                              </InlineStack>
-
-                              <BlockStack gap="200">
-                                  {items.map((v) => {
-                                      const isSelected = selected.has(v.id);
-                                      return (
-                                          <Box
-                                              key={v.id}
-                                              padding="300"
-                                              background={
-                                                  isSelected
-                                                      ? "bg-surface-selected"
-                                                      : "bg-surface"
-                                              }
-                                              borderRadius="200"
-                                          >
-                                              <InlineStack gap="400">
-                                                  <input
-                                                      type="checkbox"
-                                                      checked={isSelected}
-                                                      onChange={() =>
-                                                          handleSelectionChange(
-                                                              "single",
-                                                              !isSelected,
-                                                              v.id
-                                                          )
-                                                      }
-                                                  />
-                                                  <Thumbnail
-                                                      source={v.image_url || ""}
-                                                      size="small"
-                                                  />
-                                                  <BlockStack>
-                                                      <Text fontWeight="medium">
-                                                          {v.variant_title ||
-                                                              "—"}
-                                                      </Text>
-                                                      <Text
-                                                          variant="bodySm"
-                                                          tone="subdued"
-                                                      >
-                                                          {v.sku || "—"}
-                                                      </Text>
-                                                  </BlockStack>
-                                                  <Text
-                                                      fontWeight="bold"
-                                                      tone="critical"
-                                                  >
-                                                      {v.barcode_value}
-                                                  </Text>
-                                              </InlineStack>
-                                          </Box>
-                                      );
-                                  })}
-                              </BlockStack>
-                          </BlockStack>
-                      </IndexTable.Cell>
-                  </IndexTable.Row>
-              ));
-
-    return (
-        <Card>
-            <Tabs
-                tabs={tabs}
-                selected={tabs.findIndex((t) => t.id === activeTab)}
-                onSelect={handleTabChange}
-            >
-                <BlockStack gap="400">
-                    {/* Search Bar */}
-                    <Box padding="400" background="bg-surface-active">
-                        <InlineStack gap="300" align="start" wrap={false}>
-                            <Box minWidth="320">
-                                <TextField
-                                    placeholder="Search variants, SKU or barcode..."
-                                    prefix={<Icon source={SearchIcon} />}
-                                    value={form.search || ""}
-                                    onChange={(v) => handleChange("search", v)}
-                                    clearButton
-                                    onClearButtonClick={() =>
-                                        handleChange("search", "")
-                                    }
-                                />
-                            </Box>
-                            <Box minWidth="160">
-                                <TextField
-                                    labelHidden
-                                    placeholder="Vendor"
-                                    value={form.vendor || ""}
-                                    onChange={(v) => handleChange("vendor", v)}
-                                />
-                            </Box>
-                            <Box minWidth="160">
-                                <TextField
-                                    labelHidden
-                                    placeholder="Type"
-                                    value={form.type || ""}
-                                    onChange={(v) => handleChange("type", v)}
-                                />
-                            </Box>
-                            <Box paddingInlineStart="400">
-                                <Text variant="bodySm" tone="subdued">
-                                    {selected.size} selected
-                                </Text>
-                            </Box>
-                        </InlineStack>
-                    </Box>
-
-                    <IndexTable
-                        resourceName={{
-                            singular: "variant",
-                            plural: "variants",
+            <IndexTable.Cell>
+                <BlockStack gap="100">
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedVariant(item);
                         }}
-                        itemCount={
-                            activeTab === "all"
-                                ? total
-                                : Object.keys(duplicateGroups).length
+                        style={{
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            textAlign: "left",
+                            cursor: "pointer",
+                            color: "var(--p-color-text-brand)",
+                            fontWeight: 600,
+                        }}
+                        onMouseEnter={(e) =>
+                            (e.currentTarget.style.textDecoration = "underline")
                         }
-                        selectedItemsCount={selected.size}
-                        onSelectionChange={handleSelectionChange}
-                        headings={
-                            activeTab === "all"
-                                ? [
-                                      { title: "Image" },
-                                      { title: "Variant / SKU / Vendor" },
-                                      { title: "New / Old / Format" },
-                                      { title: "Status" },
-                                  ]
-                                : [{ title: "Duplicate Groups" }]
-                        }
-                        loading={loading}
-                        emptyState={
-                            activeTab === "duplicates" &&
-                            Object.keys(duplicateGroups).length === 0 && (
-                                <EmptyState heading="No duplicates found">
-                                    <Text tone="success">
-                                        All barcodes are unique!
-                                    </Text>
-                                </EmptyState>
-                            )
+                        onMouseLeave={(e) =>
+                            (e.currentTarget.style.textDecoration = "none")
                         }
                     >
-                        {loading ? (
-                            <Box padding="1600">
-                                <InlineStack align="center" gap="200">
-                                    <Spinner size="large" />
-                                    <Text>Generating preview...</Text>
-                                </InlineStack>
-                            </Box>
-                        ) : (
-                            rowMarkup
-                        )}
-                    </IndexTable>
+                        <div
+                            style={{
+                                maxWidth: "340px",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                            }}
+                            title={item.variant_title}
+                        >
+                            {item.variant_title || "Untitled Variant"}
+                        </div>
+                    </button>
+                    <Text variant="bodySm" tone="subdued">
+                        {item.vendor} {item.sku && `• SKU: ${item.sku}`}
+                    </Text>
+                </BlockStack>
+            </IndexTable.Cell>
 
-                    {/* Pagination */}
-                    {activeTab === "all" && totalPages > 1 && (
-                        <Box padding="400">
-                            <InlineStack align="space-between">
-                                <Text variant="bodySm">
-                                    Page <strong>{page}</strong> of {totalPages}
-                                </Text>
-                                <Pagination
-                                    hasPrevious={page > 1}
-                                    onPrevious={() =>
-                                        setPage((p) => Math.max(1, p - 1))
-                                    }
-                                    hasNext={page < totalPages}
-                                    onNext={() =>
-                                        setPage((p) =>
-                                            Math.min(totalPages, p + 1)
+            <IndexTable.Cell>
+                {item.old_barcode ? (
+                    <Badge tone="info">{item.old_barcode}</Badge>
+                ) : (
+                    <InlineStack gap="200">
+                        <Text tone="critical">No Barcode</Text>
+                    </InlineStack>
+                )}
+            </IndexTable.Cell>
+
+            <IndexTable.Cell>
+                <InlineStack gap="300" blockAlign="center">
+                    <Badge tone="success" size="large">
+                        {item.new_barcode || "—"}
+                    </Badge>
+                    <Text variant="bodySm" tone="subdued">
+                        {item.format || "UPC"}
+                    </Text>
+                </InlineStack>
+            </IndexTable.Cell>
+        </IndexTable.Row>
+    );
+
+    const renderDuplicateGroup = (group) => (
+        <IndexTable.Row key={group.barcode}>
+            <IndexTable.Cell colSpan={4}>
+                <Box padding="400">
+                    <BlockStack gap="400">
+                        <InlineStack align="space-between" blockAlign="center">
+                            <InlineStack gap="300" blockAlign="center">
+                                <Icon source={HashtagIcon} tone="critical" />
+                                <BlockStack gap="100">
+                                    <Text fontWeight="bold" tone="critical">
+                                        Conflicting Barcode
+                                    </Text>
+                                    <InlineStack gap="200">
+                                        <Badge status="critical" size="large">
+                                            {group.barcode || "(Blank)"}
+                                        </Badge>
+                                        <Badge status="critical">
+                                            {group.count} variants
+                                        </Badge>
+                                    </InlineStack>
+                                </BlockStack>
+                            </InlineStack>
+                            <ButtonGroup>
+                                <Button
+                                    onClick={() =>
+                                        setSelected(
+                                            new Set(
+                                                group.variants.map((v) => v.id)
+                                            )
                                         )
                                     }
-                                />
+                                >
+                                    Select All
+                                </Button>
+                                <Button
+                                    variant="primary"
+                                    loading={applying}
+                                    onClick={() => {
+                                        setSelected(
+                                            new Set(
+                                                group.variants.map((v) => v.id)
+                                            )
+                                        );
+                                        applyBarcodes("selected");
+                                    }}
+                                >
+                                    Fix This Group
+                                </Button>
+                            </ButtonGroup>
+                        </InlineStack>
+                        <Divider />
+                        <BlockStack gap="200">
+                            {group.variants.map((v) => (
+                                <div
+                                    key={v.id}
+                                    style={{
+                                        padding: "12px",
+                                        backgroundColor: selected.has(v.id)
+                                            ? "var(--p-color-bg-selected)"
+                                            : "var(--p-color-bg-hover)",
+                                        borderRadius: "4px",
+                                        cursor: "pointer",
+                                    }}
+                                    onClick={() => toggleRowSelection(v.id)}
+                                >
+                                    <InlineStack
+                                        gap="400"
+                                        align="space-between"
+                                    >
+                                        <InlineStack gap="300">
+                                            <input
+                                                type="checkbox"
+                                                checked={selected.has(v.id)}
+                                                onChange={() => {}}
+                                                onClick={(e) =>
+                                                    e.stopPropagation()
+                                                }
+                                            />
+                                            <Thumbnail
+                                                source={v.image_url || ""}
+                                                size="small"
+                                            />
+                                            <BlockStack gap="050">
+                                                <Text fontWeight="medium">
+                                                    {v.variant_title}
+                                                </Text>
+                                                <Text
+                                                    variant="bodySm"
+                                                    tone="subdued"
+                                                >
+                                                    {v.vendor}
+                                                </Text>
+                                            </BlockStack>
+                                        </InlineStack>
+                                        <InlineStack gap="100">
+                                            <Badge tone="subdued">
+                                                {v.old_barcode || "—"}
+                                            </Badge>
+                                            <Icon source={ArrowRightIcon} />
+                                            <Badge tone="success">
+                                                {v.new_barcode}
+                                            </Badge>
+                                        </InlineStack>
+                                    </InlineStack>
+                                </div>
+                            ))}
+                        </BlockStack>
+                    </BlockStack>
+                </Box>
+            </IndexTable.Cell>
+        </IndexTable.Row>
+    );
+
+    const rowMarkup =
+        activeTab === "duplicates" ? (
+            duplicateGroupList.length === 0 ? (
+                <IndexTable.Row>
+                    <IndexTable.Cell colSpan={4}>
+                        <EmptyState heading="No duplicate barcodes found">
+                            <Text tone="subdued">
+                                All generated barcodes are unique!
+                            </Text>
+                        </EmptyState>
+                    </IndexTable.Cell>
+                </IndexTable.Row>
+            ) : (
+                paginatedGroups.map(renderDuplicateGroup)
+            )
+        ) : barcodes.length === 0 ? (
+            <IndexTable.Row>
+                <IndexTable.Cell colSpan={4}>
+                    <EmptyState heading="No variants found">
+                        <Text tone="subdued">Try adjusting your filters</Text>
+                    </EmptyState>
+                </IndexTable.Cell>
+            </IndexTable.Row>
+        ) : (
+            barcodes.map(renderRow)
+        );
+
+    return (
+        <>
+            <Card>
+                <Box padding="400">
+                    <Tabs
+                        tabs={tabs}
+                        selected={tabs.findIndex((t) => t.id === activeTab)}
+                        onSelect={handleTabChange}
+                        fitted
+                    />
+                </Box>
+
+                <Box
+                    paddingInlineStart="400"
+                    paddingInlineEnd="400"
+                    paddingBlockEnd="400"
+                >
+                    <Filters
+                        queryValue={form.search || ""}
+                        onQueryChange={(v) => handleChange("search", v)}
+                        onQueryClear={() => handleChange("search", "")}
+                        filters={filters}
+                        appliedFilters={appliedFilters}
+                        onClearAll={handleClearAll}
+                        queryPlaceholder="Search products, SKU, barcode..."
+                    />
+                </Box>
+
+                <IndexTable
+                    resourceName={{ singular: "variant", plural: "variants" }}
+                    itemCount={
+                        activeTab === "duplicates"
+                            ? duplicateGroupList.length
+                            : total
+                    }
+                    selectedItemsCount={
+                        selected.size === total ? "All" : selected.size
+                    }
+                    onSelectionChange={(selectionType, toggle) => {
+                        if (selectionType === "all") {
+                            const ids =
+                                activeTab === "duplicates"
+                                    ? duplicateGroupList.flatMap((g) =>
+                                          g.variants.map((v) => v.id)
+                                      )
+                                    : barcodes.map((b) => b.id);
+                            setSelected(toggle ? new Set(ids) : new Set());
+                        }
+                    }}
+                    hasZebraStriping
+                    headings={[
+                        { title: "" },
+                        { title: "Product" },
+                        { title: "Current Barcode" },
+                        { title: "New Barcode" },
+                    ]}
+                    bulkActions={[
+                        {
+                            content: `Apply to Selected (${selected.size})`,
+                            onAction: () => applyBarcodes("selected"),
+                            disabled: selected.size === 0,
+                        },
+                    ]}
+                    promotedBulkActions={[
+                        {
+                            content: "Apply to Visible",
+                            onAction: () => applyBarcodes("visible"),
+                        },
+                    ]}
+                    loading={loading}
+                >
+                    {rowMarkup}
+                </IndexTable>
+
+                {!loading && (
+                    <>
+                        {activeTab === "duplicates" &&
+                            totalDuplicatePages > 1 && (
+                                <>
+                                    <Divider />
+                                    <Box padding="400">
+                                        <Pagination
+                                            hasPrevious={duplicatePage > 1}
+                                            onPrevious={() =>
+                                                setDuplicatePage((p) => p - 1)
+                                            }
+                                            hasNext={
+                                                duplicatePage <
+                                                totalDuplicatePages
+                                            }
+                                            onNext={() =>
+                                                setDuplicatePage((p) => p + 1)
+                                            }
+                                            label={`${duplicatePage} of ${totalDuplicatePages}`}
+                                        />
+                                    </Box>
+                                </>
+                            )}
+
+                        {activeTab !== "duplicates" &&
+                            Math.ceil(total / 25) > 1 && (
+                                <>
+                                    <Divider />
+                                    <Box padding="400">
+                                        <Pagination
+                                            hasPrevious={page > 1}
+                                            onPrevious={() =>
+                                                setPage((p) => p - 1)
+                                            }
+                                            hasNext={
+                                                page < Math.ceil(total / 25)
+                                            }
+                                            onNext={() => setPage((p) => p + 1)}
+                                            label={`${page} of ${Math.ceil(
+                                                total / 25
+                                            )}`}
+                                        />
+                                    </Box>
+                                </>
+                            )}
+
+                        <Box padding="400" background="bg-surface-secondary">
+                            <InlineStack align="space-between">
+                                <ButtonGroup>
+                                    <Button
+                                        onClick={() => setSelected(new Set())}
+                                        disabled={selected.size === 0}
+                                    >
+                                        Clear Selection
+                                    </Button>
+                                    <Button
+                                        onClick={() => applyBarcodes("visible")}
+                                        disabled={barcodes.length === 0}
+                                    >
+                                        Apply to Visible ({barcodes.length})
+                                    </Button>
+                                </ButtonGroup>
+
+                                <ButtonGroup>
+                                    <Button
+                                        onClick={() => applyBarcodes("all")}
+                                    >
+                                        {activeTab === "duplicates"
+                                            ? `Fix All Duplicates (${duplicateGroupList.length})`
+                                            : activeTab === "missing"
+                                            ? `Fix All Missing (${stats.missing})`
+                                            : `Apply to All (${total})`}
+                                    </Button>
+                                    <Button
+                                        variant="primary"
+                                        loading={applying}
+                                        disabled={selected.size === 0}
+                                        onClick={() =>
+                                            applyBarcodes("selected")
+                                        }
+                                    >
+                                        Apply to Selected ({selected.size})
+                                    </Button>
+                                </ButtonGroup>
                             </InlineStack>
                         </Box>
-                    )}
+                    </>
+                )}
+            </Card>
 
-                    {/* Action Bar */}
-                    <Box
-                        padding="400"
-                        background="bg-surface-secondary"
-                        borderBlockStartWidth="1"
+            {/* Modal */}
+            {selectedVariant && (
+                <div
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        backgroundColor: "rgba(0,0,0,0.6)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        zIndex: 1000,
+                        padding: "16px",
+                    }}
+                    onClick={() => setSelectedVariant(null)}
+                >
+                    <Card
+                        sectioned
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            maxWidth: "650px",
+                            width: "100%",
+                            maxHeight: "90vh",
+                            overflowY: "auto",
+                        }}
                     >
-                        <InlineStack align="space-between">
-                            <InlineStack gap="200">
-                                <Button onClick={() => setSelected(new Set())}>
-                                    Clear
-                                </Button>
-                                <Button
-                                    onClick={() =>
-                                        handleSelectionChange("page", true)
-                                    }
-                                >
-                                    Select Page
-                                </Button>
+                        <Box padding="400" background="bg-surface-brand">
+                            <InlineStack
+                                align="space-between"
+                                blockAlign="center"
+                            >
+                                <InlineStack gap="400">
+                                    <Thumbnail
+                                        source={selectedVariant.image_url || ""}
+                                        size="large"
+                                    />
+                                    <BlockStack gap="100">
+                                        <Text
+                                            variant="headingLg"
+                                            fontWeight="bold"
+                                            color="text-inverse"
+                                        >
+                                            {selectedVariant.variant_title}
+                                        </Text>
+                                        <Text
+                                            variant="bodyMd"
+                                            tone="subdued"
+                                            color="text-inverse"
+                                        >
+                                            {selectedVariant.vendor ||
+                                                "No vendor"}
+                                        </Text>
+                                    </BlockStack>
+                                </InlineStack>
                             </InlineStack>
+                        </Box>
 
-                            <InlineStack gap="400" align="end">
-                                <Button
-                                    primary
-                                    loading={applying}
-                                    disabled={selected.size === 0 || applying}
-                                    onClick={() => applyBarcodes("selected")}
+                        <Box padding="500">
+                            <BlockStack gap="500">
+                                <Box
+                                    background="bg-surface-secondary"
+                                    padding="400"
+                                    borderRadius="300"
                                 >
-                                    Apply Selected ({selected.size})
-                                </Button>
+                                    <Text variant="headingMd" fontWeight="bold">
+                                        Barcode Migration
+                                    </Text>
+                                    <InlineStack
+                                        gap="400"
+                                        blockAlign="center"
+                                        paddingBlockStart="300"
+                                    >
+                                        <BlockStack align="center">
+                                            <Text
+                                                variant="bodySm"
+                                                tone="subdued"
+                                            >
+                                                Current
+                                            </Text>
+                                            <Badge
+                                                tone={
+                                                    selectedVariant.old_barcode
+                                                        ? "info"
+                                                        : "critical"
+                                                }
+                                                size="large"
+                                            >
+                                                {selectedVariant.old_barcode ||
+                                                    "Missing"}
+                                            </Badge>
+                                        </BlockStack>
+                                        <Icon
+                                            source={ArrowRightIcon}
+                                            tone="subdued"
+                                        />
+                                        <BlockStack align="center">
+                                            <Text
+                                                variant="bodySm"
+                                                tone="subdued"
+                                            >
+                                                New
+                                            </Text>
+                                            <Badge tone="success" size="large">
+                                                {selectedVariant.new_barcode}
+                                            </Badge>
+                                        </BlockStack>
+                                    </InlineStack>
+                                </Box>
+                            </BlockStack>
+                        </Box>
+
+                        <Box
+                            padding="400"
+                            background="bg-surface-secondary"
+                            borderBlockStartWidth="1"
+                        >
+                            <InlineStack align="end">
                                 <Button
-                                    tone="critical"
-                                    loading={applying}
-                                    disabled={applying}
-                                    onClick={() =>
-                                        applyBarcodes("all_matching")
-                                    }
+                                    onClick={() => setSelectedVariant(null)}
                                 >
-                                    Apply All Matching
+                                    Close
                                 </Button>
                             </InlineStack>
-                        </InlineStack>
-                    </Box>
-                </BlockStack>
-            </Tabs>
-        </Card>
+                        </Box>
+                    </Card>
+                </div>
+            )}
+        </>
     );
 }

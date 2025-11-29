@@ -33,124 +33,6 @@ class BarcodeController extends Controller
         ]);
     }
 
-    public function preview(Request $request)
-    {
-        $shop = Auth::user();
-        $page = max(1, (int)$request->input('page', 1));
-        $perPage = 25;
-        $tab = $request->input('tab', 'all');
-
-        $query = Variant::with(['product'])
-            ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
-
-        // Filters (search, vendor, type)
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(
-                fn($q) => $q
-                    ->where('title', 'like', "%{$search}%")
-                    ->orWhere('sku', 'like', "%{$search}%")
-                    ->orWhere('barcode', 'like', "%{$search}%")
-            );
-        }
-        if ($request->filled('vendor')) {
-            $query->whereHas('product', fn($q) => $q->where('vendor', 'like', "%{$request->vendor}%"));
-        }
-        if ($request->filled('type')) {
-            $query->whereHas('product', fn($q) => $q->where('product_type', 'like', "%{$request->type}%"));
-        }
-
-        $allVariants = $query->get();
-
-        $format = $request->input('format', 'UPC');
-        $prefix = strtoupper(trim($request->input('prefix', '')));
-        $counter = (int)($request->input('start_number', 1));
-        $generatedBarcodes = collect();
-        $preview = [];
-
-        foreach ($allVariants as $variant) {
-            $oldBarcode = trim($variant->barcode ?? '');
-            $hasOldBarcode = !empty($oldBarcode);
-
-            $newBarcode = $this->generateBarcode($variant, $request->all(), $counter);
-
-            // Track new barcodes to detect duplicates
-            if ($newBarcode && !str_starts_with($newBarcode, 'QR-') === false) {
-                $generatedBarcodes->push($newBarcode);
-            }
-
-            $preview[] = [
-                'id'            => $variant->id,
-                'variant_title' => $variant->title ?? 'Default Variant',
-                'sku'           => $variant->sku ?? '',
-                'vendor'        => $variant->product->vendor ?? '',
-                'image_url'     => $variant->image ?? ($variant->product->images[0]['src'] ?? null),
-                'old_barcode'   => $hasOldBarcode ? $oldBarcode : null,
-                'barcode_value' => $newBarcode,
-                'format'        => $format,
-            ];
-
-            $counter++;
-        }
-
-        // Detect duplicates in NEW barcodes
-        $dupCount = $generatedBarcodes->countBy();
-        $duplicates = $dupCount->filter(fn($count) => $count > 1)->keys()->all();
-
-        // Final status logic
-        foreach ($preview as &$item) {
-            $hasOld = $item['old_barcode'] !== null;
-            $isDup = in_array($item['barcode_value'], $duplicates);
-
-            if (!$item['barcode_value']) {
-                $item['status'] = 'empty';
-            } elseif ($isDup) {
-                $item['status'] = 'duplicate';
-            } elseif ($hasOld) {
-                $item['status'] = 'unique'; // has old barcode → Unique
-            } else {
-                $item['status'] = 'unique'; // no old barcode, but new one → still Unique
-            }
-        }
-        unset($item); // break reference
-
-        // Filter duplicates tab
-        if ($tab === 'duplicates') {
-            $preview = array_filter($preview, fn($i) => $i['status'] === 'duplicate');
-        }
-
-        // Search
-        if ($request->filled('search')) {
-            $q = strtolower(trim($request->search));
-            $preview = array_filter(
-                $preview,
-                fn($i) =>
-                str_contains(strtolower($i['variant_title'] ?? ''), $q) ||
-                    str_contains(strtolower($i['sku'] ?? ''), $q) ||
-                    str_contains(strtolower($i['old_barcode'] ?? ''), $q) ||
-                    str_contains(strtolower($i['barcode_value'] ?? ''), $q)
-            );
-        }
-
-        $total = count($preview);
-        $paginated = array_slice($preview, ($page - 1) * $perPage, $perPage);
-
-        // Duplicate groups
-        $duplicateGroups = [];
-        foreach ($duplicates as $code) {
-            $items = array_filter($preview, fn($i) => $i['barcode_value'] === $code);
-            if (count($items) > 1) {
-                $duplicateGroups[$code] = array_values($items);
-            }
-        }
-
-        return response()->json([
-            'data' => array_values($paginated),
-            'total' => $total,
-            'duplicateGroups' => $duplicateGroups,
-        ]);
-    }
-
     private function generateBarcode($variant, $rules, $counter)
     {
         $format = $rules['format'] ?? 'UPC';
@@ -214,10 +96,131 @@ class BarcodeController extends Controller
         return back()->with('success', 'Barcode generation started in background...');
     }
 
-    public function progress()
+    // app/Http/Controllers/BarcodeController.php
+
+    public function preview(Request $request)
     {
         $shop = Auth::user();
-        $progress = Cache::get("barcode_progress_{$shop->id}", 0);
-        return response()->json(['progress' => $progress]);
+        $page    = max(1, (int)$request->input('page', 1));
+        $perPage = 25;
+        $tab     = $request->input('tab', 'all');
+
+        $query = Variant::with(['product'])
+            ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('sku', 'like', "%{$search}%")
+                    ->orWhere('barcode', 'like', "%{$search}%")
+                    ->orWhereHas('product', fn($q) => $q->where('title', 'like', "%{$search}%"));
+            });
+        }
+
+        if ($request->filled('vendor')) {
+            $query->whereHas('product', fn($q) => $q->where('vendor', 'like', "%{$request->vendor}%"));
+        }
+
+        if ($request->filled('type')) {
+            $query->whereHas('product', fn($q) => $q->where('product_type', 'like', "%{$request->type}%"));
+        }
+
+        $allVariants = $query->get();
+
+        // CORRECT STATS: Count variants that CURRENTLY have no barcode
+        $missingCount = $allVariants->whereNull('barcode')->count();
+
+        // Generate preview
+        $format     = $request->input('format', 'UPC');
+        $startNum   = (int)($request->input('start_number', 1));
+        $counter    = $startNum;
+        $preview    = [];
+        $newBarcodeMap = [];
+
+        foreach ($allVariants as $variant) {
+            $oldBarcode = trim($variant->barcode ?? '');
+            $hasOld     = !empty($oldBarcode);
+
+            $newBarcode = $this->generateBarcode($variant, $request->all(), $counter);
+
+            if ($newBarcode) {
+                $newBarcodeMap[$newBarcode] = ($newBarcodeMap[$newBarcode] ?? 0) + 1;
+            }
+
+            $preview[] = [
+                'id'            => $variant->id,
+                'title'         => $variant->product->title ?? 'Unknown Product',
+                'variant_title' => $variant->title ?? 'Default Variant',
+                'vendor'        => $variant->product->vendor ?? '',
+                'sku'           => $variant->sku ?? '',
+                'image_url'     => $variant->image ?? ($variant->product->images[0]['src'] ?? null),
+                'old_barcode'   => $hasOld ? $oldBarcode : null,
+                'new_barcode'   => $newBarcode,
+                'format'        => $format,
+            ];
+
+            $counter++;
+        }
+
+        $newDuplicates = collect($newBarcodeMap)->filter(fn($c) => $c > 1)->keys()->all();
+
+        foreach ($preview as &$item) {
+            $isNewDup = in_array($item['new_barcode'], $newDuplicates);
+
+            if (!$item['new_barcode']) {
+                $item['status'] = 'empty';
+            } elseif ($isNewDup) {
+                $item['status'] = 'duplicate';
+            } else {
+                $item['status'] = 'unique';
+            }
+        }
+        unset($item);
+
+        // Apply tab filtering
+        if ($tab === 'duplicates') {
+            $preview = array_filter($preview, fn($i) => $i['status'] === 'duplicate');
+        } elseif ($tab === 'missing') {
+            $preview = array_filter($preview, fn($i) => $i['status'] === 'empty');
+        }
+
+        // Search again
+        if ($request->filled('search')) {
+            $q = strtolower(trim($request->search));
+            $preview = array_filter(
+                $preview,
+                fn($i) =>
+                str_contains(strtolower($i['title'] ?? ''), $q) ||
+                    str_contains(strtolower($i['variant_title'] ?? ''), $q) ||
+                    str_contains(strtolower($i['sku'] ?? ''), $q) ||
+                    str_contains(strtolower($i['old_barcode'] ?? ''), $q) ||
+                    str_contains(strtolower($i['new_barcode'] ?? ''), $q)
+            );
+        }
+
+        $total = count($preview);
+        $paginated = array_slice($preview, ($page - 1) * $perPage, $perPage);
+
+        // Build duplicate groups
+        $duplicateGroups = [];
+        if ($tab === 'duplicates') {
+            foreach ($newDuplicates as $code) {
+                $items = array_filter($preview, fn($i) => $i['new_barcode'] === $code);
+                if (count($items) > 1) {
+                    $duplicateGroups[$code] = array_values($items);
+                }
+            }
+        }
+
+        return response()->json([
+            'data'            => array_values($paginated),
+            'total'           => $total,
+            'duplicateGroups' => $duplicateGroups,
+            'stats'           => [
+                'missing'     => $missingCount,                    // ← Real missing count
+                'duplicates'  => count($newDuplicates),           // ← New duplicates after generation
+            ],
+        ]);
     }
 }

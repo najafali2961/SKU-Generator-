@@ -33,6 +33,7 @@ export default function BarcodeGenerator() {
     const [duplicateGroups, setDuplicateGroups] = useState({});
     const [selected, setSelected] = useState(new Set());
     const [page, setPage] = useState(1);
+    const [duplicatePage, setDuplicatePage] = useState(1);
     const [activeTab, setActiveTab] = useState("all");
     const [loading, setLoading] = useState(false);
     const [applying, setApplying] = useState(false);
@@ -172,6 +173,8 @@ export default function BarcodeGenerator() {
                             total={total}
                             page={page}
                             setPage={setPage}
+                            duplicatePage={duplicatePage} // ← ADD THIS
+                            setDuplicatePage={setDuplicatePage} // ← ADD THIS
                             selected={selected}
                             setSelected={setSelected}
                             loading={loading}
@@ -182,6 +185,7 @@ export default function BarcodeGenerator() {
                             applyBarcodes={applyBarcodes}
                             form={form}
                             handleChange={handleChange}
+                            initialCollections={[]}
                         />
 
                         {applying && (
