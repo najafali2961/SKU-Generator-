@@ -3,7 +3,7 @@
 client_id = "807095145857452f21cb4442a45a651b"
 application_url = "https://bulkapp.omni-sync.com"
 embedded = true
-name = "bulkapp"
+name = "Sku & Barcode Generator"
 handle = "bulkapp-4"
 
 [build]
