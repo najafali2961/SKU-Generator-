@@ -106,7 +106,7 @@ class BarcodeController extends Controller
         $query = Variant::with(['product'])
             ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
 
-        // Filters (search, vendor, type)
+        // Apply filters (search, vendor, type)
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -125,33 +125,29 @@ class BarcodeController extends Controller
 
         $allVariants = $query->get();
 
-        // === REAL STATS - Treat NULL, "", "-" as MISSING ===
+        // === CORRECT STATS — CALCULATED FROM FULL DATA (before any tab filter) ===
         $isMissing = fn($v) => empty(trim($v->barcode ?? '')) || trim($v->barcode) === '-';
 
-        $missingCount = $allVariants->filter($isMissing)->count();
+        $totalVariants      = $allVariants->count();
+        $missingCount       = $allVariants->filter($isMissing)->count();
 
         $realBarcodes = $allVariants
             ->filter(fn($v) => !$isMissing($v))
             ->pluck('barcode')
-            ->map(fn($b) => trim($b));
+            ->map('trim');
 
         $duplicateGroupsCount = $realBarcodes->countBy()
             ->filter(fn($count) => $count > 1)
             ->count();
 
-        $stats = [
-            'missing'    => $missingCount,
-            'duplicates' => $duplicateGroupsCount,
-        ];
-
-        // === Build preview ===
+        // === Build preview array (with clean old_barcode) ===
         $format  = $request->input('format', 'UPC');
         $counter = (int)($request->input('start_number', 1));
         $preview = [];
 
         foreach ($allVariants as $variant) {
             $rawBarcode = $variant->barcode;
-            $cleanBarcode = !empty(trim($rawBarcode)) && trim($rawBarcode) !== '-' ? trim($rawBarcode) : null;
+            $cleanBarcode = (!empty(trim($rawBarcode)) && trim($rawBarcode) !== '-') ? trim($rawBarcode) : null;
 
             $newBarcode = $this->generateBarcode($variant, $request->all(), $counter);
 
@@ -162,7 +158,7 @@ class BarcodeController extends Controller
                 'vendor'        => $variant->product->vendor ?? '',
                 'sku'           => $variant->sku ?? '',
                 'image_url'     => $variant->image ?? ($variant->product->images[0]['src'] ?? null),
-                'old_barcode'   => $cleanBarcode,           // ← NULL if empty or "-"
+                'old_barcode'   => $cleanBarcode,
                 'new_barcode'   => $newBarcode,
                 'format'        => $format,
             ];
@@ -170,23 +166,23 @@ class BarcodeController extends Controller
             $counter++;
         }
 
-        // === Tab filtering ===
+        // === NOW APPLY TAB FILTERING (only for table content) ===
         $filtered = $preview;
 
         if ($tab === 'missing') {
             $filtered = array_filter($filtered, fn($i) => $i['old_barcode'] === null);
         } elseif ($tab === 'duplicates') {
-            $groups = collect($filtered)
+            $groups = collect($preview)
                 ->whereNotNull('old_barcode')
-                ->groupBy('old_barcode');
+                ->groupBy('old_barcode')
+                ->filter(fn($g) => $g->count() > 1);
 
-            $dupGroups = $groups->filter(fn($g) => $g->count() > 1);
-            $filtered = $dupGroups->flatten(1)->values()->all();
+            $filtered = $groups->flatten(1)->values()->all();
         }
 
-        // Search
+        // Search (after tab filter)
         if ($request->filled('search')) {
-            $q = strtolower($request->search);
+            $q = strtolower(trim($request->search));
             $filtered = array_filter(
                 $filtered,
                 fn($i) =>
@@ -197,10 +193,10 @@ class BarcodeController extends Controller
             );
         }
 
-        $total = count($filtered);
+        $paginatedTotal = count($filtered);
         $paginated = array_slice($filtered, ($page - 1) * $perPage, $perPage);
 
-        // === Duplicate groups for UI ===
+        // === Build duplicate groups ONLY for duplicates tab ===
         $duplicateGroups = [];
         if ($tab === 'duplicates') {
             $groups = collect($preview)
@@ -216,9 +212,13 @@ class BarcodeController extends Controller
 
         return response()->json([
             'data'            => array_values($paginated),
-            'total'           => $total,
+            'total'           => $paginatedTotal,           // ← for current tab
             'duplicateGroups' => $duplicateGroups,
-            'stats'           => $stats,
+            'stats'           => [
+                'missing'    => $missingCount,
+                'duplicates' => $duplicateGroupsCount,
+            ],
+            'overall_total'   => $totalVariants,
         ]);
     }
 }

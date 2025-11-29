@@ -79,7 +79,12 @@ export default function BarcodePreviewTable({
     );
 
     const tabs = [
-        { id: "all", content: `All Variants (${total})` },
+        {
+            id: "all",
+            content: `All Variants (${
+                activeTab === "all" ? total : stats.overall_total || total
+            })`,
+        },
         {
             id: "duplicates",
             content: `Duplicates (${duplicateGroupList.length})`,
