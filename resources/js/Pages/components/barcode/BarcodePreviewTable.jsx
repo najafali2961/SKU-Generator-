@@ -25,9 +25,9 @@ import { HashtagIcon, ArrowRightIcon } from "@shopify/polaris-icons";
 export default function BarcodePreviewTable({
     barcodes = [],
     total = 0,
-    overall_total = 0, // ← NEW: real total (never changes)
+    overall_total = 0, // ← real total from backend
     duplicateGroups = {},
-    stats = { missing: 0, duplicates: 0 }, // ← comes from backend
+    stats = { missing: 0, duplicates: 0 }, // ← comes from backend (NEVER CHANGES)
     page,
     setPage,
     duplicatePage,
@@ -51,6 +51,7 @@ export default function BarcodePreviewTable({
 }) {
     const [selectedVariant, setSelectedVariant] = React.useState(null);
 
+    // Convert duplicateGroups to list ONLY for display (pagination on THIS page)
     const duplicateGroupList = React.useMemo(() => {
         if (!duplicateGroups || typeof duplicateGroups !== "object") return [];
         return Object.entries(duplicateGroups).map(([barcode, variants]) => ({
@@ -69,14 +70,16 @@ export default function BarcodePreviewTable({
         duplicatePage * DUPLICATES_PER_PAGE
     );
 
-    // PERFECT TAB COUNTS — ALWAYS CORRECT
+    // ============================================================
+    // PERFECT TAB COUNTS — USE STATS FROM BACKEND (NEVER CHANGES)
+    // ============================================================
     const tabs = [
         { id: "all", content: `All Variants (${overall_total})` },
         {
             id: "duplicates",
-            content: `Duplicates (${duplicateGroupList.length})`,
+            content: `Duplicates (${stats.duplicates})`, // ← USE stats.duplicates
         },
-        { id: "missing", content: `Missing Barcodes (${stats.missing})` },
+        { id: "missing", content: `Missing Barcodes (${stats.missing})` }, // ← USE stats.missing
     ];
 
     const handleTabChange = (selectedTabIndex) => {
@@ -548,7 +551,7 @@ export default function BarcodePreviewTable({
                                         onClick={() => applyBarcodes("all")}
                                     >
                                         {activeTab === "duplicates"
-                                            ? `Fix All Duplicates (${duplicateGroupList.length})`
+                                            ? `Fix All Duplicates (${stats.duplicates})`
                                             : activeTab === "missing"
                                             ? `Fix All Missing (${stats.missing})`
                                             : `Apply to All (${overall_total})`}

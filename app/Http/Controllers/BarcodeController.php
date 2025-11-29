@@ -103,11 +103,42 @@ class BarcodeController extends Controller
         $perPage = 25;
         $tab     = $request->input('tab', 'all');
 
-        // Base query - all variants of this shop
+        // ===================================================================
+        // BASE QUERY — all variants for this shop (no filters yet)
+        // ===================================================================
+        $baseQuery = Variant::with(['product'])
+            ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
+
+        $allVariantsUnfiltered = $baseQuery->get();
+
+        // ===================================================================
+        // CALCULATE STATS FROM UNFILTERED DATA (THESE NEVER CHANGE)
+        // ===================================================================
+        $isMissing = fn($v) => empty(trim($v->barcode ?? '')) || trim($v->barcode) === '-';
+
+        $overallTotal       = $allVariantsUnfiltered->count();
+        $missingCount       = $allVariantsUnfiltered->filter($isMissing)->count();
+
+        $realBarcodes = $allVariantsUnfiltered
+            ->filter(fn($v) => !$isMissing($v))
+            ->pluck('barcode')
+            ->map('trim');
+
+        $duplicateGroupsCount = $realBarcodes->countBy()
+            ->filter(fn($count) => $count > 1)
+            ->count();
+
+        $stats = [
+            'missing'    => $missingCount,
+            'duplicates' => $duplicateGroupsCount,
+        ];
+
+        // ===================================================================
+        // NOW APPLY FILTERS for search/vendor/type (this is for table display)
+        // ===================================================================
         $query = Variant::with(['product'])
             ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
 
-        // Apply filters
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -129,28 +160,6 @@ class BarcodeController extends Controller
         $allVariants = $query->get();
 
         // ===================================================================
-        // CORRECT STATS — CALCULATED ONCE FROM FULL DATA (NEVER CHANGES)
-        // ===================================================================
-        $isMissing = fn($v) => empty(trim($v->barcode ?? '')) || trim($v->barcode) === '-';
-
-        $overallTotal       = $allVariants->count();
-        $missingCount       = $allVariants->filter($isMissing)->count();
-
-        $realBarcodes = $allVariants
-            ->filter(fn($v) => !$isMissing($v))
-            ->pluck('barcode')
-            ->map('trim');
-
-        $duplicateGroupsCount = $realBarcodes->countBy()
-            ->filter(fn($count) => $count > 1)
-            ->count();
-
-        $stats = [
-            'missing'    => $missingCount,
-            'duplicates' => $duplicateGroupsCount,
-        ];
-
-        // ===================================================================
         // Build preview rows
         // ===================================================================
         $format  = $request->input('format', 'UPC');
@@ -170,7 +179,7 @@ class BarcodeController extends Controller
                 'vendor'        => $variant->product->vendor ?? '',
                 'sku'           => $variant->sku ?? '',
                 'image_url'     => $variant->image ?? ($variant->product->images[0]['src'] ?? null),
-                'old_barcode'   => $cleanBarcode,     // null = missing or "-"
+                'old_barcode'   => $cleanBarcode,
                 'new_barcode'   => $newBarcode,
                 'format'        => $format,
             ];
@@ -232,10 +241,10 @@ class BarcodeController extends Controller
         // ===================================================================
         return response()->json([
             'data'            => array_values($paginatedData),
-            'total'           => $tableTotal,                    // rows currently shown
+            'total'           => $tableTotal,              // rows currently shown in table
             'duplicateGroups' => $duplicateGroups,
-            'stats'           => $stats,                         // correct forever
-            'overall_total'   => $overallTotal,                  // total variants (for "All" tab)
+            'stats'           => $stats,                   // correct and stable
+            'overall_total'   => $overallTotal,            // always the true total (1938)
         ]);
     }
 }
