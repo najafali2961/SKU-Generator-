@@ -115,43 +115,26 @@ class BarcodeController extends Controller
         $page    = max(1, (int)$request->input('page', 1));
         $perPage = 8;
         $tab     = $request->input('tab', 'all');
-
-        // ===================================================================
-        // BASE QUERY — all variants for this shop (no filters yet)
-        // ===================================================================
         $baseQuery = Variant::with(['product'])
             ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
-
         $allVariantsUnfiltered = $baseQuery->get();
-
-        // ===================================================================
-        // CALCULATE STATS FROM UNFILTERED DATA (THESE NEVER CHANGE)
-        // ===================================================================
         $isMissing = fn($v) => empty(trim($v->barcode ?? '')) || trim($v->barcode) === '-';
-
         $overallTotal       = $allVariantsUnfiltered->count();
         $missingCount       = $allVariantsUnfiltered->filter($isMissing)->count();
-
         $realBarcodes = $allVariantsUnfiltered
             ->filter(fn($v) => !$isMissing($v))
             ->pluck('barcode')
             ->map('trim');
-
         $duplicateGroupsCount = $realBarcodes->countBy()
             ->filter(fn($count) => $count > 1)
             ->count();
-
         $stats = [
             'missing'    => $missingCount,
             'duplicates' => $duplicateGroupsCount,
         ];
 
-        // ===================================================================
-        // NOW APPLY FILTERS for search/vendor/type (this is for table display)
-        // ===================================================================
         $query = Variant::with(['product'])
             ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
-
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -161,30 +144,21 @@ class BarcodeController extends Controller
                     ->orWhereHas('product', fn($qq) => $qq->where('title', 'like', "%{$search}%"));
             });
         }
-
         if ($request->filled('vendor')) {
             $query->whereHas('product', fn($q) => $q->where('vendor', $request->vendor));
         }
-
         if ($request->filled('type')) {
             $query->whereHas('product', fn($q) => $q->where('product_type', $request->type));
         }
-
         $allVariants = $query->get();
 
-        // ===================================================================
-        // Build preview rows
-        // ===================================================================
         $format  = $request->input('format', 'UPC');
         $counter = (int)($request->input('start_number', 1));
         $preview = [];
-
         foreach ($allVariants as $variant) {
             $rawBarcode   = $variant->barcode;
             $cleanBarcode = (!empty(trim($rawBarcode)) && trim($rawBarcode) !== '-') ? trim($rawBarcode) : null;
-
             $newBarcode = $this->generateBarcode($variant, $request->all(), $counter);
-
             $preview[] = [
                 'id'            => $variant->id,
                 'title'         => $variant->product->title ?? 'Unknown Product',
@@ -200,11 +174,7 @@ class BarcodeController extends Controller
             $counter++;
         }
 
-        // ===================================================================
-        // Tab filtering — only affects what is shown in the table
-        // ===================================================================
         $filtered = $preview;
-
         if ($tab === 'missing') {
             $filtered = array_filter($filtered, fn($i) => $i['old_barcode'] === null);
         } elseif ($tab === 'duplicates') {
@@ -216,7 +186,6 @@ class BarcodeController extends Controller
             $filtered = $groups->flatten(1)->values()->all();
         }
 
-        // Search after tab filter
         if ($request->filled('search')) {
             $q = strtolower(trim($request->search));
             $filtered = array_filter(
@@ -229,13 +198,9 @@ class BarcodeController extends Controller
                     str_contains(strtolower($i['new_barcode'] ?? ''), $q)
             );
         }
-
         $tableTotal    = count($filtered);
         $paginatedData = array_slice($filtered, ($page - 1) * $perPage, $perPage);
 
-        // ===================================================================
-        // Duplicate groups — only needed for duplicates tab
-        // ===================================================================
         $duplicateGroups = [];
         if ($tab === 'duplicates') {
             $groups = collect($preview)
@@ -249,15 +214,12 @@ class BarcodeController extends Controller
             }
         }
 
-        // ===================================================================
-        // FINAL RESPONSE
-        // ===================================================================
         return response()->json([
             'data'            => array_values($paginatedData),
-            'total'           => $tableTotal,              // rows currently shown in table
+            'total'           => $tableTotal,
             'duplicateGroups' => $duplicateGroups,
-            'stats'           => $stats,                   // correct and stable
-            'overall_total'   => $overallTotal,            // always the true total (1938)
+            'stats'           => $stats,
+            'overall_total'   => $overallTotal,
         ]);
     }
 }
