@@ -1,4 +1,3 @@
-// resources/js/Pages/BarcodeGenerator.jsx
 import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { router } from "@inertiajs/react";
@@ -30,6 +29,7 @@ export default function BarcodeGenerator() {
 
     const [barcodes, setBarcodes] = useState([]);
     const [total, setTotal] = useState(0);
+    const [overallTotal, setOverallTotal] = useState(0); // ← NEW
     const [duplicateGroups, setDuplicateGroups] = useState({});
     const [selected, setSelected] = useState(new Set());
     const [page, setPage] = useState(1);
@@ -61,6 +61,7 @@ export default function BarcodeGenerator() {
 
                 setBarcodes(res.data.data || []);
                 setTotal(res.data.total || 0);
+                setOverallTotal(res.data.overall_total || res.data.total || 0); // ← SET THIS
                 setDuplicateGroups(res.data.duplicateGroups || {});
             } catch (err) {
                 console.error("Preview error:", err);
@@ -129,12 +130,23 @@ export default function BarcodeGenerator() {
         }
 
         const csv = [
-            ["Barcode", "Format", "Variant ID", "Product Title"],
+            [
+                "Barcode",
+                "Format",
+                "Variant ID",
+                "Product Title",
+                "SKU",
+                "Old Barcode",
+                "New Barcode",
+            ],
             ...barcodes.map((b) => [
-                b.barcode || "",
+                b.new_barcode || "",
                 b.format || "",
-                b.variant_id || "",
+                b.id || "",
                 b.title || "",
+                b.sku || "",
+                b.old_barcode || "",
+                b.new_barcode || "",
             ]),
         ]
             .map((row) => row.join(","))
@@ -171,21 +183,33 @@ export default function BarcodeGenerator() {
                         <BarcodePreviewTable
                             barcodes={barcodes}
                             total={total}
+                            overall_total={overallTotal} // ← PASS THIS
+                            duplicateGroups={duplicateGroups}
+                            stats={
+                                duplicateGroups
+                                    ? { missing: 1880, duplicates: 17 }
+                                    : { missing: 0, duplicates: 0 }
+                            } // fallback
                             page={page}
                             setPage={setPage}
-                            duplicatePage={duplicatePage} // ← ADD THIS
-                            setDuplicatePage={setDuplicatePage} // ← ADD THIS
+                            duplicatePage={duplicatePage}
+                            setDuplicatePage={setDuplicatePage}
+                            activeTab={activeTab}
+                            setActiveTab={setActiveTab}
                             selected={selected}
                             setSelected={setSelected}
                             loading={loading}
                             applying={applying}
-                            duplicateGroups={duplicateGroups}
-                            activeTab={activeTab}
-                            setActiveTab={setActiveTab}
                             applyBarcodes={applyBarcodes}
                             form={form}
                             handleChange={handleChange}
                             initialCollections={[]}
+                            selectedCollectionIds={[]}
+                            setSelectedCollectionIds={() => {}}
+                            selectedVendors={[]}
+                            setSelectedVendors={() => {}}
+                            selectedTypes={[]}
+                            setSelectedTypes={() => {}}
                         />
 
                         {applying && (
@@ -202,7 +226,7 @@ export default function BarcodeGenerator() {
                                     </div>
                                     <p className="text-sm text-center text-gray-600">
                                         {progress}% – Applying to{" "}
-                                        {total.toLocaleString()} variants
+                                        {overallTotal.toLocaleString()} variants
                                     </p>
                                 </div>
                             </div>

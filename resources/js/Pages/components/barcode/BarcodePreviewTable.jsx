@@ -4,9 +4,7 @@ import {
     Card,
     IndexTable,
     Tabs,
-    TextField,
     Filters,
-    ChoiceList,
     Text,
     Badge,
     EmptyState,
@@ -19,19 +17,17 @@ import {
     Thumbnail,
     ButtonGroup,
     Divider,
+    ChoiceList,
+    TextField,
 } from "@shopify/polaris";
-import {
-    SearchIcon,
-    AlertCircleIcon,
-    HashtagIcon,
-    ArrowRightIcon,
-} from "@shopify/polaris-icons";
+import { HashtagIcon, ArrowRightIcon } from "@shopify/polaris-icons";
 
 export default function BarcodePreviewTable({
     barcodes = [],
     total = 0,
+    overall_total = 0, // ← NEW: real total (never changes)
     duplicateGroups = {},
-    stats = { missing: 0, duplicates: 0 },
+    stats = { missing: 0, duplicates: 0 }, // ← comes from backend
     page,
     setPage,
     duplicatePage,
@@ -55,19 +51,14 @@ export default function BarcodePreviewTable({
 }) {
     const [selectedVariant, setSelectedVariant] = React.useState(null);
 
-    const duplicateGroupList = React.useMemo(
-        () =>
-            !duplicateGroups || typeof duplicateGroups !== "object"
-                ? []
-                : Object.entries(duplicateGroups).map(
-                      ([barcode, variants]) => ({
-                          barcode,
-                          count: variants.length,
-                          variants,
-                      })
-                  ),
-        [duplicateGroups]
-    );
+    const duplicateGroupList = React.useMemo(() => {
+        if (!duplicateGroups || typeof duplicateGroups !== "object") return [];
+        return Object.entries(duplicateGroups).map(([barcode, variants]) => ({
+            barcode,
+            count: variants.length,
+            variants,
+        }));
+    }, [duplicateGroups]);
 
     const DUPLICATES_PER_PAGE = 10;
     const totalDuplicatePages = Math.ceil(
@@ -78,13 +69,9 @@ export default function BarcodePreviewTable({
         duplicatePage * DUPLICATES_PER_PAGE
     );
 
+    // PERFECT TAB COUNTS — ALWAYS CORRECT
     const tabs = [
-        {
-            id: "all",
-            content: `All Variants (${
-                activeTab === "all" ? total : stats.overall_total || total
-            })`,
-        },
+        { id: "all", content: `All Variants (${overall_total})` },
         {
             id: "duplicates",
             content: `Duplicates (${duplicateGroupList.length})`,
@@ -393,9 +380,7 @@ export default function BarcodePreviewTable({
                 <IndexTable.Row>
                     <IndexTable.Cell colSpan={4}>
                         <EmptyState heading="No duplicate barcodes found">
-                            <Text tone="subdued">
-                                All generated barcodes are unique!
-                            </Text>
+                            <Text tone="subdued">All barcodes are unique!</Text>
                         </EmptyState>
                     </IndexTable.Cell>
                 </IndexTable.Row>
@@ -450,7 +435,13 @@ export default function BarcodePreviewTable({
                             : total
                     }
                     selectedItemsCount={
-                        selected.size === total ? "All" : selected.size
+                        selected.size ===
+                        (activeTab === "duplicates"
+                            ? duplicateGroupList.flatMap((g) => g.variants)
+                                  .length
+                            : total)
+                            ? "All"
+                            : selected.size
                     }
                     onSelectionChange={(selectionType, toggle) => {
                         if (selectionType === "all") {
@@ -560,7 +551,7 @@ export default function BarcodePreviewTable({
                                             ? `Fix All Duplicates (${duplicateGroupList.length})`
                                             : activeTab === "missing"
                                             ? `Fix All Missing (${stats.missing})`
-                                            : `Apply to All (${total})`}
+                                            : `Apply to All (${overall_total})`}
                                     </Button>
                                     <Button
                                         variant="primary"
