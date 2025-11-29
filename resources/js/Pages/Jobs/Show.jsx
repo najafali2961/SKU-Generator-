@@ -25,6 +25,7 @@ import {
     AlertDiamondIcon,
     PackageIcon,
     ArrowLeftIcon,
+    HomeIcon,
 } from "@shopify/polaris-icons";
 
 // SAFE NAVIGATION — NO APP-BRIDGE NEEDED!
@@ -173,16 +174,14 @@ export default function JobShow({ job: initialJob }) {
 
     return (
         <Page
-            title={`Job #${job.id} – SKU Generation`}
-            primaryAction={
-                <Button
-                    primary
-                    icon={ArrowLeftIcon}
-                    onClick={() => navigate("/sku-generator")}
-                >
-                    Generate New SKU
-                </Button>
-            }
+            title={`Job #${job.id}`}
+            secondaryActions={[
+                {
+                    content: "Home",
+                    icon: HomeIcon,
+                    onAction: () => navigate("/"),
+                },
+            ]}
         >
             <Layout>
                 <Layout.Section>
@@ -389,17 +388,6 @@ export default function JobShow({ job: initialJob }) {
                                             </Text>
                                         </BlockStack>
                                     </InlineStack>
-                                    <Divider />
-                                    <InlineStack gap="300">
-                                        <Badge tone="success">
-                                            {processed - failed} OK
-                                        </Badge>
-                                        {failed > 0 && (
-                                            <Badge tone="critical">
-                                                {failed} Errors
-                                            </Badge>
-                                        )}
-                                    </InlineStack>
                                 </BlockStack>
                             </Card>
 
@@ -451,7 +439,7 @@ export default function JobShow({ job: initialJob }) {
                         </div>
                     </Box>
 
-                    <Card title="SKU Generation Details" sectioned>
+                    <Card title="Job Details" sectioned>
                         <BlockStack gap="600">
                             <InlineStack
                                 align="space-between"
@@ -467,7 +455,7 @@ export default function JobShow({ job: initialJob }) {
                                             Variants Processing
                                         </Text>
                                         <Text tone="subdued" size="small">
-                                            Real-time SKU generation
+                                            Real-time Job Progress
                                         </Text>
                                     </BlockStack>
                                 </InlineStack>
@@ -495,7 +483,7 @@ export default function JobShow({ job: initialJob }) {
                                             tone="success"
                                         />
                                         <Text fontWeight="semibold">
-                                            SKU Assignments
+                                            Assignments
                                         </Text>
                                     </InlineStack>
                                     <ProgressBar
