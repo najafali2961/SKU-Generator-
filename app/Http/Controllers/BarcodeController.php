@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Variant;
 use App\Jobs\GenerateBarcodeJob;
+use App\Models\JobLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -92,8 +93,20 @@ class BarcodeController extends Controller
     public function apply(Request $request)
     {
         $shop = Auth::user();
-        GenerateBarcodeJob::dispatch($shop->id, $request->all());
-        return back()->with('success', 'Barcode generation started in background...');
+
+        $jobLog = JobLog::create([
+            'user_id' => $shop->id,
+            'type' => 'barcode_generation',
+            'title' => 'Barcode Generation',
+            'description' => 'Generating barcodes for ' . ($request->apply_scope === 'selected' ? 'selected' : 'all') . ' variants...',
+            'payload' => $request->all(),
+            'status' => 'pending',
+        ]);
+
+        GenerateBarcodeJob::dispatch($shop->id, $request->all(), $jobLog->id);
+
+        return redirect()->route('jobs.show', $jobLog->id)
+            ->with('success', 'Barcode generation started! You\'ll be redirected to the progress page...');
     }
 
     public function preview(Request $request)

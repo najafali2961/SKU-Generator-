@@ -2,53 +2,87 @@
 
 namespace App\Jobs;
 
-use App\Models\Variant;
+use App\Models\User;
+use App\Models\JobLog;
+use Illuminate\Bus\Batch;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Log;
 
 class GenerateBarcodeJob implements ShouldQueue
 {
-    use Queueable;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $shopId;
-    protected $data;
+    public $shopId;
+    public $settings;
+    public $jobLogId;
 
-    public function __construct($shopId, $data)
+    public function __construct($shopId, $settings, $jobLogId = null)
     {
         $this->shopId = $shopId;
-        $this->data = $data;
+        $this->settings = $settings;
+        $this->jobLogId = $jobLogId;
     }
 
     public function handle()
     {
-        $variants = Variant::whereHas('product', fn($q) => $q->where('user_id', $this->shopId));
+        $shop = User::find($this->shopId);
+        if (!$shop) return;
 
-        if ($this->data['apply_scope'] === 'selected') {
-            $variants->whereIn('id', $this->data['selected_variant_ids']);
+        $jobLog = $this->jobLogId
+            ? JobLog::findOrFail($this->jobLogId)
+            : JobLog::create([
+                'user_id' => $shop->id,
+                'type' => 'barcode_generation',
+                'title' => 'Generate Barcodes',
+                'description' => 'Generating barcodes for your products...',
+                'payload' => $this->settings,
+                'status' => 'running',
+                'started_at' => now(),
+            ]);
+
+        $jobLog->update(['status' => 'running']);
+
+        $query = \App\Models\Variant::whereHas('product', fn($q) => $q->where('user_id', $shop->id));
+
+        if (!empty($this->settings['selected_variant_ids'])) {
+            $query->whereIn('id', $this->settings['selected_variant_ids']);
         }
 
+        $variants = $query->get();
         $total = $variants->count();
-        $processed = 0;
 
-        $variants->chunk(100, function ($chunk) use (&$processed, $total) {
-            foreach ($chunk as $variant) {
-                $newBarcode = $this->generateForVariant($variant, $this->data);
-                $variant->barcode = $newBarcode;
-                $variant->saveQuietly();
+        if ($total === 0) {
+            $jobLog->markAsCompleted("No variants matched the criteria.");
+            return;
+        }
 
-                $processed++;
-                Cache::put("barcode_progress_{$this->shopId}", (int)(($processed / $total) * 100), 600);
-            }
+        $jobLog->update(['total_items' => $total]);
+
+        $batchSize = 100;
+        $batches = $variants->chunk($batchSize)->map(function ($chunk) use ($shop, $jobLog) {
+            return new GenerateBarcodeBatchJob(
+                $shop->id,
+                $this->settings,
+                $chunk->pluck('id')->toArray(),
+                $jobLog->id
+            );
         });
 
-        Cache::forget("barcode_progress_{$this->shopId}");
-    }
+        Bus::batch($batches)
+            ->name("Barcode Generation - Shop {$shop->id}")
+            ->then(function (Batch $batch) use ($jobLog) {
+                $jobLog->markAsCompleted("Successfully generated barcodes for all variants.");
+            })
+            ->catch(function (Batch $batch, \Throwable $e) use ($jobLog) {
+                $jobLog->markAsFailed("Job failed: " . $e->getMessage());
+            })
+            ->dispatch();
 
-    private function generateForVariant($variant, $rules)
-    {
-        // Same logic as in preview() — extract to service later
-        // Reuse the same generation logic here
-        // For brevity, reuse controller method or extract to service
+        Log::info("Barcode generation batch dispatched for shop {$shop->id}, {$total} variants");
     }
 }
