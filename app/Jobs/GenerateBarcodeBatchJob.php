@@ -4,12 +4,16 @@ namespace App\Jobs;
 
 use App\Models\Variant;
 use App\Models\JobLog;
+use App\Services\ShopifyService;
 use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 class GenerateBarcodeBatchJob implements ShouldQueue
@@ -31,12 +35,15 @@ class GenerateBarcodeBatchJob implements ShouldQueue
 
     public function handle()
     {
-        if ($this->batch() && $this->batch()->cancelled()) {
-            return;
-        }
+        if ($this->batch()?->cancelled()) return;
 
         $jobLog = JobLog::find($this->jobLogId);
         if (!$jobLog) return;
+
+        $shop = \App\Models\User::find($this->shopId);
+        if (!$shop) return;
+
+        $shopify = new ShopifyService($shop);
 
         $variants = Variant::with('product')->whereIn('id', $this->variantIds)->get();
         if ($variants->isEmpty()) return;
@@ -45,26 +52,46 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         $failed = 0;
         $counter = $this->getStartingCounter();
 
+        // Group by product for bulk update (most efficient
+        $productsToSync = [];
+
         foreach ($variants as $variant) {
             try {
                 $newBarcode = $this->generateBarcode($variant, $this->settings, $counter);
 
+                // Save to local DB
                 $variant->barcode = $newBarcode;
                 $variant->saveQuietly();
 
+                // Collect for bulk Shopify sync
+                $productsToSync[$variant->product_id][$variant->id] = $newBarcode;
+
                 $jobLog->success(
                     "Barcode Generated",
-                    "Variant #{$variant->id} → {$variant->product->title} → {$newBarcode}"
+                    "{$variant->product->title} – {$variant->title} → {$newBarcode}"
                 );
 
                 $processed++;
                 $counter++;
             } catch (\Exception $e) {
-                $jobLog->error(
-                    "Failed to generate barcode",
-                    "Variant #{$variant->id}: " . $e->getMessage()
-                );
+                $jobLog->error("Generation Failed", "Variant #{$variant->id}: " . $e->getMessage());
                 $failed++;
+            }
+        }
+
+        // BULK SYNC TO SHOPIFY
+        foreach ($productsToSync as $productId => $barcodeMap) {
+            try {
+                $success = $shopify->updateVariantBarcodes((int)$productId, $barcodeMap);
+                if ($success) {
+                    $jobLog->info("Synced to Shopify", "Product ID {$productId} – " . count($barcodeMap) . " variants");
+                } else {
+                    $jobLog->warning("Shopify Sync Failed", "Product ID {$productId}");
+                    $failed += count($barcodeMap);
+                }
+            } catch (\Exception $e) {
+                $jobLog->error("Shopify Sync Error" . $e->getMessage());
+                $failed += count($barcodeMap);
             }
         }
 
@@ -83,12 +110,15 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         }
     }
 
+    // ... [getStartingCounter(), generateBarcode(), calculateCheckDigit() — keep exactly as you had]
     private function getStartingCounter(): int
     {
         $start = (int)($this->settings['start_number'] ?? 1);
         $cacheKey = "barcode_counter_{$this->shopId}";
-        $current = \Cache::get($cacheKey, $start - 1);
-        return $current + 1;
+        $current = Cache::get($cacheKey, $start - 1);
+        $next = $current + 1;
+        Cache::put($cacheKey, $next, 3600);
+        return $next;
     }
 
     private function generateBarcode($variant, $rules, $counter)
@@ -100,16 +130,16 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         $auto_fill = $rules['auto_fill'] ?? true;
 
         if ($format === 'QR') {
-            return $rules['allow_qr_text'] ?? false
-                ? ($variant->sku ?: "https://shop.com/p/{$variant->product->handle}")
-                : 'QR-' . strtoupper(\Str::random(12));
+            return ($rules['allow_qr_text'] ?? false)
+                ? ($variant->sku ?: "https://{$shop->myshopify_domain}/products/{$variant->product->handle}")
+                : 'QR-' . strtoupper(Str::random(12));
         }
 
         if ($format === 'CODE128') {
             return $prefix . ($variant->sku ?: "V{$variant->id}");
         }
 
-        $targetLength = $format === 'UPC' ? 12 : ($format === 'EAN' ? 13 : 13);
+        $targetLength = in_array($format, ['UPC', 'UPCA']) ? 12 : 13;
         $base = $prefix . ($variant->sku ? preg_replace('/\D/', '', $variant->sku) : $counter);
 
         if ($numeric_only) {

@@ -204,4 +204,106 @@ GRAPHQL;
 
         return true;
     }
+
+
+
+    public function updateVariantBarcodes(int $localProductId, array $barcodeMap): bool
+    {
+        $product = Product::find($localProductId);
+
+        if (!$product || !$product->shopify_id) {
+            Log::error("[BARCODE-SYNC] Product not found", ['id' => $localProductId]);
+            return false;
+        }
+
+        $variants = Variant::where('product_id', $product->id)
+            ->whereIn('id', array_keys($barcodeMap))
+            ->get();
+
+        if ($variants->isEmpty()) return true;
+
+        $bulkVariants = [];
+        foreach ($variants as $variant) {
+            if (empty($variant->shopify_variant_id)) continue;
+
+            $newBarcode = $barcodeMap[$variant->id] ?? null;
+            if ($newBarcode === null) continue;
+
+            $bulkVariants[] = [
+                'id' => $this->toGid($variant->shopify_variant_id, 'ProductVariant'),
+                'inventoryItem' => [
+                    'barcode' => $newBarcode   // THIS IS THE CORRECT FIELD
+                ]
+            ];
+
+            // Update local DB
+            $variant->barcode = $newBarcode;
+            $variant->saveQuietly();
+        }
+
+        if (empty($bulkVariants)) return true;
+
+        $mutation = <<<'GRAPHQL'
+mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+    productVariants {
+      id
+      inventoryItem {
+        barcode
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+GRAPHQL;
+
+        $variables = [
+            'productId' => $this->toGid($product->shopify_id, 'Product'),
+            'variants' => $bulkVariants,
+        ];
+
+        $response = $this->graph($mutation, $variables);
+
+        $errors = $response['data']['productVariantsBulkUpdate']['userErrors'] ?? [];
+        if (!empty($errors)) {
+            Log::error("[BARCODE-SYNC] Failed", [
+                'product_id' => $localProductId,
+                'errors' => $errors
+            ]);
+            return false;
+        }
+
+        Log::info("[BARCODE-SYNC] SUCCESS", [
+            'product_id' => $localProductId,
+            'count' => count($bulkVariants)
+        ]);
+
+        return true;
+    }
+
+    // Fallback: single variant update (used if bulk fails or for single items)
+    public function updateSingleVariantBarcode($shopifyVariantId, string $barcode): bool
+    {
+        $endpoint = "admin/api/2025-10/variants/{$shopifyVariantId}.json";
+
+        $response = $this->shop->api()->rest('PUT', $endpoint, [
+            'variant' => [
+                'id' => $shopifyVariantId,
+                'barcode' => $barcode,
+            ]
+        ]);
+
+        if (isset($response['errors'])) {
+            Log::error("[BARCODE-SYNC] Single update failed", [
+                'variant_id' => $shopifyVariantId,
+                'errors' => $response['errors']
+            ]);
+            return false;
+        }
+
+        return true;
+    }
 }
