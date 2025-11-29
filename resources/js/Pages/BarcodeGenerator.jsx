@@ -29,8 +29,9 @@ export default function BarcodeGenerator() {
 
     const [barcodes, setBarcodes] = useState([]);
     const [total, setTotal] = useState(0);
-    const [overallTotal, setOverallTotal] = useState(0); // ← NEW
+    const [overallTotal, setOverallTotal] = useState(0);
     const [duplicateGroups, setDuplicateGroups] = useState({});
+    const [stats, setStats] = useState({ missing: 0, duplicates: 0 }); // ← DYNAMIC STATS
     const [selected, setSelected] = useState(new Set());
     const [page, setPage] = useState(1);
     const [duplicatePage, setDuplicatePage] = useState(1);
@@ -61,8 +62,9 @@ export default function BarcodeGenerator() {
 
                 setBarcodes(res.data.data || []);
                 setTotal(res.data.total || 0);
-                setOverallTotal(res.data.overall_total || res.data.total || 0); // ← SET THIS
+                setOverallTotal(res.data.overall_total || res.data.total || 0);
                 setDuplicateGroups(res.data.duplicateGroups || {});
+                setStats(res.data.stats || { missing: 0, duplicates: 0 }); // ← NOW DYNAMIC!
             } catch (err) {
                 console.error("Preview error:", err);
             } finally {
@@ -183,13 +185,9 @@ export default function BarcodeGenerator() {
                         <BarcodePreviewTable
                             barcodes={barcodes}
                             total={total}
-                            overall_total={overallTotal} // ← PASS THIS
+                            overall_total={overallTotal}
                             duplicateGroups={duplicateGroups}
-                            stats={
-                                duplicateGroups
-                                    ? { missing: 1880, duplicates: 17 }
-                                    : { missing: 0, duplicates: 0 }
-                            } // fallback
+                            stats={stats} // ← NOW 100% DYNAMIC FROM BACKEND
                             page={page}
                             setPage={setPage}
                             duplicatePage={duplicatePage}
