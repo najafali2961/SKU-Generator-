@@ -19,6 +19,7 @@ import {
     Divider,
     ChoiceList,
     TextField,
+    Checkbox,
 } from "@shopify/polaris";
 import { HashtagIcon, ArrowRightIcon } from "@shopify/polaris-icons";
 
@@ -334,14 +335,13 @@ export default function BarcodePreviewTable({
                                         align="space-between"
                                     >
                                         <InlineStack gap="300">
-                                            <input
-                                                type="checkbox"
+                                            <Checkbox
                                                 checked={selected.has(v.id)}
-                                                onChange={() => {}}
-                                                onClick={(e) =>
-                                                    e.stopPropagation()
+                                                onChange={() =>
+                                                    toggleRowSelection(v.id)
                                                 }
                                             />
+
                                             <Thumbnail
                                                 source={v.image_url || ""}
                                                 size="small"

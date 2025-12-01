@@ -19,6 +19,7 @@ import {
     Thumbnail,
     ButtonGroup,
     Divider,
+    Checkbox,
 } from "@shopify/polaris";
 import {
     SearchIcon,
@@ -341,13 +342,11 @@ export default function SkuPreviewTable({
                                         align="space-between"
                                     >
                                         <InlineStack gap="300">
-                                            <input
-                                                type="checkbox"
+                                            <Checkbox
                                                 checked={selected.has(v.id)}
-                                                onChange={() => {}}
-                                                onClick={(e) =>
-                                                    e.stopPropagation()
-                                                }
+                                                onChange={() => {
+                                                    toggleRowSelection(v.id);
+                                                }}
                                             />
                                             <Thumbnail
                                                 source={mediaUrl(v) || ""}
