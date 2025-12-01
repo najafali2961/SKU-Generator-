@@ -47,7 +47,7 @@ class SkuController extends Controller
     {
         $shop    = Auth::user();
         $page    = max(1, (int)$request->input('page', 1));
-        $perPage = 8;
+        $perPage = 25;
         $tab     = $request->input('tab', 'all');
 
         $query = Variant::with(['product'])
@@ -66,25 +66,33 @@ class SkuController extends Controller
 
         $allVariants = $query->get();
 
-        // Stats
-        $missingCount = $allVariants->whereNull('sku')->count();
-        $skuCounts = $allVariants->whereNotNull('sku')->pluck('sku')->countBy();
+        // Calculate stats BEFORE filtering by tab
+        $missingVariants = $allVariants->filter(fn($v) => is_null($v->sku) || $v->sku === '');
+        $missingCount = $missingVariants->count();
+
+        // Find duplicates (only count variants with actual SKUs)
+        $skuCounts = $allVariants->filter(fn($v) => !is_null($v->sku) && $v->sku !== '')
+            ->pluck('sku')
+            ->countBy();
         $dupSkuList = $skuCounts->filter(fn($c) => $c > 1)->keys()->toArray();
-        $duplicateCount = $allVariants->whereNotNull('sku')->whereIn('sku', $dupSkuList)->count();
+        $duplicateVariants = $allVariants->filter(fn($v) => !is_null($v->sku) && $v->sku !== '' && in_array($v->sku, $dupSkuList, true));
+        $duplicateCount = $duplicateVariants->count();
 
         // Counters
         $startNumber = (int)($request->input('auto_start', 1));
         $padLength   = strlen((string)$request->input('auto_start', '0001'));
         $globalCounter = $startNumber;
         $duplicateCounter = $startNumber;
+        $missingCounter = $startNumber;
         $perProductCounters = [];
 
         $preview = [];
         $fullDuplicateGroups = collect();
 
-        // Build duplicate groups
-        if ($tab === 'duplicates' && !empty($dupSkuList)) {
-            $grouped = $allVariants->whereNotNull('sku')->whereIn('sku', $dupSkuList)->groupBy('sku');
+        // Build duplicate groups (for duplicates tab)
+        if (!empty($dupSkuList)) {
+            $grouped = $allVariants->filter(fn($v) => !is_null($v->sku) && $v->sku !== '' && in_array($v->sku, $dupSkuList, true))
+                ->groupBy('sku');
 
             $fullDuplicateGroups = $grouped->map(function ($items, $sku) use (&$duplicateCounter, $padLength, $request) {
                 $variants = [];
@@ -98,19 +106,31 @@ class SkuController extends Controller
             })->sortByDesc('count')->values();
         }
 
-        // Build normal preview
+        // Build preview based on tab
         foreach ($allVariants as $variant) {
             $oldSku = $variant->sku;
-            $isDuplicate = $oldSku && in_array($oldSku, $dupSkuList, true);
-            $isMissing = is_null($oldSku);
+            $isDuplicate = !is_null($oldSku) && $oldSku !== '' && in_array($oldSku, $dupSkuList, true);
+            $isMissing = is_null($oldSku) || $oldSku === '';
 
+            // Filter by tab
             if ($tab === 'duplicates' && !$isDuplicate) continue;
             if ($tab === 'missing' && !$isMissing) continue;
-            if ($tab === 'duplicates' && $isDuplicate) continue;
+            if ($tab === 'all' && ($isDuplicate || $isMissing)) continue; // All tab shows only good SKUs
 
-            $number = $request->boolean('restart_per_product')
-                ? ($perProductCounters[$variant->product_id] ??= $startNumber)
-                : $globalCounter++;
+            // Calculate counter based on category
+            if ($isMissing) {
+                $number = $request->boolean('restart_per_product')
+                    ? ($perProductCounters[$variant->product_id] ??= $startNumber)
+                    : $missingCounter++;
+            } elseif ($isDuplicate) {
+                $number = $request->boolean('restart_per_product')
+                    ? ($perProductCounters[$variant->product_id] ??= $startNumber)
+                    : $duplicateCounter++;
+            } else {
+                $number = $request->boolean('restart_per_product')
+                    ? ($perProductCounters[$variant->product_id] ??= $startNumber)
+                    : $globalCounter++;
+            }
 
             $num = str_pad($number, $padLength, '0', STR_PAD_LEFT);
             $source = $this->getSource($variant, $request);
@@ -119,11 +139,12 @@ class SkuController extends Controller
             $preview[] = $this->formatVariant($variant, $newSku, $isDuplicate);
         }
 
+        // For duplicates tab, use the grouped data
         if ($tab === 'duplicates') {
             $preview = $fullDuplicateGroups->pluck('variants')->flatten(1)->all();
         }
 
-        // Search
+        // Search filter (applies to preview)
         if ($request->filled('search') && !empty($preview)) {
             $q = strtolower(trim($request->search));
             $preview = array_values(array_filter($preview, function ($item) use ($q) {
@@ -137,11 +158,14 @@ class SkuController extends Controller
         $total = count($preview);
         $paginated = array_slice($preview, ($page - 1) * $perPage, $perPage);
         $visibleIds = Arr::pluck($paginated, 'id');
+
         if ($request->boolean('get_all_ids')) {
+            // Return ALL variant IDs based on current filters (for "Apply to All")
             return response()->json([
                 'all_variant_ids' => $allVariants->pluck('id')->toArray(),
             ]);
         }
+
         return response()->json([
             'preview'         => $paginated,
             'total'           => $total,
@@ -189,7 +213,6 @@ class SkuController extends Controller
 
         return $sku;
     }
-
 
     private function formatVariant($variant, $newSku, $isDuplicate)
     {
