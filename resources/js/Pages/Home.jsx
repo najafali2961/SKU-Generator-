@@ -21,8 +21,8 @@ import {
     AlertTriangleIcon,
     XIcon,
 } from "@shopify/polaris-icons";
-
-export default function Home({ stats = {} }) {
+import RecentJobsTable from "./RecentJobsTable";
+export default function Home({ stats = {}, recentJobs = [] }) {
     // State to control feedback card visibility
     const [showFeedback, setShowFeedback] = useState(true);
 
@@ -425,6 +425,10 @@ export default function Home({ stats = {} }) {
                             transform: translateX(4px) !important;
                         }
                     `}</style>
+                </Layout.Section>
+
+                <Layout.Section>
+                    <RecentJobsTable jobs={recentJobs} />
                 </Layout.Section>
             </Layout>
         </Page>

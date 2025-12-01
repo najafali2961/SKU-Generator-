@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\JobLog;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
 use App\Models\Product;
@@ -51,9 +52,10 @@ class HomeController extends Controller
             // Change this to whatever makes sense for your app
             'active_stores'          => \App\Models\User::count(),
         ];
-
         return Inertia::render('Home', [
             'stats' => $stats,
+            'recentJobs' => JobLog::where('user_id', $shop->id)->latest()->limit(10)->get()
+
         ]);
     }
 }
