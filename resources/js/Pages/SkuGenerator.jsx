@@ -44,12 +44,10 @@ export default function SkuGenerator({ initialCollections = [] }) {
 
     const debounceRef = useRef(null);
 
-    // THIS IS THE MISSING FUNCTION — NOW IT WORKS!
     const applySmartPreset = useCallback((preset) => {
         setForm((prev) => ({
             ...prev,
             ...preset,
-            // Keep user preferences for these (not overridden by preset)
             remove_spaces: prev.remove_spaces,
             alphanumeric: prev.alphanumeric,
             restart_per_product: prev.restart_per_product,
@@ -62,7 +60,7 @@ export default function SkuGenerator({ initialCollections = [] }) {
             const res = await axios.post("/sku-generator/preview", {
                 ...form,
                 search: queryValue.trim(),
-                page,
+                page: activeTab === "duplicates" ? duplicatePage : page,
                 tab: activeTab,
                 collections: selectedCollectionIds,
                 vendor: selectedVendors[0] || null,
@@ -83,21 +81,23 @@ export default function SkuGenerator({ initialCollections = [] }) {
         form,
         queryValue,
         page,
+        duplicatePage,
         activeTab,
         selectedCollectionIds,
         selectedVendors,
         selectedTypes,
     ]);
 
-    // Debounced preview update (for form changes, search, filters)
+    // Debounced preview update for form changes, search, filters
     useEffect(() => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
 
         debounceRef.current = setTimeout(() => {
-            if (page !== 1) {
-                setPage(1);
+            // Reset to page 1 when filters/search change
+            if (activeTab === "duplicates") {
+                setDuplicatePage(1);
             } else {
-                fetchPreview();
+                setPage(1);
             }
         }, DEBOUNCE_DELAY);
 
@@ -109,15 +109,12 @@ export default function SkuGenerator({ initialCollections = [] }) {
         selectedCollectionIds,
         selectedVendors,
         selectedTypes,
-        fetchPreview,
     ]);
 
-    // Pagination effect
+    // Fetch when page changes or when debounce completes
     useEffect(() => {
-        if (page > 1 || page === 1) {
-            fetchPreview();
-        }
-    }, [page, fetchPreview]);
+        fetchPreview();
+    }, [page, duplicatePage, fetchPreview]);
 
     const applySKUs = async (scope = "selected") => {
         let ids = [];
@@ -175,7 +172,6 @@ export default function SkuGenerator({ initialCollections = [] }) {
     return (
         <div className="min-h-screen bg-gray-50">
             <div className="p-6 mx-auto max-w-7xl">
-                {/* SMART PRESET BUTTON NOW WORKS! */}
                 <SkuHeader
                     onPreset={applySmartPreset}
                     onExport={() => alert("Export CSV coming soon!")}
@@ -192,7 +188,6 @@ export default function SkuGenerator({ initialCollections = [] }) {
                             duplicateGroups={duplicateGroups}
                             total={total}
                             stats={stats}
-                            visibleIds={visibleIds}
                             page={page}
                             setPage={setPage}
                             duplicatePage={duplicatePage}
@@ -208,7 +203,6 @@ export default function SkuGenerator({ initialCollections = [] }) {
                             applySKUs={applySKUs}
                             mediaUrl={mediaUrl}
                             initialCollections={initialCollections}
-                            // Filters
                             selectedCollectionIds={selectedCollectionIds}
                             setSelectedCollectionIds={setSelectedCollectionIds}
                             selectedVendors={selectedVendors}

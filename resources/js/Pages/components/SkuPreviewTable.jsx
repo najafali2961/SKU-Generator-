@@ -58,6 +58,9 @@ export default function SkuPreviewTable({
     const [selectedVariant, setSelectedVariant] = React.useState(null);
 
     const DUPLICATES_PER_PAGE = 10;
+    const PRODUCTS_PER_PAGE = 25;
+
+    // Calculate pagination for duplicates
     const totalDuplicatePages = Math.ceil(
         duplicateGroups.length / DUPLICATES_PER_PAGE
     );
@@ -66,6 +69,7 @@ export default function SkuPreviewTable({
         duplicatePage * DUPLICATES_PER_PAGE
     );
 
+    // Tab configuration - use correct counts from stats
     const tabs = [
         { id: "all", content: `All Products (${total})` },
         { id: "duplicates", content: `Duplicates (${stats.duplicates})` },
@@ -73,7 +77,8 @@ export default function SkuPreviewTable({
     ];
 
     const handleTabChange = (selectedTabIndex) => {
-        setActiveTab(tabs[selectedTabIndex].id);
+        const newTab = tabs[selectedTabIndex].id;
+        setActiveTab(newTab);
         setPage(1);
         setDuplicatePage(1);
         setSelected(new Set());
@@ -86,6 +91,7 @@ export default function SkuPreviewTable({
         setSelectedTypes([]);
     };
 
+    // Build applied filters list
     const appliedFilters = [];
     if (selectedCollectionIds.length > 0) {
         const names = selectedCollectionIds
@@ -198,7 +204,6 @@ export default function SkuPreviewTable({
 
             <IndexTable.Cell>
                 <BlockStack gap="100">
-                    {/* TITLE — clickable, opens modal */}
                     <button
                         type="button"
                         onClick={(e) => {
@@ -237,7 +242,7 @@ export default function SkuPreviewTable({
                     </button>
 
                     <Text variant="bodySm" tone="subdued">
-                        {item.vendor} {item.option && `• ${item.option}`}
+                        {item.vendor} {item.option1 && `• ${item.option1}`}
                     </Text>
                 </BlockStack>
             </IndexTable.Cell>
@@ -380,6 +385,7 @@ export default function SkuPreviewTable({
         </IndexTable.Row>
     );
 
+    // Determine what to show in the table
     const rowMarkup =
         activeTab === "duplicates" ? (
             duplicateGroups.length === 0 ? (
@@ -408,6 +414,15 @@ export default function SkuPreviewTable({
         ) : (
             preview.map(renderRow)
         );
+
+    // Calculate total pages for current tab
+    const totalPages =
+        activeTab === "duplicates"
+            ? totalDuplicatePages
+            : Math.ceil(total / PRODUCTS_PER_PAGE);
+    const currentPage = activeTab === "duplicates" ? duplicatePage : page;
+    const itemCount =
+        activeTab === "duplicates" ? duplicateGroups.length : total;
 
     return (
         <>
@@ -439,13 +454,9 @@ export default function SkuPreviewTable({
 
                 <IndexTable
                     resourceName={{ singular: "variant", plural: "variants" }}
-                    itemCount={
-                        activeTab === "duplicates"
-                            ? duplicateGroups.length
-                            : total
-                    }
+                    itemCount={itemCount}
                     selectedItemsCount={
-                        selected.size === total ? "All" : selected.size
+                        selected.size === itemCount ? "All" : selected.size
                     }
                     onSelectionChange={(selectionType, toggle) => {
                         if (selectionType === "all") {
@@ -489,50 +500,32 @@ export default function SkuPreviewTable({
 
                 {!loading && (
                     <>
-                        {activeTab === "duplicates" &&
-                            totalDuplicatePages > 1 && (
-                                <>
-                                    <Divider />
-                                    <Box padding="400">
-                                        <Pagination
-                                            hasPrevious={duplicatePage > 1}
-                                            onPrevious={() =>
-                                                setDuplicatePage((p) => p - 1)
+                        {totalPages > 1 && (
+                            <>
+                                <Divider />
+                                <Box padding="400">
+                                    <Pagination
+                                        hasPrevious={currentPage > 1}
+                                        onPrevious={() => {
+                                            if (activeTab === "duplicates") {
+                                                setDuplicatePage((p) => p - 1);
+                                            } else {
+                                                setPage((p) => p - 1);
                                             }
-                                            hasNext={
-                                                duplicatePage <
-                                                totalDuplicatePages
+                                        }}
+                                        hasNext={currentPage < totalPages}
+                                        onNext={() => {
+                                            if (activeTab === "duplicates") {
+                                                setDuplicatePage((p) => p + 1);
+                                            } else {
+                                                setPage((p) => p + 1);
                                             }
-                                            onNext={() =>
-                                                setDuplicatePage((p) => p + 1)
-                                            }
-                                            label={`${duplicatePage} of ${totalDuplicatePages}`}
-                                        />
-                                    </Box>
-                                </>
-                            )}
-
-                        {activeTab !== "duplicates" &&
-                            Math.ceil(total / 25) > 1 && (
-                                <>
-                                    <Divider />
-                                    <Box padding="400">
-                                        <Pagination
-                                            hasPrevious={page > 1}
-                                            onPrevious={() =>
-                                                setPage((p) => p - 1)
-                                            }
-                                            hasNext={
-                                                page < Math.ceil(total / 25)
-                                            }
-                                            onNext={() => setPage((p) => p + 1)}
-                                            label={`${page} of ${Math.ceil(
-                                                total / 25
-                                            )}`}
-                                        />
-                                    </Box>
-                                </>
-                            )}
+                                        }}
+                                        label={`${currentPage} of ${totalPages}`}
+                                    />
+                                </Box>
+                            </>
+                        )}
 
                         <Box padding="400" background="bg-surface-secondary">
                             <InlineStack align="space-between">
@@ -573,6 +566,7 @@ export default function SkuPreviewTable({
                     </>
                 )}
             </Card>
+
             {selectedVariant && (
                 <div
                     style={{
@@ -598,7 +592,6 @@ export default function SkuPreviewTable({
                             borderRadius: "12px",
                         }}
                     >
-                        {/* HEADER */}
                         <Box
                             padding="400"
                             background="bg-surface-brand"
@@ -640,10 +633,8 @@ export default function SkuPreviewTable({
                             </InlineStack>
                         </Box>
 
-                        {/* MAIN CONTENT */}
                         <Box padding="500">
                             <BlockStack gap="500">
-                                {/* PRICE & STOCK */}
                                 <InlineStack gap="400">
                                     <Box
                                         background="bg-surface-success-subdued"
@@ -689,7 +680,6 @@ export default function SkuPreviewTable({
                                     </Box>
                                 </InlineStack>
 
-                                {/* SKU MIGRATION */}
                                 <Box
                                     background="bg-surface-secondary"
                                     padding="400"
@@ -740,7 +730,6 @@ export default function SkuPreviewTable({
                                     </InlineStack>
                                 </Box>
 
-                                {/* VARIANT OPTIONS */}
                                 {(selectedVariant.option1 ||
                                     selectedVariant.option2 ||
                                     selectedVariant.option3) && (
@@ -774,7 +763,6 @@ export default function SkuPreviewTable({
                                     </Box>
                                 )}
 
-                                {/* IDENTIFIERS */}
                                 <Box>
                                     <Text
                                         variant="headingMd"
@@ -813,7 +801,7 @@ export default function SkuPreviewTable({
                                 </Box>
                             </BlockStack>
                         </Box>
-                        {/* FOOTER */}
+
                         <Box
                             padding="400"
                             background="bg-surface-secondary"
