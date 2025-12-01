@@ -247,7 +247,6 @@ export default function SkuPreviewTable({
                     <Badge tone="info">{item.old_sku}</Badge>
                 ) : (
                     <InlineStack gap="200">
-                        <Icon source={AlertCircleIcon} tone="critical" />
                         <Text tone="critical">No SKU</Text>
                     </InlineStack>
                 )}
