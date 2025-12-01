@@ -1,24 +1,16 @@
-import React, { useState } from "react";
+import React from "react";
 import {
     Card,
     Text,
-    InlineStack,
     BlockStack,
+    InlineStack,
     Badge,
-    Icon,
+    EmptyState,
     Button,
 } from "@shopify/polaris";
-import {
-    CheckCircleIcon,
-    XCircleIcon,
-    ClockIcon,
-    PlayIcon,
-    ArrowRightIcon,
-} from "@shopify/polaris-icons";
+import { PlayIcon } from "@shopify/polaris-icons";
 
 export default function RecentJobsTable({ jobs = [] }) {
-    const [sortBy, setSortBy] = useState("recent");
-
     const formatRelativeTime = (dateString) => {
         if (!dateString) return "—";
         const date = new Date(dateString);
@@ -26,7 +18,7 @@ export default function RecentJobsTable({ jobs = [] }) {
         const secondsAgo = Math.floor((now - date) / 1000);
 
         if (secondsAgo < 60) return `${secondsAgo}s ago`;
-        if (secondsAgo < 3600) return `${Math.floor(secondsAgo / 60)}m ago`;
+        if (secondsAgo < 60) return `${Math.floor(secondsAgo / 60)}m ago`;
         if (secondsAgo < 86400) return `${Math.floor(secondsAgo / 3600)}h ago`;
         return date.toLocaleDateString();
     };
@@ -47,28 +39,30 @@ export default function RecentJobsTable({ jobs = [] }) {
             completed: "success",
             failed: "critical",
             running: "info",
-            pending: "subdued",
+            pending: "warning",
+            queued: "attention",
         };
+        const tone = toneMap[status] || "subdued";
+
         return (
-            <Badge tone={toneMap[status] || "subdued"}>
+            <Badge tone={tone}>
                 {status.charAt(0).toUpperCase() + status.slice(1)}
             </Badge>
         );
     };
 
-    const sortedJobs = [...jobs].sort((a, b) => {
-        if (sortBy === "recent") {
-            return new Date(b.created_at) - new Date(a.created_at);
-        }
-        return 0;
-    });
+    // Sort jobs: most recent first
+    const sortedJobs = [...jobs].sort(
+        (a, b) => new Date(b.created_at) - new Date(a.created_at)
+    );
 
     return (
         <Card padding="0" roundedAbove="lg">
+            {/* Header */}
             <div
                 style={{
-                    borderBottom: "1px solid #e3e8f3",
                     padding: "20px 24px",
+                    borderBottom: "1px solid var(--p-color-border-subdued)",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
@@ -78,20 +72,26 @@ export default function RecentJobsTable({ jobs = [] }) {
                     <Text variant="headingMd" fontWeight="semibold">
                         Recent Jobs
                     </Text>
-                    <Text tone="subdued" size="small">
-                        {sortedJobs.length} total job
+                    <Text tone="subdued" variant="bodySm">
+                        {sortedJobs.length} job
                         {sortedJobs.length !== 1 ? "s" : ""}
                     </Text>
                 </BlockStack>
             </div>
 
+            {/* Empty State - Beautiful & Official */}
             {sortedJobs.length === 0 ? (
-                <div style={{ padding: "48px 24px", textAlign: "center" }}>
-                    <Text tone="subdued">
-                        No jobs yet. Start processing to see history here.
+                <EmptyState
+                    heading="No jobs yet"
+                    image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                >
+                    <Text tone="subdued" alignment="center">
+                        Once you run a job, it will appear here with progress,
+                        status, and history.
                     </Text>
-                </div>
+                </EmptyState>
             ) : (
+                /* Table with Jobs */
                 <div style={{ overflowX: "auto" }}>
                     <table
                         style={{
@@ -103,103 +103,69 @@ export default function RecentJobsTable({ jobs = [] }) {
                         <thead>
                             <tr
                                 style={{
-                                    borderBottom: "1px solid #e3e8f3",
-                                    backgroundColor: "#f9fafb",
+                                    backgroundColor:
+                                        "var(--p-color-bg-surface-secondary)",
+                                    borderBottom:
+                                        "1px solid var(--p-color-border-subdued)",
                                 }}
                             >
-                                <th
-                                    style={{
-                                        padding: "12px 24px",
-                                        textAlign: "left",
-                                        fontWeight: 600,
-                                        color: "#637588",
-                                        fontSize: "12px",
-                                        textTransform: "uppercase",
-                                    }}
-                                >
-                                    Job Type
-                                </th>
-                                <th
-                                    style={{
-                                        padding: "12px 24px",
-                                        textAlign: "left",
-                                        fontWeight: 600,
-                                        color: "#637588",
-                                        fontSize: "12px",
-                                        textTransform: "uppercase",
-                                    }}
-                                >
-                                    Progress
-                                </th>
-                                <th
-                                    style={{
-                                        padding: "12px 24px",
-                                        textAlign: "left",
-                                        fontWeight: 600,
-                                        color: "#637588",
-                                        fontSize: "12px",
-                                        textTransform: "uppercase",
-                                    }}
-                                >
-                                    Status
-                                </th>
-                                <th
-                                    style={{
-                                        padding: "12px 24px",
-                                        textAlign: "left",
-                                        fontWeight: 600,
-                                        color: "#637588",
-                                        fontSize: "12px",
-                                        textTransform: "uppercase",
-                                    }}
-                                >
-                                    Duration
-                                </th>
-                                <th
-                                    style={{
-                                        padding: "12px 24px",
-                                        textAlign: "left",
-                                        fontWeight: 600,
-                                        color: "#637588",
-                                        fontSize: "12px",
-                                        textTransform: "uppercase",
-                                    }}
-                                >
-                                    Started
-                                </th>
+                                {[
+                                    "Job Type",
+                                    "Progress",
+                                    "Status",
+                                    "Duration",
+                                    "Started",
+                                ].map((header) => (
+                                    <th
+                                        key={header}
+                                        style={{
+                                            padding: "12px 24px",
+                                            textAlign: "left",
+                                            fontWeight: 600,
+                                            fontSize: "12px",
+                                            textTransform: "uppercase",
+                                            color: "var(--p-color-text-subdued)",
+                                        }}
+                                    >
+                                        {header}
+                                    </th>
+                                ))}
                             </tr>
                         </thead>
                         <tbody>
                             {sortedJobs.map((job, idx) => {
                                 const processed = job.processed_items || 0;
-                                const total = job.total_items || 0;
+                                const total = job.total_items || 1;
                                 const progress =
                                     total > 0
                                         ? Math.round((processed / total) * 100)
                                         : 0;
+
                                 return (
                                     <tr
-                                        key={job.id}
+                                        key={job.id || idx}
                                         style={{
-                                            borderBottom: "1px solid #e3e8f3",
                                             backgroundColor:
                                                 idx % 2 === 0
-                                                    ? "#ffffff"
-                                                    : "#f9fafb",
-                                            transition:
-                                                "background-color 0.2s ease",
+                                                    ? "var(--p-color-bg-surface)"
+                                                    : "var(--p-color-bg-surface-secondary)",
+                                            borderBottom:
+                                                "1px solid var(--p-color-border-subdued)",
+                                            cursor: "pointer",
+                                            transition: "background-color 0.2s",
                                         }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.backgroundColor =
-                                                "#f0f5ff";
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.backgroundColor =
+                                        onMouseEnter={(e) =>
+                                            (e.currentTarget.style.backgroundColor =
+                                                "var(--p-color-bg-surface-hover)")
+                                        }
+                                        onMouseLeave={(e) =>
+                                            (e.currentTarget.style.backgroundColor =
                                                 idx % 2 === 0
-                                                    ? "#ffffff"
-                                                    : "#f9fafb";
-                                        }}
+                                                    ? "var(--p-color-bg-surface)"
+                                                    : "var(--p-color-bg-surface-secondary)")
+                                        }
                                     >
+                                        {/* Job Type */}
                                         <td
                                             style={{
                                                 padding: "16px 24px",
@@ -209,21 +175,30 @@ export default function RecentJobsTable({ jobs = [] }) {
                                             <BlockStack gap="100">
                                                 <Text fontWeight="semibold">
                                                     {job.type
-                                                        ?.replace(/_/g, " ")
-                                                        .split(" ")
-                                                        .map(
-                                                            (w) =>
-                                                                w
-                                                                    .charAt(0)
-                                                                    .toUpperCase() +
-                                                                w.slice(1)
-                                                        )
-                                                        .join(" ") || "Job"}
+                                                        ? job.type
+                                                              .replace(
+                                                                  /_/g,
+                                                                  " "
+                                                              )
+                                                              .split(" ")
+                                                              .map(
+                                                                  (word) =>
+                                                                      word
+                                                                          .charAt(
+                                                                              0
+                                                                          )
+                                                                          .toUpperCase() +
+                                                                      word.slice(
+                                                                          1
+                                                                      )
+                                                              )
+                                                              .join(" ")
+                                                        : "Unknown Job"}
                                                 </Text>
                                                 {job.title && (
                                                     <Text
                                                         tone="subdued"
-                                                        size="small"
+                                                        variant="bodySm"
                                                     >
                                                         {job.title}
                                                     </Text>
@@ -231,6 +206,7 @@ export default function RecentJobsTable({ jobs = [] }) {
                                             </BlockStack>
                                         </td>
 
+                                        {/* Progress */}
                                         <td
                                             style={{
                                                 padding: "16px 24px",
@@ -239,16 +215,16 @@ export default function RecentJobsTable({ jobs = [] }) {
                                         >
                                             <BlockStack gap="200">
                                                 <InlineStack
-                                                    gap="200"
+                                                    gap="300"
                                                     align="start"
                                                 >
                                                     <div
                                                         style={{
                                                             width: "120px",
-                                                            height: "4px",
+                                                            height: "6px",
                                                             backgroundColor:
-                                                                "#e3e8f3",
-                                                            borderRadius: "2px",
+                                                                "var(--p-color-border)",
+                                                            borderRadius: "3px",
                                                             overflow: "hidden",
                                                         }}
                                                     >
@@ -257,42 +233,42 @@ export default function RecentJobsTable({ jobs = [] }) {
                                                                 width: `${progress}%`,
                                                                 height: "100%",
                                                                 backgroundColor:
-                                                                    "#1e90ff",
+                                                                    "var(--p-color-border-interactive)",
                                                                 transition:
-                                                                    "width 0.3s ease",
+                                                                    "width 0.4s ease",
                                                             }}
                                                         />
                                                     </div>
                                                     <Text
-                                                        size="small"
                                                         fontWeight="medium"
-                                                        style={{
-                                                            minWidth: "35px",
-                                                        }}
+                                                        variant="bodySm"
                                                     >
                                                         {progress}%
                                                     </Text>
                                                 </InlineStack>
                                                 <Text
                                                     tone="subdued"
-                                                    size="small"
+                                                    variant="bodySm"
                                                 >
-                                                    {processed}/{total}
+                                                    {processed.toLocaleString()}{" "}
+                                                    / {total.toLocaleString()}
                                                 </Text>
                                             </BlockStack>
                                         </td>
 
+                                        {/* Status */}
                                         <td
                                             style={{
                                                 padding: "16px 24px",
                                                 verticalAlign: "middle",
                                             }}
                                         >
-                                            <InlineStack gap="200" align="left">
-                                                {getStatusBadge(job.status)}
-                                            </InlineStack>
+                                            {getStatusBadge(
+                                                job.status || "pending"
+                                            )}
                                         </td>
 
+                                        {/* Duration */}
                                         <td
                                             style={{
                                                 padding: "16px 24px",
@@ -307,15 +283,20 @@ export default function RecentJobsTable({ jobs = [] }) {
                                             </Text>
                                         </td>
 
+                                        {/* Started */}
                                         <td
                                             style={{
                                                 padding: "16px 24px",
                                                 verticalAlign: "middle",
                                             }}
                                         >
-                                            <Text tone="subdued" size="small">
+                                            <Text
+                                                tone="subdued"
+                                                variant="bodySm"
+                                            >
                                                 {formatRelativeTime(
-                                                    job.created_at
+                                                    job.created_at ||
+                                                        job.started_at
                                                 )}
                                             </Text>
                                         </td>
@@ -326,15 +307,6 @@ export default function RecentJobsTable({ jobs = [] }) {
                     </table>
                 </div>
             )}
-
-            <style>{`
-                tr {
-                    cursor: pointer;
-                }
-                tr:hover {
-                    background-color: #f0f5ff !important;
-                }
-            `}</style>
         </Card>
     );
 }
