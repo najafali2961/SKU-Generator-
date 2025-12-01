@@ -115,7 +115,7 @@ class SkuController extends Controller
             // Filter by tab
             if ($tab === 'duplicates' && !$isDuplicate) continue;
             if ($tab === 'missing' && !$isMissing) continue;
-            if ($tab === 'all' && ($isDuplicate || $isMissing)) continue; // All tab shows only good SKUs
+            // if ($tab === 'all' && ($isDuplicate || $isMissing)) continue; 
 
             // Calculate counter based on category
             if ($isMissing) {
