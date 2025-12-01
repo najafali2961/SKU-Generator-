@@ -58,8 +58,8 @@ export default function SkuPreviewTable({
 }) {
     const [selectedVariant, setSelectedVariant] = React.useState(null);
 
-    const DUPLICATES_PER_PAGE = 10;
-    const PRODUCTS_PER_PAGE = 25;
+    const DUPLICATES_PER_PAGE = 5;
+    const PRODUCTS_PER_PAGE = 8;
 
     // Calculate pagination for duplicates
     const totalDuplicatePages = Math.ceil(
