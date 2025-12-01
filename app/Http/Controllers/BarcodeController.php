@@ -102,6 +102,7 @@ class BarcodeController extends Controller
             'payload' => $request->all(),
             'status' => 'pending',
         ]);
+        $jobLog->markAsStarted();
 
         GenerateBarcodeJob::dispatch($shop->id, $request->all(), $jobLog->id);
 
