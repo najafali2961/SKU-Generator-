@@ -22,10 +22,8 @@ import {
     XIcon,
 } from "@shopify/polaris-icons";
 import RecentJobsTable from "./RecentJobsTable";
-export default function Home({ stats = {}, recentJobs = [] }) {
-    // State to control feedback card visibility
-    const [showFeedback, setShowFeedback] = useState(true);
 
+export default function Home({ stats = {}, recentJobs = [] }) {
     const data = {
         total_variants: stats.total_variants || 0,
         variants_with_sku: stats.variants_with_sku || 0,
@@ -48,8 +46,11 @@ export default function Home({ stats = {}, recentJobs = [] }) {
               )
             : 0;
 
+    const missingSkuPercent = 100 - skuCoverage;
+    const missingBarcodePercent = 100 - barcodeCoverage;
+
     const heroGradient =
-        "linear-gradient(195deg,  #1e90ff 1%, #87cefa 45%, #ffffff 100%)";
+        "linear-gradient(195deg, #1e90ff 1%, #87cefa 45%, #ffffff 100%)";
     const cardGradient = "linear-gradient(135deg, #1e90ff, #87cefa)";
     const borderBlue = "#bae6fd";
 
@@ -65,17 +66,37 @@ export default function Home({ stats = {}, recentJobs = [] }) {
                 background: cardGradient,
             }}
         >
-            <span
-                style={{
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                }}
-            >
+            <span style={{ color: "white" }}>
                 <Icon source={icon} />
             </span>
         </Box>
     );
+
+    // Helper to get badge tone and text
+    const getBadgeProps = (missingPercent) => {
+        if (missingPercent === 0) {
+            return { tone: "success", text: "All Good", progress: "complete" };
+        }
+        if (missingPercent <= 10) {
+            return {
+                tone: "success",
+                text: "Almost Perfect",
+                progress: "partiallyComplete",
+            };
+        }
+        if (missingPercent <= 30) {
+            return {
+                tone: "warning",
+                text: "Action Needed",
+                progress: "partiallyComplete",
+            };
+        }
+        return {
+            tone: "critical",
+            text: "Fix Required",
+            progress: "partiallyComplete",
+        };
+    };
 
     return (
         <Page>
@@ -88,7 +109,7 @@ export default function Home({ stats = {}, recentJobs = [] }) {
                             padding: "48px 40px",
                             background: heroGradient,
                             border: `1px solid ${borderBlue}`,
-                            boxShadow: "0 8px 25px rgba(56, 178, 239, 0.1)",
+                            boxShadow: "0 8px 25px rgba(56, 178,239,0.1)",
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "center",
@@ -140,83 +161,9 @@ export default function Home({ stats = {}, recentJobs = [] }) {
                     </div>
                 </Layout.Section>
 
-                {showFeedback && (
-                    <Layout.Section>
-                        <Card
-                            padding="400"
-                            style={{
-                                borderRadius: "12px",
-                                position: "relative",
-                            }}
-                        >
-                            <InlineStack
-                                gap="400"
-                                align="space-between"
-                                blockAlign="center"
-                                wrap={false}
-                                style={{ width: "100%" }}
-                            >
-                                {" "}
-                                <Text
-                                    variant="bodyMd"
-                                    fontWeight="medium"
-                                    alignment="start"
-                                >
-                                    How was your experience with the app?{" "}
-                                </Text>
-                                {/* Added a larger gap between Close button and feedback buttons */}
-                                <InlineStack gap="200">
-                                    <button
-                                        style={{
-                                            backgroundColor: "#ffffff",
-                                            border: "1px solid #dbe2ef",
-                                            borderRadius: "8px",
-                                            padding: "8px 16px",
-                                            fontSize: "12px",
-                                            cursor: "pointer",
-                                            whiteSpace: "nowrap",
-                                        }}
-                                    >
-                                        😊 Good
-                                    </button>
-                                    <button
-                                        style={{
-                                            backgroundColor: "#ffffff",
-                                            border: "1px solid #dbe2ef",
-                                            borderRadius: "8px",
-                                            padding: "8px 16px",
-                                            fontSize: "12px",
-                                            cursor: "pointer",
-                                            whiteSpace: "nowrap",
-                                        }}
-                                    >
-                                        😞 Bad
-                                    </button>
-                                </InlineStack>
-                            </InlineStack>
-
-                            {/* Close Button */}
-                            <div
-                                style={{
-                                    position: "absolute",
-                                    top: "8px",
-                                    right: "8px",
-                                    cursor: "pointer",
-                                    padding: "3px",
-                                    borderRadius: "2px",
-                                    background: "rgba(255,255,255,0.95)",
-                                    zIndex: 10,
-                                }}
-                                onClick={() => setShowFeedback(false)}
-                            >
-                                <Icon source={XIcon} color="base" />
-                            </div>
-                        </Card>
-                    </Layout.Section>
-                )}
                 {/* Stats Grid */}
                 <Layout.Section>
-                    <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="500">
+                    <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="200">
                         {[
                             {
                                 title: "Total Variants",
@@ -227,77 +174,98 @@ export default function Home({ stats = {}, recentJobs = [] }) {
                                 title: "Missing SKUs",
                                 value: data.variants_missing_sku,
                                 icon: AlertTriangleIcon,
-                                badge: "Action Needed",
-                                percentage: 100 - skuCoverage,
+                                missingPercent: missingSkuPercent,
                             },
                             {
                                 title: "Missing Barcodes",
                                 value: data.variants_missing_barcode,
                                 icon: BarcodeIcon,
-                                percentage: 100 - barcodeCoverage,
+                                missingPercent: missingBarcodePercent,
                             },
-                        ].map((stat, idx) => (
-                            <Card
-                                key={idx}
-                                padding="600"
-                                style={{
-                                    borderRadius: "16px",
-                                    background: "#ffffff",
-                                    border: `1px solid ${borderBlue}`,
-                                    position: "relative",
-                                    overflow: "hidden",
-                                    boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        position: "absolute",
-                                        left: 0,
-                                        top: 0,
-                                        bottom: 0,
-                                        width: "6px",
-                                        background: cardGradient,
-                                    }}
-                                />
+                        ].map((stat, idx) => {
+                            const badge =
+                                stat.missingPercent !== undefined
+                                    ? getBadgeProps(stat.missingPercent)
+                                    : null;
 
-                                <InlineStack gap="400" align="start">
+                            return (
+                                <Card
+                                    key={idx}
+                                    padding="600"
+                                    style={{
+                                        borderRadius: "16px",
+                                        background: "#ffffff",
+                                        border: `1px solid ${borderBlue}`,
+                                        position: "relative",
+                                        overflow: "hidden",
+                                        boxShadow:
+                                            "0 4px 12px rgba(0,0,0,0.04)",
+                                    }}
+                                >
                                     <div
                                         style={{
-                                            width: 40,
-                                            height: 40,
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
+                                            position: "absolute",
+                                            left: 0,
+                                            top: 0,
+                                            bottom: 0,
+                                            width: "6px",
+                                            background: cardGradient,
                                         }}
-                                    >
-                                        <IconBox icon={stat.icon} />
-                                    </div>
+                                    />
 
-                                    <BlockStack gap="100">
-                                        <InlineStack gap="200" align="center">
-                                            <Text
-                                                variant="headingLg"
-                                                fontWeight="semibold"
+                                    <InlineStack gap="200" align="start">
+                                        <div
+                                            style={{
+                                                width: 40,
+                                                height: 40,
+                                                display: "flex",
+                                                alignItems: "start",
+                                                justifyContent: "start",
+                                            }}
+                                        >
+                                            <IconBox icon={stat.icon} />
+                                        </div>
+
+                                        <BlockStack gap="100">
+                                            <InlineStack
+                                                gap="200"
+                                                align="start"
                                             >
-                                                {stat.value.toLocaleString()}
-                                            </Text>
-                                            {stat.badge && (
-                                                <Badge tone="info">
-                                                    {stat.badge}
-                                                </Badge>
-                                            )}
-                                        </InlineStack>
+                                                <Text
+                                                    variant="headingLg"
+                                                    fontWeight="semibold"
+                                                >
+                                                    {stat.value.toLocaleString()}
+                                                </Text>
 
-                                        <Text variant="bodyMd" tone="subdued">
-                                            {stat.title}{" "}
-                                            {stat.percentage
-                                                ? `(${stat.percentage}%)`
-                                                : ""}
-                                        </Text>
-                                    </BlockStack>
-                                </InlineStack>
-                            </Card>
-                        ))}
+                                                {badge && (
+                                                    <Badge
+                                                        tone={badge.tone}
+                                                        progress={
+                                                            badge.progress
+                                                        }
+                                                        size="medium"
+                                                    >
+                                                        {badge.text}
+                                                    </Badge>
+                                                )}
+                                            </InlineStack>
+
+                                            <Text
+                                                variant="bodyMd"
+                                                tone="subdued"
+                                            >
+                                                {stat.title}{" "}
+                                                {stat.missingPercent !==
+                                                undefined
+                                                    ? `(${stat.missingPercent}% missing)`
+                                                    : ""}
+                                            </Text>
+                                        </BlockStack>
+                                    </InlineStack>
+                                </Card>
+                            );
+                        })}
                     </InlineGrid>
                 </Layout.Section>
 
@@ -368,10 +336,7 @@ export default function Home({ stats = {}, recentJobs = [] }) {
                                                         fontWeight="medium"
                                                         color="primary"
                                                     >
-                                                        {action.cta.replace(
-                                                            "→",
-                                                            ""
-                                                        )}
+                                                        {action.cta}
                                                     </Text>
                                                     <Icon
                                                         source={ArrowRightIcon}
@@ -404,8 +369,8 @@ export default function Home({ stats = {}, recentJobs = [] }) {
                             content: "";
                             position: absolute;
                             inset: 0;
-                            border-radius: 10px;
-                            padding: 2px;
+                            border-radius: 16px;
+                            padding: 3px;
                             background: linear-gradient(135deg, #1e90ff, #87cefa);
                             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
                             -webkit-mask-composite: xor;
@@ -417,12 +382,11 @@ export default function Home({ stats = {}, recentJobs = [] }) {
                         .quick-action-wrapper:hover::after { opacity: 1; }
                         .quick-action-wrapper:hover {
                             transform: translateY(-6px);
-                            box-shadow: 0 20px 40px rgba(14, 165, 233, 0.18);
-                            border-color: transparent;
+                            box-shadow: 0 20px 40px rgba(14,165,233,0.18);
                         }
                         .quick-action-wrapper:hover .hover-arrow {
                             opacity: 1 !important;
-                            transform: translateX(4px) !important;
+                            transform: translateX(6px) !important;
                         }
                     `}</style>
                 </Layout.Section>
