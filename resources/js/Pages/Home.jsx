@@ -81,7 +81,7 @@ export default function Home({ stats = {}, recentJobs = [] }) {
         }
         return {
             tone: "critical",
-            text: "Urgent Fix Required",
+            text: "Fix Required",
             progress: "partiallyComplete",
         };
     };
@@ -235,8 +235,7 @@ export default function Home({ stats = {}, recentJobs = [] }) {
                                                 tone="subdued"
                                             >
                                                 {stat.title}
-                                                {stat.missingPercent > 0 &&
-                                                    ` (${stat.missingPercent}% missing)`}
+                                                {stat.missingPercent > 0}
                                             </Text>
                                         </BlockStack>
                                     </InlineStack>
@@ -322,8 +321,26 @@ export default function Home({ stats = {}, recentJobs = [] }) {
 
                     <style>{`
                         .quick-action-wrapper {
+                            position: relative;
                             border-radius: 16px;
                             transition: all 0.3s ease;
+                        }
+                        .quick-action-wrapper::after {
+                            content: "";
+                            position: absolute;
+                            inset: 0;
+                            border-radius: 10px;
+                            padding: 3px;
+                            background: linear-gradient(135deg, #1e90ff, #87cefa);
+                            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+                            -webkit-mask-composite: xor;
+                            mask-composite: exclude;
+                            opacity: 0;
+                            transition: opacity 0.3s ease;
+                            pointer-events: none;
+                        }
+                        .quick-action-wrapper:hover::after {
+                            opacity: 1;
                         }
                         .quick-action-wrapper:hover {
                             transform: translateY(-6px);
