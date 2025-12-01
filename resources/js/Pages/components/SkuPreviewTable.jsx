@@ -591,12 +591,13 @@ export default function SkuPreviewTable({
                             borderRadius: "12px",
                         }}
                     >
+                        {/* HEADER — SAME STYLE AS FIRST MODAL */}
                         <Box
                             padding="400"
-                            background="bg-surface-brand"
-                            borderBlockEndWidth="1"
-                            borderColor="border-brand"
-                            borderRadius="300"
+                            // background="bg-surface-brand"
+                            // borderBlockEndWidth="1"
+                            // borderColor="border-brand"
+                            // borderRadius="300"
                         >
                             <InlineStack
                                 align="space-between"
@@ -606,12 +607,14 @@ export default function SkuPreviewTable({
                                     <Thumbnail
                                         source={
                                             selectedVariant.image ||
-                                            selectedVariant.image_src
+                                            selectedVariant.image_src ||
+                                            selectedVariant.image_url
                                         }
                                         size="large"
                                         alt={selectedVariant.title}
                                     />
-                                    <BlockStack gap="100">
+
+                                    <BlockStack gap="200">
                                         <Text
                                             variant="headingLg"
                                             fontWeight="bold"
@@ -619,6 +622,7 @@ export default function SkuPreviewTable({
                                         >
                                             {selectedVariant.title}
                                         </Text>
+
                                         <Text
                                             variant="bodyMd"
                                             tone="subdued"
@@ -627,26 +631,11 @@ export default function SkuPreviewTable({
                                             {selectedVariant.vendor ||
                                                 "No vendor"}
                                         </Text>
-                                    </BlockStack>
-                                </InlineStack>
-                            </InlineStack>
-                        </Box>
 
-                        <Box padding="500">
-                            <BlockStack gap="500">
-                                <InlineStack gap="400">
-                                    <Box
-                                        background="bg-surface-success-subdued"
-                                        padding="400"
-                                        borderRadius="200"
-                                        flex="1"
-                                    >
-                                        <Text variant="bodySm" tone="subdued">
-                                            Price
-                                        </Text>
                                         <Text
                                             variant="headingLg"
                                             fontWeight="bold"
+                                            color="text-inverse"
                                         >
                                             Rs.{" "}
                                             {(
@@ -654,31 +643,66 @@ export default function SkuPreviewTable({
                                                 0
                                             ).toFixed(2)}
                                         </Text>
-                                    </Box>
-                                    <Box
-                                        background={
-                                            selectedVariant.inventory_quantity >
-                                            0
-                                                ? "bg-surface-warning-subdued"
-                                                : "bg-surface-critical-subdued"
-                                        }
-                                        padding="400"
-                                        borderRadius="200"
-                                        flex="1"
-                                    >
-                                        <Text variant="bodySm" tone="subdued">
-                                            Stock
-                                        </Text>
-                                        <Text
-                                            variant="headingLg"
-                                            fontWeight="bold"
-                                        >
-                                            {+selectedVariant.inventory_quantity ||
-                                                0}
-                                        </Text>
-                                    </Box>
-                                </InlineStack>
 
+                                        <InlineStack
+                                            gap="300"
+                                            paddingBlockStart="200"
+                                        >
+                                            <Badge tone="info">
+                                                SKU:{" "}
+                                                {selectedVariant.old_sku || "—"}
+                                            </Badge>
+                                        </InlineStack>
+
+                                        {(selectedVariant.option1 ||
+                                            selectedVariant.option2 ||
+                                            selectedVariant.option3) && (
+                                            <InlineStack
+                                                gap="300"
+                                                paddingBlockStart="200"
+                                            >
+                                                {selectedVariant.option1 && (
+                                                    <Badge tone="attention">
+                                                        {
+                                                            selectedVariant.option1
+                                                        }
+                                                    </Badge>
+                                                )}
+                                                {selectedVariant.option2 && (
+                                                    <Badge tone="attention">
+                                                        {
+                                                            selectedVariant.option2
+                                                        }
+                                                    </Badge>
+                                                )}
+                                                {selectedVariant.option3 && (
+                                                    <Badge tone="attention">
+                                                        {
+                                                            selectedVariant.option3
+                                                        }
+                                                    </Badge>
+                                                )}
+                                            </InlineStack>
+                                        )}
+
+                                        <Text
+                                            variant="bodySm"
+                                            tone="subdued"
+                                            color="text-inverse"
+                                        >
+                                            Variant ID:{" "}
+                                            {selectedVariant.shopify_variant_id ||
+                                                "—"}
+                                        </Text>
+                                    </BlockStack>
+                                </InlineStack>
+                            </InlineStack>
+                        </Box>
+
+                        {/* BODY — ONLY MIGRATIONS (Same style as Barcode migration block) */}
+                        <Box padding="500">
+                            <BlockStack gap="500">
+                                {/* SKU Migration */}
                                 <Box
                                     background="bg-surface-secondary"
                                     padding="400"
@@ -687,10 +711,11 @@ export default function SkuPreviewTable({
                                     <Text variant="headingMd" fontWeight="bold">
                                         SKU Migration
                                     </Text>
+
                                     <InlineStack
                                         gap="400"
-                                        blockAlign="center"
                                         paddingBlockStart="300"
+                                        blockAlign="center"
                                     >
                                         <BlockStack gap="200" align="center">
                                             <Text
@@ -711,10 +736,12 @@ export default function SkuPreviewTable({
                                                     "Missing"}
                                             </Badge>
                                         </BlockStack>
+
                                         <Icon
                                             source={ArrowRightIcon}
                                             tone="subdued"
                                         />
+
                                         <BlockStack gap="200" align="center">
                                             <Text
                                                 variant="bodySm"
@@ -723,92 +750,24 @@ export default function SkuPreviewTable({
                                                 New
                                             </Text>
                                             <Badge tone="success" size="large">
-                                                {selectedVariant.new_sku}
-                                            </Badge>
-                                        </BlockStack>
-                                    </InlineStack>
-                                </Box>
-
-                                {(selectedVariant.option1 ||
-                                    selectedVariant.option2 ||
-                                    selectedVariant.option3) && (
-                                    <Box>
-                                        <Text
-                                            variant="headingMd"
-                                            fontWeight="semibold"
-                                        >
-                                            Options
-                                        </Text>
-                                        <InlineStack
-                                            gap="300"
-                                            paddingBlockStart="200"
-                                        >
-                                            {selectedVariant.option1 && (
-                                                <Badge tone="attention">
-                                                    {selectedVariant.option1}
-                                                </Badge>
-                                            )}
-                                            {selectedVariant.option2 && (
-                                                <Badge tone="attention">
-                                                    {selectedVariant.option2}
-                                                </Badge>
-                                            )}
-                                            {selectedVariant.option3 && (
-                                                <Badge tone="attention">
-                                                    {selectedVariant.option3}
-                                                </Badge>
-                                            )}
-                                        </InlineStack>
-                                    </Box>
-                                )}
-
-                                <Box>
-                                    <Text
-                                        variant="headingMd"
-                                        fontWeight="semibold"
-                                    >
-                                        Identifiers
-                                    </Text>
-                                    <InlineStack
-                                        gap="400"
-                                        paddingBlockStart="200"
-                                    >
-                                        <BlockStack gap="050">
-                                            <Text
-                                                variant="bodySm"
-                                                tone="subdued"
-                                            >
-                                                Barcode
-                                            </Text>
-                                            <Text>
-                                                {selectedVariant.barcode || "—"}
-                                            </Text>
-                                        </BlockStack>
-                                        <BlockStack gap="050">
-                                            <Text
-                                                variant="bodySm"
-                                                tone="subdued"
-                                            >
-                                                Shopify ID
-                                            </Text>
-                                            <Text>
-                                                {selectedVariant.shopify_variant_id ||
+                                                {selectedVariant.new_sku ||
+                                                    selectedVariant.sku ||
                                                     "—"}
-                                            </Text>
+                                            </Badge>
                                         </BlockStack>
                                     </InlineStack>
                                 </Box>
                             </BlockStack>
                         </Box>
 
+                        {/* FOOTER */}
                         <Box
                             padding="400"
                             background="bg-surface-secondary"
                             borderBlockStartWidth="1"
                             borderColor="border"
-                            borderRadius="300"
                         >
-                            <InlineStack align="end" gap="300">
+                            <InlineStack align="end">
                                 <Button
                                     onClick={() => setSelectedVariant(null)}
                                 >

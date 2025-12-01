@@ -169,6 +169,15 @@ class BarcodeController extends Controller
                 'old_barcode'   => $cleanBarcode,
                 'new_barcode'   => $newBarcode,
                 'format'        => $format,
+                'option1'               => $variant->option1,
+                'option2'               => $variant->option2,
+                'option3'               => $variant->option3,
+                'price'                 => $variant->price,
+                'inventory_quantity'    => $variant->inventory_quantity,
+                'shopify_variant_id'    => $variant->shopify_variant_id,
+                'created_at'            => $variant->created_at,
+                'updated_at'            => $variant->updated_at,
+
             ];
 
             $counter++;

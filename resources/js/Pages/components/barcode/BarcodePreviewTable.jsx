@@ -574,6 +574,7 @@ export default function BarcodePreviewTable({
             </Card>
 
             {/* Modal */}
+            {/* Variant Details Modal */}
             {selectedVariant && (
                 <div
                     style={{
@@ -596,26 +597,41 @@ export default function BarcodePreviewTable({
                             width: "100%",
                             maxHeight: "90vh",
                             overflowY: "auto",
+                            borderRadius: "12px",
                         }}
                     >
-                        <Box padding="400" background="bg-surface-brand">
+                        {/* HEADER – FULL VARIANT DETAILS */}
+                        <Box padding="500">
                             <InlineStack
                                 align="space-between"
                                 blockAlign="center"
                             >
-                                <InlineStack gap="400">
+                                <InlineStack gap="400" blockAlign="center">
+                                    {/* Image */}
                                     <Thumbnail
-                                        source={selectedVariant.image_url || ""}
+                                        source={
+                                            selectedVariant.image ||
+                                            selectedVariant.image_src ||
+                                            selectedVariant.image_url
+                                        }
                                         size="large"
+                                        alt={
+                                            selectedVariant.title ||
+                                            selectedVariant.variant_title
+                                        }
                                     />
-                                    <BlockStack gap="100">
+
+                                    {/* Variant Details */}
+                                    <BlockStack gap="200">
                                         <Text
                                             variant="headingLg"
                                             fontWeight="bold"
                                             color="text-inverse"
                                         >
-                                            {selectedVariant.variant_title}
+                                            {selectedVariant.title ||
+                                                selectedVariant.variant_title}
                                         </Text>
+
                                         <Text
                                             variant="bodyMd"
                                             tone="subdued"
@@ -624,13 +640,80 @@ export default function BarcodePreviewTable({
                                             {selectedVariant.vendor ||
                                                 "No vendor"}
                                         </Text>
+
+                                        <Text
+                                            variant="headingLg"
+                                            fontWeight="bold"
+                                            color="text-inverse"
+                                        >
+                                            $
+                                            {Number(
+                                                selectedVariant.price || 0
+                                            ).toFixed(2)}
+                                        </Text>
+
+                                        <InlineStack
+                                            gap="300"
+                                            paddingBlockStart="200"
+                                        >
+                                            {/* SKU */}
+                                            <Badge tone="info">
+                                                SKU:{" "}
+                                                {selectedVariant.sku || "—"}
+                                            </Badge>
+                                        </InlineStack>
+
+                                        {/* Options */}
+                                        {(selectedVariant.option1 ||
+                                            selectedVariant.option2 ||
+                                            selectedVariant.option3) && (
+                                            <InlineStack
+                                                gap="300"
+                                                paddingBlockStart="200"
+                                            >
+                                                {selectedVariant.option1 && (
+                                                    <Badge tone="attention">
+                                                        {
+                                                            selectedVariant.option1
+                                                        }
+                                                    </Badge>
+                                                )}
+                                                {selectedVariant.option2 && (
+                                                    <Badge tone="attention">
+                                                        {
+                                                            selectedVariant.option2
+                                                        }
+                                                    </Badge>
+                                                )}
+                                                {selectedVariant.option3 && (
+                                                    <Badge tone="attention">
+                                                        {
+                                                            selectedVariant.option3
+                                                        }
+                                                    </Badge>
+                                                )}
+                                            </InlineStack>
+                                        )}
+
+                                        {/* Shopify ID */}
+                                        <Text
+                                            variant="bodySm"
+                                            tone="subdued"
+                                            color="text-inverse"
+                                        >
+                                            Variant ID:{" "}
+                                            {selectedVariant.shopify_variant_id ||
+                                                "—"}
+                                        </Text>
                                     </BlockStack>
                                 </InlineStack>
                             </InlineStack>
                         </Box>
 
+                        {/* BODY – ONLY MIGRATIONS */}
                         <Box padding="500">
                             <BlockStack gap="500">
+                                {/* BARCODE Migration */}
                                 <Box
                                     background="bg-surface-secondary"
                                     padding="400"
@@ -639,12 +722,13 @@ export default function BarcodePreviewTable({
                                     <Text variant="headingMd" fontWeight="bold">
                                         Barcode Migration
                                     </Text>
+
                                     <InlineStack
                                         gap="400"
-                                        blockAlign="center"
                                         paddingBlockStart="300"
+                                        blockAlign="center"
                                     >
-                                        <BlockStack align="center">
+                                        <BlockStack gap="200" align="center">
                                             <Text
                                                 variant="bodySm"
                                                 tone="subdued"
@@ -663,11 +747,13 @@ export default function BarcodePreviewTable({
                                                     "Missing"}
                                             </Badge>
                                         </BlockStack>
+
                                         <Icon
                                             source={ArrowRightIcon}
                                             tone="subdued"
                                         />
-                                        <BlockStack align="center">
+
+                                        <BlockStack gap="200" align="center">
                                             <Text
                                                 variant="bodySm"
                                                 tone="subdued"
@@ -675,7 +761,9 @@ export default function BarcodePreviewTable({
                                                 New
                                             </Text>
                                             <Badge tone="success" size="large">
-                                                {selectedVariant.new_barcode}
+                                                {selectedVariant.new_barcode ||
+                                                    selectedVariant.barcode ||
+                                                    "—"}
                                             </Badge>
                                         </BlockStack>
                                     </InlineStack>
@@ -683,10 +771,12 @@ export default function BarcodePreviewTable({
                             </BlockStack>
                         </Box>
 
+                        {/* Footer */}
                         <Box
                             padding="400"
                             background="bg-surface-secondary"
                             borderBlockStartWidth="1"
+                            borderColor="border"
                         >
                             <InlineStack align="end">
                                 <Button
