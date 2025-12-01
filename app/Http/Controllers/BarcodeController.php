@@ -114,7 +114,7 @@ class BarcodeController extends Controller
     {
         $shop = Auth::user();
         $page    = max(1, (int)$request->input('page', 1));
-        $perPage = 8;
+        $perPage = 25;
         $tab     = $request->input('tab', 'all');
         $baseQuery = Variant::with(['product'])
             ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
