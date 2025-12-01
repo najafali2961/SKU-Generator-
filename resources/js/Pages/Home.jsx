@@ -61,6 +61,7 @@ export default function Home({ stats = {}, recentJobs = [] }) {
                 justifyContent: "center",
                 alignItems: "center",
                 background: cardGradient,
+                color: "#ffffff",
             }}
         >
             <Icon source={icon} color="base" />
