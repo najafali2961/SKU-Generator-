@@ -540,8 +540,6 @@ export default function Home({ stats = {}, recentJobs = [] }) {
 
                 {/* Quick Actions */}
                 <Layout.Section>
-                    <Box paddingBlockStart="400" />
-
                     <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
                         <Link
                             href="/sku-generator?auto=missing"
