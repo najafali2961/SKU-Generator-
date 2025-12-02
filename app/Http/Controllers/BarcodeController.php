@@ -238,7 +238,10 @@ class BarcodeController extends Controller
 
 
 
-
+    public function importPage()
+    {
+        return inertia('BarcodeImport');
+    }
 
     public function importPreview(Request $request)
     {

@@ -36,6 +36,7 @@ Route::middleware(['verify.shopify'])->group(function () {
     Route::post('/barcode/fetch-variants', [BarcodeController::class, 'fetchVariants']);
     Route::post('/barcode/import-preview', [BarcodeController::class, 'importPreview']);
     Route::post('/barcode/import-apply', [BarcodeController::class, 'importApply']);
+    Route::get('/barcode-import', [BarcodeController::class, 'importPage'])->name('barcode.import');
 
 
     Route::get('/jobs', [JobController::class, 'index'])->name('jobs.index');
