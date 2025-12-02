@@ -248,20 +248,7 @@ export default function RecentJobsTable({ jobs = [] }) {
                                                         gap="300"
                                                         align="start"
                                                     >
-                                                        <div
-                                                            style={{
-                                                                width: "120px",
-                                                                height: "8px",
-                                                                backgroundColor:
-                                                                    "var(--p-color-border)",
-                                                                borderRadius:
-                                                                    "4px",
-                                                                overflow:
-                                                                    "hidden",
-                                                                boxShadow:
-                                                                    "inset 0 1px 2px rgba(0,0,0,0.05)",
-                                                            }}
-                                                        >
+                                                        <div>
                                                             <div
                                                                 style={{
                                                                     width: `${progress}%`,
@@ -277,12 +264,6 @@ export default function RecentJobsTable({ jobs = [] }) {
                                                                 }}
                                                             />
                                                         </div>
-                                                        <Text
-                                                            fontWeight="medium"
-                                                            variant="bodySm"
-                                                        >
-                                                            {progress}%
-                                                        </Text>
                                                     </InlineStack>
                                                     <Text
                                                         tone="subdued"
@@ -290,7 +271,8 @@ export default function RecentJobsTable({ jobs = [] }) {
                                                     >
                                                         {processed.toLocaleString()}{" "}
                                                         /{" "}
-                                                        {total.toLocaleString()}
+                                                        {total.toLocaleString()}{" "}
+                                                        Variants
                                                     </Text>
                                                 </BlockStack>
                                             </td>
