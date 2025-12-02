@@ -1,4 +1,5 @@
-import React, { useState, useRef } from "react";
+// resources/js/Pages/components/barcode/BarcodeImportModal.jsx
+import React, { useState, useRef, useCallback } from "react";
 import {
     Modal,
     Button,
@@ -6,312 +7,39 @@ import {
     Text,
     Banner,
     Box,
-    Divider,
     InlineStack,
     BlockStack,
     Icon,
-    ProgressBar,
-    Tabs,
+    IndexTable,
+    Pagination,
     Badge,
-    Checkbox,
-    Select,
-    TextField,
-    EmptyState,
+    Thumbnail,
 } from "@shopify/polaris";
 import {
     UploadIcon,
     CheckCircleIcon,
-    AlertCircleIcon,
     FolderDownIcon,
 } from "@shopify/polaris-icons";
 import Papa from "papaparse";
 
+const ITEMS_PER_PAGE = 10;
+
 export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
     const [file, setFile] = useState(null);
+    const [dragActive, setDragActive] = useState(false);
     const [parsing, setParsing] = useState(false);
-    const [validation, setValidation] = useState(null);
     const [uploading, setUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
-    const [previewPage, setPreviewPage] = useState(1);
-    const [fieldMapping, setFieldMapping] = useState({
-        variant_id: "variant_id",
-        barcode: "barcode",
-        format: "format",
-        ean: "ean",
-        upc: "upc",
-        isbn: "isbn",
-    });
-    const [availableColumns, setAvailableColumns] = useState([]);
+    const [validation, setValidation] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
     const fileInputRef = useRef(null);
 
-    const REQUIRED_COLUMNS = ["variant_id", "barcode"];
-    const OPTIONAL_COLUMNS = ["ean", "upc", "isbn", "format"];
-    const PREVIEW_PER_PAGE = 5;
+    // ────── Sample CSV download ──────
+    const downloadSample = () => {
+        const csv = `shopify_variant_id,barcode
+47718466191611,"0123456789012"
+47718466158843,"1234567890123"
+47718466191699,"9876543210987"`;
 
-    // Validation Rules
-    const validateBarcode = (barcode, format = "AUTO") => {
-        if (!barcode || barcode.trim() === "")
-            return { valid: false, error: "Empty barcode" };
-
-        const cleaned = barcode.trim();
-
-        if (format === "UPC" || format === "AUTO") {
-            if (/^\d{12}$/.test(cleaned)) return { valid: true, format: "UPC" };
-        }
-
-        if (format === "EAN" || format === "AUTO") {
-            if (/^\d{13}$/.test(cleaned)) return { valid: true, format: "EAN" };
-        }
-
-        if (format === "ISBN" || format === "AUTO") {
-            if (/^\d{10}$|^\d{13}$|^97[89]\d{10}$/.test(cleaned)) {
-                return { valid: true, format: "ISBN" };
-            }
-        }
-
-        if (format === "CODE128" || format === "AUTO") {
-            if (/^[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=]{1,}$/.test(cleaned)) {
-                return { valid: true, format: "CODE128" };
-            }
-        }
-
-        return { valid: false, error: `Invalid format: ${cleaned}` };
-    };
-
-    const validateRow = (row, index, context) => {
-        const errors = [];
-
-        const variantId = row[fieldMapping.variant_id];
-        const barcodeValue = row[fieldMapping.barcode];
-
-        if (!variantId || variantId.trim() === "") {
-            errors.push(`Row ${index + 1}: Missing variant ID`);
-        }
-
-        if (!barcodeValue || barcodeValue.trim() === "") {
-            errors.push(`Row ${index + 1}: Missing barcode`);
-        } else {
-            const validation = validateBarcode(
-                barcodeValue,
-                row[fieldMapping.format] || "AUTO"
-            );
-            if (!validation.valid) {
-                errors.push(`Row ${index + 1}: ${validation.error}`);
-            }
-        }
-
-        if (variantId) {
-            context.variantCount[variantId] =
-                (context.variantCount[variantId] || 0) + 1;
-        }
-
-        return errors;
-    };
-
-    const parseCSV = (file) => {
-        setParsing(true);
-        setValidation(null);
-        setPreviewPage(1);
-        setFieldMapping({
-            variant_id: "variant_id",
-            barcode: "barcode",
-            format: "format",
-            ean: "ean",
-            upc: "upc",
-            isbn: "isbn",
-        });
-
-        Papa.parse(file, {
-            header: true,
-            skipEmptyLines: true,
-            transformHeader: (h) => h.toLowerCase().trim(),
-            complete: (results) => {
-                const rows = results.data || [];
-                const headers = Object.keys(rows[0] || {});
-
-                setAvailableColumns(headers);
-
-                const errors = [];
-                const warnings = [];
-                const processed = [];
-                const variantCount = {};
-
-                // Auto-detect available columns and set mapping
-                const autoMapping = {
-                    variant_id:
-                        headers.find((h) =>
-                            ["variant_id", "variant id", "variantid"].includes(
-                                h
-                            )
-                        ) || headers[0],
-                    barcode:
-                        headers.find((h) =>
-                            [
-                                "barcode",
-                                "sku",
-                                "code",
-                                "upc",
-                                "ean",
-                                "isbn",
-                            ].includes(h)
-                        ) || headers[1],
-                    format:
-                        headers.find((h) =>
-                            ["format", "type", "code_format"].includes(h)
-                        ) || "format",
-                    ean: headers.find((h) => h === "ean") || "ean",
-                    upc: headers.find((h) => h === "upc") || "upc",
-                    isbn: headers.find((h) => h === "isbn") || "isbn",
-                };
-
-                setFieldMapping(autoMapping);
-
-                // Validate rows
-                rows.forEach((row, index) => {
-                    const rowErrors = validateRow(row, index, { variantCount });
-                    if (rowErrors.length > 0) {
-                        errors.push(...rowErrors);
-                    } else {
-                        const variantId = row[autoMapping.variant_id];
-                        const barcodeValue = row[autoMapping.barcode];
-
-                        processed.push({
-                            variant_id: variantId.trim(),
-                            barcode: barcodeValue.trim(),
-                            format: row[autoMapping.format]?.trim() || "AUTO",
-                            ean: row[autoMapping.ean]?.trim() || null,
-                            upc: row[autoMapping.upc]?.trim() || null,
-                            isbn: row[autoMapping.isbn]?.trim() || null,
-                        });
-                    }
-                });
-
-                // Check for duplicates
-                Object.entries(variantCount).forEach(([variantId, count]) => {
-                    if (count > 1) {
-                        warnings.push(
-                            `Variant ID ${variantId} appears ${count} times in file`
-                        );
-                    }
-                });
-
-                const validRows = processed.length;
-                const status = errors.length === 0 ? "success" : "warning";
-
-                setValidation({
-                    status,
-                    message:
-                        status === "success"
-                            ? `Ready to import ${validRows} barcode(s)`
-                            : `${validRows} valid row(s), ${errors.length} error(s)`,
-                    totalRows: rows.length,
-                    validRows,
-                    errors,
-                    warnings,
-                    processed,
-                    rawRows: rows,
-                });
-
-                setParsing(false);
-            },
-            error: (err) => {
-                setValidation({
-                    status: "error",
-                    message: `Parse error: ${err.message}`,
-                    totalRows: 0,
-                    validRows: 0,
-                    errors: [err.message],
-                    warnings: [],
-                    processed: [],
-                    rawRows: [],
-                });
-                setParsing(false);
-            },
-        });
-    };
-
-    const handleFileSelect = (e) => {
-        const selected = e.target.files?.[0];
-        if (!selected) return;
-
-        if (!selected.name.endsWith(".csv")) {
-            setValidation({
-                status: "error",
-                message: "Please select a CSV file",
-                totalRows: 0,
-                validRows: 0,
-                errors: ["Only .csv files are supported"],
-                warnings: [],
-                processed: [],
-                rawRows: [],
-            });
-            return;
-        }
-
-        setFile(selected);
-        parseCSV(selected);
-    };
-
-    const handleImport = async () => {
-        if (!validation?.processed || validation.processed.length === 0) return;
-
-        setUploading(true);
-        setUploadProgress(0);
-
-        try {
-            const response = await fetch("/barcode/import", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    barcodes: validation.processed,
-                }),
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || "Import failed");
-            }
-
-            setUploadProgress(100);
-            const result = await response.json();
-
-            onSuccess?.(result);
-
-            setTimeout(() => {
-                resetModal();
-                onClose?.();
-            }, 1000);
-        } catch (err) {
-            setValidation((prev) => ({
-                ...prev,
-                status: "error",
-                message: `Import failed: ${err.message}`,
-                errors: [...(prev?.errors || []), err.message],
-            }));
-        } finally {
-            setUploading(false);
-            setUploadProgress(0);
-        }
-    };
-
-    const downloadSampleFile = () => {
-        const sampleData = [
-            ["variant_id", "barcode", "format", "ean", "upc", "isbn"],
-            [
-                "12345",
-                "012345678901",
-                "UPC",
-                "1234567890123",
-                "012345678901",
-                "",
-            ],
-            ["12346", "1234567890128", "EAN", "1234567890128", "", ""],
-            ["12347", "9780545010221", "ISBN", "", "", "9780545010221"],
-        ];
-
-        const csv = sampleData
-            .map((row) => row.map((cell) => `"${cell}"`).join(","))
-            .join("\n");
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -321,663 +49,470 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
         URL.revokeObjectURL(url);
     };
 
-    const resetModal = () => {
-        setFile(null);
-        setValidation(null);
-        setUploadProgress(0);
-        setPreviewPage(1);
-        setFieldMapping({
-            variant_id: "variant_id",
-            barcode: "barcode",
-            format: "format",
-            ean: "ean",
-            upc: "upc",
-            isbn: "isbn",
-        });
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
+    // Fix Excel scientific notation → full number
+    const fixBigNumber = (val) => {
+        if (!val) return "";
+        let str = String(val)
+            .trim()
+            .replace(/^"+|"+$/g, "");
+        if (/^[0-9.]+E\+[0-9]+$/i.test(str)) {
+            return Number(str).toFixed(0);
         }
+        return str;
     };
 
-    const handleClose = () => {
-        resetModal();
-        onClose?.();
-    };
+    // ────── CSV Parsing ──────
+    const parseCSV = useCallback(async (file) => {
+        setParsing(true);
+        setValidation(null);
+        setCurrentPage(1);
 
-    const handleFieldMappingChange = (field, value) => {
-        setFieldMapping((prev) => ({ ...prev, [field]: value }));
-
-        if (validation?.rawRows) {
-            const processed = [];
-            const errors = [];
-            const variantCount = {};
-
-            validation.rawRows.forEach((row, index) => {
-                const rowErrors = validateRow(
-                    row,
-                    index,
-                    { variantCount },
-                    {
-                        ...fieldMapping,
-                        [field]: value,
-                    }
-                );
-
-                if (rowErrors.length > 0) {
-                    errors.push(...rowErrors);
-                } else {
-                    const mappedRow = {
-                        ...fieldMapping,
-                        [field]: value,
-                    };
-
-                    const variantId = row[mappedRow.variant_id];
-                    const barcodeValue = row[mappedRow.barcode];
-
-                    processed.push({
-                        variant_id: variantId.trim(),
-                        barcode: barcodeValue.trim(),
-                        format: row[mappedRow.format]?.trim() || "AUTO",
-                        ean: row[mappedRow.ean]?.trim() || null,
-                        upc: row[mappedRow.upc]?.trim() || null,
-                        isbn: row[mappedRow.isbn]?.trim() || null,
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            dynamicTyping: false,
+            transformHeader: (h) => h.toLowerCase().trim(),
+            transform: (v) => fixBigNumber(v),
+            complete: async (results) => {
+                const rows = results.data;
+                if (rows.length === 0) {
+                    setValidation({
+                        status: "error",
+                        message: "CSV is empty",
+                        preview: [],
                     });
+                    setParsing(false);
+                    return;
                 }
+
+                // Collect Shopify Variant IDs
+                const shopifyIds = rows
+                    .map((row) => {
+                        const id =
+                            row["shopify_variant_id"] ||
+                            row["variant id"] ||
+                            row["shopify variant id"] ||
+                            row["variant_id"] ||
+                            row["variantid"] ||
+                            row["id"];
+                        return fixBigNumber(id);
+                    })
+                    .filter((id) => id && id.length >= 10);
+
+                if (shopifyIds.length === 0) {
+                    setValidation({
+                        status: "error",
+                        message: "No valid Shopify Variant IDs found",
+                        preview: [],
+                    });
+                    setParsing(false);
+                    return;
+                }
+
+                try {
+                    const res = await fetch("/barcode/import-preview", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRF-TOKEN":
+                                document.querySelector(
+                                    'meta[name="csrf-token"]'
+                                )?.content || "",
+                        },
+                        body: JSON.stringify({ variant_ids: shopifyIds }),
+                    });
+
+                    if (!res.ok) throw new Error("Server error");
+
+                    const { variants } = await res.json();
+                    const variantMap = {};
+                    variants.forEach(
+                        (v) => (variantMap[v.shopify_variant_id] = v)
+                    );
+
+                    const preview = [];
+                    const importData = [];
+                    const errors = [];
+
+                    rows.forEach((row, idx) => {
+                        const rawId =
+                            row["shopify_variant_id"] ||
+                            row["variant id"] ||
+                            row["shopify variant id"] ||
+                            row["variant_id"] ||
+                            row["variantid"] ||
+                            row["id"];
+                        const shopifyId = fixBigNumber(rawId);
+                        const barcode = fixBigNumber(
+                            row["barcode"] ||
+                                row["code"] ||
+                                row["ean"] ||
+                                row["upc"] ||
+                                ""
+                        );
+
+                        if (!shopifyId || !barcode) {
+                            errors.push(
+                                `Row ${idx + 2}: Missing ID or barcode`
+                            );
+                            return;
+                        }
+
+                        const dbVariant = variantMap[shopifyId];
+                        if (!dbVariant) {
+                            errors.push(
+                                `Row ${
+                                    idx + 2
+                                }: Variant not found → ${shopifyId}`
+                            );
+                            return;
+                        }
+
+                        preview.push({
+                            ...dbVariant,
+                            new_barcode: barcode,
+                            row: idx + 2,
+                        });
+                        importData.push({
+                            shopify_variant_id: shopifyId,
+                            barcode,
+                        });
+                    });
+
+                    const status = errors.length === 0 ? "success" : "warning";
+                    setValidation({
+                        status,
+                        message:
+                            errors.length === 0
+                                ? `Ready to update ${preview.length} variant(s)`
+                                : `${preview.length} valid • ${errors.length} error(s)`,
+                        preview,
+                        importData,
+                        errors,
+                    });
+                } catch (err) {
+                    setValidation({
+                        status: "error",
+                        message: "Failed to connect to server",
+                    });
+                } finally {
+                    setParsing(false);
+                }
+            },
+            error: () => {
+                setValidation({
+                    status: "error",
+                    message: "Failed to read CSV file",
+                });
+                setParsing(false);
+            },
+        });
+    }, []);
+
+    // ────── File handling ──────
+    const handleFile = (f) => {
+        if (!f) return;
+        if (!f.name.toLowerCase().endsWith(".csv")) {
+            setValidation({
+                status: "error",
+                message: "Please upload a CSV file",
+            });
+            return;
+        }
+        setFile(f);
+        parseCSV(f);
+    };
+
+    const handleDrop = useCallback((e) => {
+        e.preventDefault();
+        setDragActive(false);
+        if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    }, []);
+
+    const handleDrag = useCallback((e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(e.type === "dragover" || e.type === "dragenter");
+    }, []);
+
+    // ────── Import execution ──────
+    const handleImport = async () => {
+        if (!validation?.importData?.length) return;
+        setUploading(true);
+
+        try {
+            const res = await fetch("/barcode/import", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN":
+                        document.querySelector('meta[name="csrf-token"]')
+                            ?.content || "",
+                },
+                body: JSON.stringify({ barcodes: validation.importData }),
             });
 
-            const validRows = processed.length;
-            const status = errors.length === 0 ? "success" : "warning";
+            const result = await res.json();
 
+            if (!res.ok) throw new Error(result.message || "Import failed");
+
+            onSuccess?.({
+                message:
+                    result.message ||
+                    `Success! Updated ${result.imported || 0} variant(s)`,
+                imported: result.imported || 0,
+                failed: result.failed || 0,
+                errors: result.errors || [],
+            });
+
+            setTimeout(() => onClose(), 1500);
+        } catch (err) {
             setValidation((prev) => ({
                 ...prev,
-                status,
-                message:
-                    status === "success"
-                        ? `Ready to import ${validRows} barcode(s)`
-                        : `${validRows} valid row(s), ${errors.length} error(s)`,
-                validRows,
-                errors,
-                processed,
+                status: "error",
+                message: `Import failed: ${err.message}`,
             }));
+        } finally {
+            setUploading(false);
         }
     };
 
-    const paginatedData =
-        validation?.processed?.slice(
-            (previewPage - 1) * PREVIEW_PER_PAGE,
-            previewPage * PREVIEW_PER_PAGE
+    // ────── Pagination ──────
+    const paginated =
+        validation?.preview?.slice(
+            (currentPage - 1) * ITEMS_PER_PAGE,
+            currentPage * ITEMS_PER_PAGE
         ) || [];
     const totalPages = Math.ceil(
-        (validation?.validRows || 0) / PREVIEW_PER_PAGE
+        (validation?.preview?.length || 0) / ITEMS_PER_PAGE
     );
 
+    // ────── Render ──────
     return (
         <Modal
+            large
             open={isOpen}
-            onClose={handleClose}
+            onClose={onClose}
             title="Import Barcodes"
             primaryAction={{
-                content: "Import",
+                content: uploading ? "Applying..." : "Apply Barcodes",
                 loading: uploading || parsing,
                 disabled:
                     !validation ||
                     validation.status === "error" ||
-                    validation.validRows === 0,
+                    !validation?.preview?.length,
                 onAction: handleImport,
             }}
-            secondaryActions={[
-                {
-                    content: "Cancel",
-                    onAction: handleClose,
-                },
-            ]}
-            large
+            secondaryActions={[{ content: "Cancel", onAction: onClose }]}
         >
             <Modal.Section>
-                <BlockStack gap="400">
-                    {/* File Upload Section */}
+                <BlockStack gap="500">
+                    {/* Upload Card */}
                     <Card>
-                        <BlockStack gap="300">
-                            <Box
-                                as="label"
-                                padding="400"
-                                borderRadius="200"
-                                borderStyle="dashed"
-                                borderColor="border"
-                                borderWidth="1"
-                                background="bg-fill-secondary"
-                                style={{
-                                    cursor: "pointer",
-                                    textAlign: "center",
-                                }}
-                            >
-                                <BlockStack gap="200">
-                                    <Icon source={UploadIcon} tone="base" />
-                                    <BlockStack gap="100">
-                                        <Text
-                                            variant="bodyMd"
-                                            fontWeight="semibold"
-                                        >
-                                            {file?.name ||
-                                                "Click to upload CSV"}
-                                        </Text>
-                                        <Text variant="bodySm" tone="subdued">
-                                            or drag and drop
-                                        </Text>
-                                    </BlockStack>
-                                </BlockStack>
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept=".csv"
-                                    onChange={handleFileSelect}
-                                    style={{ display: "none" }}
-                                />
-                            </Box>
-
-                            <InlineStack gap="200">
-                                <Text variant="bodySm" tone="subdued">
-                                    Required:{" "}
-                                    <strong>variant_id, barcode</strong>
+                        <BlockStack gap="400">
+                            <InlineStack align="space-between">
+                                <Text variant="headingLg">
+                                    Import Barcodes from CSV
                                 </Text>
-                                <Text variant="bodySm" tone="subdued">
-                                    Optional: format, ean, upc, isbn
-                                </Text>
+                                <Button
+                                    icon={FolderDownIcon}
+                                    onClick={downloadSample}
+                                >
+                                    Sample CSV
+                                </Button>
                             </InlineStack>
 
-                            <Button
-                                icon={FolderDownIcon}
-                                onClick={downloadSampleFile}
-                                tone="info"
+                            <Box
+                                padding="400"
+                                borderRadius="200"
+                                background={
+                                    dragActive
+                                        ? "bg-fill-info-hover"
+                                        : "bg-fill"
+                                }
+                                borderWidth="2"
+                                borderStyle="dashed"
+                                borderColor={
+                                    dragActive ? "border-info" : "border"
+                                }
+                                onDrop={handleDrop}
+                                onDragOver={handleDrag}
+                                onDragEnter={handleDrag}
+                                onDragLeave={handleDrag}
                             >
-                                Download Sample File
-                            </Button>
+                                <label
+                                    style={{
+                                        cursor: "pointer",
+                                        display: "block",
+                                    }}
+                                >
+                                    <BlockStack align="center" gap="300">
+                                        <Icon
+                                            source={UploadIcon}
+                                            tone={dragActive ? "info" : "base"}
+                                        />
+                                        <Text variant="headingMd">
+                                            {file
+                                                ? file.name
+                                                : "Drop CSV file here or click to upload"}
+                                        </Text>
+                                        {file && (
+                                            <Button
+                                                size="slim"
+                                                onClick={() => {
+                                                    setFile(null);
+                                                    setValidation(null);
+                                                }}
+                                            >
+                                                Change file
+                                            </Button>
+                                        )}
+                                    </BlockStack>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept=".csv"
+                                        onChange={(e) =>
+                                            handleFile(e.target.files?.[0])
+                                        }
+                                        style={{ display: "none" }}
+                                    />
+                                </label>
+                            </Box>
                         </BlockStack>
                     </Card>
 
-                    {/* Status Messages */}
+                    {/* Status Banner */}
                     {validation && (
-                        <>
-                            {validation.status === "error" && (
-                                <Banner tone="critical" icon={AlertCircleIcon}>
-                                    {validation.message}
-                                </Banner>
-                            )}
-
-                            {validation.status === "success" && (
-                                <Banner tone="success" icon={CheckCircleIcon}>
-                                    {validation.message}
-                                </Banner>
-                            )}
-
-                            {validation.status === "warning" && (
-                                <Banner tone="warning" icon={AlertCircleIcon}>
-                                    {validation.message}
-                                </Banner>
-                            )}
-                        </>
+                        <Banner
+                            tone={
+                                validation.status === "success"
+                                    ? "success"
+                                    : validation.status === "warning"
+                                    ? "warning"
+                                    : "critical"
+                            }
+                        >
+                            {validation.message}
+                        </Banner>
                     )}
 
-                    {/* Field Mapping Section */}
-                    {validation && availableColumns.length > 0 && (
-                        <Card>
-                            <BlockStack gap="300">
-                                <Text variant="bodyMd" fontWeight="semibold">
-                                    Map CSV Columns
-                                </Text>
-                                <Text variant="bodySm" tone="subdued">
-                                    Select which columns contain your data
-                                </Text>
-
-                                <Divider />
-
-                                <BlockStack gap="200">
-                                    <Select
-                                        label="Variant ID Column"
-                                        options={[
-                                            {
-                                                label: "-- Select --",
-                                                value: "",
-                                            },
-                                            ...availableColumns.map((col) => ({
-                                                label: col,
-                                                value: col,
-                                            })),
-                                        ]}
-                                        value={fieldMapping.variant_id}
-                                        onChange={(value) =>
-                                            handleFieldMappingChange(
-                                                "variant_id",
-                                                value
-                                            )
-                                        }
-                                    />
-
-                                    <Select
-                                        label="Barcode Column"
-                                        options={[
-                                            {
-                                                label: "-- Select --",
-                                                value: "",
-                                            },
-                                            ...availableColumns.map((col) => ({
-                                                label: col,
-                                                value: col,
-                                            })),
-                                        ]}
-                                        value={fieldMapping.barcode}
-                                        onChange={(value) =>
-                                            handleFieldMappingChange(
-                                                "barcode",
-                                                value
-                                            )
-                                        }
-                                    />
-
-                                    <Select
-                                        label="Format Column (Optional)"
-                                        options={[
-                                            { label: "-- None --", value: "" },
-                                            ...availableColumns.map((col) => ({
-                                                label: col,
-                                                value: col,
-                                            })),
-                                        ]}
-                                        value={fieldMapping.format}
-                                        onChange={(value) =>
-                                            handleFieldMappingChange(
-                                                "format",
-                                                value
-                                            )
-                                        }
-                                    />
-
-                                    <Select
-                                        label="EAN Column (Optional)"
-                                        options={[
-                                            { label: "-- None --", value: "" },
-                                            ...availableColumns.map((col) => ({
-                                                label: col,
-                                                value: col,
-                                            })),
-                                        ]}
-                                        value={fieldMapping.ean}
-                                        onChange={(value) =>
-                                            handleFieldMappingChange(
-                                                "ean",
-                                                value
-                                            )
-                                        }
-                                    />
-
-                                    <Select
-                                        label="UPC Column (Optional)"
-                                        options={[
-                                            { label: "-- None --", value: "" },
-                                            ...availableColumns.map((col) => ({
-                                                label: col,
-                                                value: col,
-                                            })),
-                                        ]}
-                                        value={fieldMapping.upc}
-                                        onChange={(value) =>
-                                            handleFieldMappingChange(
-                                                "upc",
-                                                value
-                                            )
-                                        }
-                                    />
-
-                                    <Select
-                                        label="ISBN Column (Optional)"
-                                        options={[
-                                            { label: "-- None --", value: "" },
-                                            ...availableColumns.map((col) => ({
-                                                label: col,
-                                                value: col,
-                                            })),
-                                        ]}
-                                        value={fieldMapping.isbn}
-                                        onChange={(value) =>
-                                            handleFieldMappingChange(
-                                                "isbn",
-                                                value
-                                            )
-                                        }
-                                    />
-                                </BlockStack>
-                            </BlockStack>
-                        </Card>
-                    )}
-
-                    {/* Validation Summary */}
-                    {validation && (
-                        <Card>
-                            <BlockStack gap="300">
-                                <Text variant="bodyMd" fontWeight="semibold">
-                                    Validation Results
-                                </Text>
-
-                                <Divider />
-
-                                <InlineStack distribute="fillEvenly">
-                                    <BlockStack gap="100">
-                                        <Text variant="bodySm" tone="subdued">
-                                            Total Rows
-                                        </Text>
-                                        <Text variant="headingMd">
-                                            {validation.totalRows}
-                                        </Text>
-                                    </BlockStack>
-
-                                    <BlockStack gap="100">
-                                        <Text variant="bodySm" tone="subdued">
-                                            Valid
-                                        </Text>
-                                        <Text
-                                            variant="headingMd"
-                                            tone="success"
-                                        >
-                                            {validation.validRows}
-                                        </Text>
-                                    </BlockStack>
-
-                                    <BlockStack gap="100">
-                                        <Text variant="bodySm" tone="subdued">
-                                            Errors
-                                        </Text>
-                                        <Text
-                                            variant="headingMd"
-                                            tone={
-                                                validation.errors.length > 0
-                                                    ? "critical"
-                                                    : "success"
-                                            }
-                                        >
-                                            {validation.errors.length}
-                                        </Text>
-                                    </BlockStack>
-                                </InlineStack>
-                            </BlockStack>
-                        </Card>
-                    )}
-
-                    {/* Live Preview */}
-                    {validation && validation.validRows > 0 && (
-                        <Card>
-                            <BlockStack gap="300">
-                                <InlineStack
-                                    align="space-between"
-                                    blockAlign="center"
-                                >
-                                    <Text
-                                        variant="bodyMd"
-                                        fontWeight="semibold"
+                    {/* Preview Table */}
+                    {validation?.preview?.length > 0 && (
+                        <Card
+                            title={`Preview – ${validation.preview.length} variant(s) will be updated`}
+                        >
+                            <IndexTable
+                                resourceName={{
+                                    singular: "variant",
+                                    plural: "variants",
+                                }}
+                                itemCount={validation.preview.length}
+                                headings={[
+                                    { title: "Product" },
+                                    { title: "Current" },
+                                    { title: "" },
+                                    { title: "New Barcode" },
+                                ]}
+                                selectable={false}
+                            >
+                                {paginated.map((item) => (
+                                    <IndexTable.Row
+                                        key={item.shopify_variant_id}
                                     >
-                                        Live Preview (Page {previewPage} of{" "}
-                                        {totalPages})
-                                    </Text>
-                                    <InlineStack gap="200">
-                                        <Button
-                                            disabled={previewPage === 1}
-                                            onClick={() =>
-                                                setPreviewPage((p) => p - 1)
-                                            }
-                                        >
-                                            Previous
-                                        </Button>
-                                        <Button
-                                            disabled={
-                                                previewPage === totalPages
-                                            }
-                                            onClick={() =>
-                                                setPreviewPage((p) => p + 1)
-                                            }
-                                        >
-                                            Next
-                                        </Button>
-                                    </InlineStack>
-                                </InlineStack>
-
-                                <Divider />
-
-                                {paginatedData.length > 0 ? (
-                                    <div style={{ overflowX: "auto" }}>
-                                        <table
-                                            style={{
-                                                width: "100%",
-                                                borderCollapse: "collapse",
-                                                fontSize: "12px",
-                                            }}
-                                        >
-                                            <thead>
-                                                <tr
-                                                    style={{
-                                                        backgroundColor:
-                                                            "#f3f3f3",
-                                                        borderBottom:
-                                                            "1px solid #ddd",
-                                                    }}
-                                                >
-                                                    <th
-                                                        style={{
-                                                            padding: "8px",
-                                                            textAlign: "left",
-                                                            fontWeight: "600",
-                                                        }}
-                                                    >
-                                                        Variant ID
-                                                    </th>
-                                                    <th
-                                                        style={{
-                                                            padding: "8px",
-                                                            textAlign: "left",
-                                                            fontWeight: "600",
-                                                        }}
-                                                    >
-                                                        Barcode
-                                                    </th>
-                                                    <th
-                                                        style={{
-                                                            padding: "8px",
-                                                            textAlign: "left",
-                                                            fontWeight: "600",
-                                                        }}
-                                                    >
-                                                        Format
-                                                    </th>
-                                                    <th
-                                                        style={{
-                                                            padding: "8px",
-                                                            textAlign: "left",
-                                                            fontWeight: "600",
-                                                        }}
-                                                    >
-                                                        EAN
-                                                    </th>
-                                                    <th
-                                                        style={{
-                                                            padding: "8px",
-                                                            textAlign: "left",
-                                                            fontWeight: "600",
-                                                        }}
-                                                    >
-                                                        UPC
-                                                    </th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {paginatedData.map(
-                                                    (row, idx) => (
-                                                        <tr
-                                                            key={idx}
-                                                            style={{
-                                                                borderBottom:
-                                                                    "1px solid #eee",
-                                                                backgroundColor:
-                                                                    idx % 2 ===
-                                                                    0
-                                                                        ? "#fafafa"
-                                                                        : "",
-                                                            }}
-                                                        >
-                                                            <td
-                                                                style={{
-                                                                    padding:
-                                                                        "8px",
-                                                                }}
-                                                            >
-                                                                <Badge tone="info">
-                                                                    {
-                                                                        row.variant_id
-                                                                    }
-                                                                </Badge>
-                                                            </td>
-                                                            <td
-                                                                style={{
-                                                                    padding:
-                                                                        "8px",
-                                                                }}
-                                                            >
-                                                                <Badge tone="success">
-                                                                    {
-                                                                        row.barcode
-                                                                    }
-                                                                </Badge>
-                                                            </td>
-                                                            <td
-                                                                style={{
-                                                                    padding:
-                                                                        "8px",
-                                                                }}
-                                                            >
-                                                                <Text variant="bodySm">
-                                                                    {row.format}
-                                                                </Text>
-                                                            </td>
-                                                            <td
-                                                                style={{
-                                                                    padding:
-                                                                        "8px",
-                                                                }}
-                                                            >
-                                                                <Text
-                                                                    variant="bodySm"
-                                                                    tone="subdued"
-                                                                >
-                                                                    {row.ean ||
-                                                                        "—"}
-                                                                </Text>
-                                                            </td>
-                                                            <td
-                                                                style={{
-                                                                    padding:
-                                                                        "8px",
-                                                                }}
-                                                            >
-                                                                <Text
-                                                                    variant="bodySm"
-                                                                    tone="subdued"
-                                                                >
-                                                                    {row.upc ||
-                                                                        "—"}
-                                                                </Text>
-                                                            </td>
-                                                        </tr>
-                                                    )
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                ) : (
-                                    <EmptyState heading="No valid rows to preview" />
-                                )}
-                            </BlockStack>
-                        </Card>
-                    )}
-
-                    {/* Error List */}
-                    {validation?.errors && validation.errors.length > 0 && (
-                        <Card>
-                            <BlockStack gap="200">
-                                <Text variant="bodyMd" fontWeight="semibold">
-                                    Issues Found ({validation.errors.length})
-                                </Text>
-                                <Box maxHeight="250px" overflowY="auto">
-                                    <BlockStack gap="100">
-                                        {validation.errors
-                                            .slice(0, 15)
-                                            .map((error, idx) => (
-                                                <InlineStack
-                                                    gap="200"
-                                                    key={idx}
-                                                    blockAlign="start"
-                                                >
-                                                    <Text
-                                                        variant="bodySm"
-                                                        tone="critical"
-                                                    >
-                                                        •
+                                        <IndexTable.Cell>
+                                            <InlineStack gap="300">
+                                                <Thumbnail
+                                                    source={
+                                                        item.image_url || ""
+                                                    }
+                                                    size="small"
+                                                    alt=""
+                                                />
+                                                <BlockStack gap="050">
+                                                    <Text fontWeight="semibold">
+                                                        {item.variant_title}
                                                     </Text>
                                                     <Text
                                                         variant="bodySm"
-                                                        tone="critical"
+                                                        tone="subdued"
                                                     >
-                                                        {error}
+                                                        {item.product_title}
                                                     </Text>
-                                                </InlineStack>
-                                            ))}
-                                        {validation.errors.length > 15 && (
-                                            <Text
-                                                variant="bodySm"
-                                                tone="subdued"
+                                                    <Text
+                                                        variant="bodySm"
+                                                        tone="subdued"
+                                                    >
+                                                        SKU: {item.sku || "—"}
+                                                    </Text>
+                                                </BlockStack>
+                                            </InlineStack>
+                                        </IndexTable.Cell>
+                                        <IndexTable.Cell>
+                                            <Badge
+                                                tone={
+                                                    item.old_barcode
+                                                        ? "info"
+                                                        : "attention"
+                                                }
                                             >
-                                                ... and{" "}
-                                                {validation.errors.length - 15}{" "}
-                                                more errors
-                                            </Text>
-                                        )}
-                                    </BlockStack>
+                                                {item.old_barcode || "Empty"}
+                                            </Badge>
+                                        </IndexTable.Cell>
+                                        <IndexTable.Cell>→</IndexTable.Cell>
+                                        <IndexTable.Cell>
+                                            <Badge tone="success" size="large">
+                                                {item.new_barcode}
+                                            </Badge>
+                                        </IndexTable.Cell>
+                                    </IndexTable.Row>
+                                ))}
+                            </IndexTable>
+
+                            {totalPages > 1 && (
+                                <Box paddingBlockStart="400">
+                                    <Pagination
+                                        hasPrevious={currentPage > 1}
+                                        onPrevious={() =>
+                                            setCurrentPage((p) => p - 1)
+                                        }
+                                        hasNext={currentPage < totalPages}
+                                        onNext={() =>
+                                            setCurrentPage((p) => p + 1)
+                                        }
+                                        label={`Page ${currentPage} of ${totalPages}`}
+                                    />
                                 </Box>
-                            </BlockStack>
+                            )}
                         </Card>
                     )}
 
-                    {/* Warning List */}
-                    {validation?.warnings && validation.warnings.length > 0 && (
-                        <Card>
-                            <BlockStack gap="200">
-                                <Text variant="bodyMd" fontWeight="semibold">
-                                    Warnings
-                                </Text>
-                                <BlockStack gap="100">
-                                    {validation.warnings.map((warning, idx) => (
-                                        <InlineStack gap="200" key={idx}>
-                                            <Text
-                                                variant="bodySm"
-                                                tone="warning"
-                                            >
-                                                ⚠
-                                            </Text>
-                                            <Text
-                                                variant="bodySm"
-                                                tone="warning"
-                                            >
-                                                {warning}
-                                            </Text>
-                                        </InlineStack>
+                    {/* Errors */}
+                    {validation?.errors?.length > 0 && (
+                        <Card title={`Errors (${validation.errors.length})`}>
+                            <Box
+                                padding="400"
+                                maxHeight="200px"
+                                overflowY="auto"
+                            >
+                                <BlockStack gap="200">
+                                    {validation.errors.map((e, i) => (
+                                        <Text key={i} tone="critical">
+                                            • {e}
+                                        </Text>
                                     ))}
                                 </BlockStack>
-                            </BlockStack>
+                            </Box>
                         </Card>
                     )}
 
-                    {/* Upload Progress */}
+                    {/* Uploading indicator */}
                     {uploading && (
-                        <BlockStack gap="200">
-                            <Text variant="bodySm">Uploading...</Text>
-                            <ProgressBar progress={uploadProgress} />
-                        </BlockStack>
+                        <Card>
+                            <BlockStack align="center" gap="300">
+                                <Text>Applying barcodes...</Text>
+                            </BlockStack>
+                        </Card>
                     )}
                 </BlockStack>
             </Modal.Section>
