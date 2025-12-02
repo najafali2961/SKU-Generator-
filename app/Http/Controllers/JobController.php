@@ -19,7 +19,15 @@ class JobController extends Controller
             'job' => $jobLog
         ]);
     }
+    // JobController.php
+    public function index()
+    {
+        $jobs = JobLog::orderBy('created_at', 'desc')->get(); // or paginate if too many
 
+        return Inertia::render('History', [
+            'jobs' => $jobs
+        ]);
+    }
     public function progress(JobLog $jobLog)
     {
         if ($jobLog->user_id !== auth()->id()) {

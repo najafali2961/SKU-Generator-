@@ -50,6 +50,21 @@ createInertiaApp({
                     >
                         Barcode Generator
                     </a>
+                    <a
+                        href="/jobs"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            router.visit("/jobs");
+                        }}
+                        style={{
+                            fontWeight:
+                                window.location.pathname === "/jobs"
+                                    ? "bold"
+                                    : "normal",
+                        }}
+                    >
+                        History
+                    </a>
                 </NavMenu>
 
                 <App {...props} />
