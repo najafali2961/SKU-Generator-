@@ -128,14 +128,6 @@ export default function BarcodeGenerator() {
         setImportModalOpen(true);
     };
 
-    const handleImportSuccess = (result) => {
-        // Refresh preview with new data
-        fetchPreview();
-
-        // Show success toast or notification
-        alert(`Success! ${result.stats.imported} barcodes imported`);
-    };
-
     const handleExport = () => {
         if (barcodes.length === 0) return alert("No barcodes to export yet!");
 
@@ -219,7 +211,6 @@ export default function BarcodeGenerator() {
                     <BarcodeImportModal
                         isOpen={importModalOpen}
                         onClose={() => setImportModalOpen(false)}
-                        onSuccess={handleImportSuccess}
                     />
                 </div>
             </div>

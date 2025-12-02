@@ -15,53 +15,39 @@ import {
     Badge,
     Thumbnail,
 } from "@shopify/polaris";
-import {
-    UploadIcon,
-    CheckCircleIcon,
-    FolderDownIcon,
-} from "@shopify/polaris-icons";
+import { UploadIcon, FolderDownIcon } from "@shopify/polaris-icons";
 import Papa from "papaparse";
+import { router } from "@inertiajs/react";
 
 const ITEMS_PER_PAGE = 10;
 
-export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
+export default function BarcodeImportModal({ isOpen, onClose }) {
     const [file, setFile] = useState(null);
     const [dragActive, setDragActive] = useState(false);
     const [parsing, setParsing] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [validation, setValidation] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
-    const fileInputRef = useRef(null);
 
-    // ────── Sample CSV download ──────
     const downloadSample = () => {
-        const csv = `shopify_variant_id,barcode
-47718466191611,"0123456789012"
-47718466158843,"1234567890123"
-47718466191699,"9876543210987"`;
-
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const csv = `shopify_variant_id,barcode\n47718466191611,"0123456789012"`;
+        const blob = new Blob([csv], { type: "text/csv" });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "barcode-import-sample.csv";
-        link.click();
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "barcode-import-sample.csv";
+        a.click();
         URL.revokeObjectURL(url);
     };
 
-    // Fix Excel scientific notation → full number
     const fixBigNumber = (val) => {
         if (!val) return "";
-        let str = String(val)
+        const str = String(val)
             .trim()
             .replace(/^"+|"+$/g, "");
-        if (/^[0-9.]+E\+[0-9]+$/i.test(str)) {
-            return Number(str).toFixed(0);
-        }
-        return str;
+        return /^[0-9.]+E\+[0-9]+$/i.test(str) ? Number(str).toFixed(0) : str;
     };
 
-    // ────── CSV Parsing ──────
     const parseCSV = useCallback(async (file) => {
         setParsing(true);
         setValidation(null);
@@ -85,24 +71,43 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
                     return;
                 }
 
-                // Collect Shopify Variant IDs
+                // ULTRA-COMPATIBLE ID DETECTION — WORKS WITH ANY CSV
                 const shopifyIds = rows
                     .map((row) => {
-                        const id =
+                        const headers = Object.keys(row).map((h) =>
+                            h.toLowerCase().trim()
+                        );
+                        const possibleId =
                             row["shopify_variant_id"] ||
-                            row["variant id"] ||
                             row["shopify variant id"] ||
+                            row["variant id"] ||
                             row["variant_id"] ||
                             row["variantid"] ||
-                            row["id"];
-                        return fixBigNumber(id);
+                            row["id"] ||
+                            row["Id"] ||
+                            row["ID"] ||
+                            row["Shopify Variant ID"] ||
+                            row["ShopifyVariantID"] ||
+                            // Try by header name too
+                            row[
+                                headers.find(
+                                    (h) =>
+                                        h.includes("variant") &&
+                                        h.includes("id")
+                                )
+                            ] ||
+                            row[headers.find((h) => h === "id")] ||
+                            row[headers.find((h) => h.includes("shopify"))];
+
+                        return fixBigNumber(possibleId);
                     })
                     .filter((id) => id && id.length >= 10);
 
                 if (shopifyIds.length === 0) {
                     setValidation({
                         status: "error",
-                        message: "No valid Shopify Variant IDs found",
+                        message:
+                            "No valid Shopify Variant IDs found. Column must contain 'variant', 'id', or 'shopify' in name.",
                         preview: [],
                     });
                     setParsing(false);
@@ -123,11 +128,9 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
                     });
 
                     if (!res.ok) throw new Error("Server error");
-
                     const { variants } = await res.json();
-                    const variantMap = {};
-                    variants.forEach(
-                        (v) => (variantMap[v.shopify_variant_id] = v)
+                    const variantMap = Object.fromEntries(
+                        variants.map((v) => [v.shopify_variant_id, v])
                     );
 
                     const preview = [];
@@ -135,19 +138,28 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
                     const errors = [];
 
                     rows.forEach((row, idx) => {
+                        // Same ultra-detection for individual rows
                         const rawId =
                             row["shopify_variant_id"] ||
-                            row["variant id"] ||
                             row["shopify variant id"] ||
+                            row["variant id"] ||
                             row["variant_id"] ||
                             row["variantid"] ||
-                            row["id"];
+                            row["id"] ||
+                            row["Id"] ||
+                            row["ID"] ||
+                            row["Shopify Variant ID"] ||
+                            Object.values(row).find((v) =>
+                                String(v).match(/^\d{10,20}$/)
+                            );
+
                         const shopifyId = fixBigNumber(rawId);
                         const barcode = fixBigNumber(
                             row["barcode"] ||
                                 row["code"] ||
                                 row["ean"] ||
                                 row["upc"] ||
+                                row["Barcode"] ||
                                 ""
                         );
 
@@ -179,13 +191,12 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
                         });
                     });
 
-                    const status = errors.length === 0 ? "success" : "warning";
                     setValidation({
-                        status,
+                        status: errors.length === 0 ? "success" : "warning",
                         message:
                             errors.length === 0
-                                ? `Ready to update ${preview.length} variant(s)`
-                                : `${preview.length} valid • ${errors.length} error(s)`,
+                                ? `Ready to import ${preview.length} variant(s)`
+                                : `${preview.length} valid • ${errors.length} errors`,
                         preview,
                         importData,
                         errors,
@@ -193,7 +204,7 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
                 } catch (err) {
                     setValidation({
                         status: "error",
-                        message: "Failed to connect to server",
+                        message: "Server connection failed",
                     });
                 } finally {
                     setParsing(false);
@@ -209,10 +220,8 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
         });
     }, []);
 
-    // ────── File handling ──────
     const handleFile = (f) => {
-        if (!f) return;
-        if (!f.name.toLowerCase().endsWith(".csv")) {
+        if (!f || !f.name.endsWith(".csv")) {
             setValidation({
                 status: "error",
                 message: "Please upload a CSV file",
@@ -235,49 +244,36 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
         setDragActive(e.type === "dragover" || e.type === "dragenter");
     }, []);
 
-    // ────── Import execution ──────
-    const handleImport = async () => {
+    // THIS IS THE ONLY THING THAT MATTERS
+    const handleImport = () => {
         if (!validation?.importData?.length) return;
+
         setUploading(true);
 
-        try {
-            const res = await fetch("/barcode/import", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-TOKEN":
-                        document.querySelector('meta[name="csrf-token"]')
-                            ?.content || "",
+        router.post(
+            "/barcode/import-apply",
+            {
+                custom_barcodes: validation.importData,
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                onFinish: () => {
+                    setUploading(false);
+                    onClose();
                 },
-                body: JSON.stringify({ barcodes: validation.importData }),
-            });
-
-            const result = await res.json();
-
-            if (!res.ok) throw new Error(result.message || "Import failed");
-
-            onSuccess?.({
-                message:
-                    result.message ||
-                    `Success! Updated ${result.imported || 0} variant(s)`,
-                imported: result.imported || 0,
-                failed: result.failed || 0,
-                errors: result.errors || [],
-            });
-
-            setTimeout(() => onClose(), 1500);
-        } catch (err) {
-            setValidation((prev) => ({
-                ...prev,
-                status: "error",
-                message: `Import failed: ${err.message}`,
-            }));
-        } finally {
-            setUploading(false);
-        }
+                onError: () => {
+                    setUploading(false);
+                    setValidation((prev) => ({
+                        ...prev,
+                        status: "error",
+                        message: "Failed to start import job",
+                    }));
+                },
+            }
+        );
     };
 
-    // ────── Pagination ──────
     const paginated =
         validation?.preview?.slice(
             (currentPage - 1) * ITEMS_PER_PAGE,
@@ -287,15 +283,16 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
         (validation?.preview?.length || 0) / ITEMS_PER_PAGE
     );
 
-    // ────── Render ──────
     return (
         <Modal
             large
             open={isOpen}
             onClose={onClose}
-            title="Import Barcodes"
+            title="Import Barcodes from CSV"
             primaryAction={{
-                content: uploading ? "Applying..." : "Apply Barcodes",
+                content: uploading
+                    ? "Starting Job..."
+                    : "Apply & Go to Progress",
                 loading: uploading || parsing,
                 disabled:
                     !validation ||
@@ -307,13 +304,10 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
         >
             <Modal.Section>
                 <BlockStack gap="500">
-                    {/* Upload Card */}
                     <Card>
                         <BlockStack gap="400">
                             <InlineStack align="space-between">
-                                <Text variant="headingLg">
-                                    Import Barcodes from CSV
-                                </Text>
+                                <Text variant="headingLg">Import Barcodes</Text>
                                 <Button
                                     icon={FolderDownIcon}
                                     onClick={downloadSample}
@@ -321,7 +315,6 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
                                     Sample CSV
                                 </Button>
                             </InlineStack>
-
                             <Box
                                 padding="400"
                                 borderRadius="200"
@@ -354,7 +347,7 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
                                         <Text variant="headingMd">
                                             {file
                                                 ? file.name
-                                                : "Drop CSV file here or click to upload"}
+                                                : "Drop CSV or click to upload"}
                                         </Text>
                                         {file && (
                                             <Button
@@ -364,12 +357,11 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
                                                     setValidation(null);
                                                 }}
                                             >
-                                                Change file
+                                                Change
                                             </Button>
                                         )}
                                     </BlockStack>
                                     <input
-                                        ref={fileInputRef}
                                         type="file"
                                         accept=".csv"
                                         onChange={(e) =>
@@ -382,7 +374,6 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
                         </BlockStack>
                     </Card>
 
-                    {/* Status Banner */}
                     {validation && (
                         <Banner
                             tone={
@@ -397,22 +388,17 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
                         </Banner>
                     )}
 
-                    {/* Preview Table */}
                     {validation?.preview?.length > 0 && (
                         <Card
-                            title={`Preview – ${validation.preview.length} variant(s) will be updated`}
+                            title={`Preview – ${validation.preview.length} variants will be updated`}
                         >
                             <IndexTable
-                                resourceName={{
-                                    singular: "variant",
-                                    plural: "variants",
-                                }}
                                 itemCount={validation.preview.length}
                                 headings={[
                                     { title: "Product" },
                                     { title: "Current" },
                                     { title: "" },
-                                    { title: "New Barcode" },
+                                    { title: "New" },
                                 ]}
                                 selectable={false}
                             >
@@ -468,7 +454,6 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
                                     </IndexTable.Row>
                                 ))}
                             </IndexTable>
-
                             {totalPages > 1 && (
                                 <Box paddingBlockStart="400">
                                     <Pagination
@@ -484,34 +469,6 @@ export default function BarcodeImportModal({ isOpen, onClose, onSuccess }) {
                                     />
                                 </Box>
                             )}
-                        </Card>
-                    )}
-
-                    {/* Errors */}
-                    {validation?.errors?.length > 0 && (
-                        <Card title={`Errors (${validation.errors.length})`}>
-                            <Box
-                                padding="400"
-                                maxHeight="200px"
-                                overflowY="auto"
-                            >
-                                <BlockStack gap="200">
-                                    {validation.errors.map((e, i) => (
-                                        <Text key={i} tone="critical">
-                                            • {e}
-                                        </Text>
-                                    ))}
-                                </BlockStack>
-                            </Box>
-                        </Card>
-                    )}
-
-                    {/* Uploading indicator */}
-                    {uploading && (
-                        <Card>
-                            <BlockStack align="center" gap="300">
-                                <Text>Applying barcodes...</Text>
-                            </BlockStack>
                         </Card>
                     )}
                 </BlockStack>
