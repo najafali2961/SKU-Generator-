@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Variant;
 use App\Jobs\GenerateBarcodeJob;
+use App\Jobs\ImportBarcodesJob;
 use App\Models\JobLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -308,5 +309,39 @@ class BarcodeController extends Controller
             'failed' => $failed,
             'errors' => $errors,
         ]);
+    }
+
+    public function importApply(Request $request)
+    {
+        $shop = Auth::user();
+
+        $validated = $request->validate([
+            'custom_barcodes' => 'required|array|min:1',
+            'custom_barcodes.*.shopify_variant_id' => 'required',
+            'custom_barcodes.*.barcode' => 'required|string|min:8|max:255',
+        ]);
+
+        // Create a JobLog for this import
+        $jobLog = JobLog::create([
+            'user_id' => $shop->id,
+            'type' => 'barcode_import',
+            'title' => 'Barcode CSV Import',
+            'description' => 'Importing ' . count($validated['custom_barcodes']) . ' barcodes from CSV...',
+            'payload' => $validated,
+            'status' => 'pending',
+            'total_items' => count($validated['custom_barcodes']),
+        ]);
+
+        $jobLog->markAsStarted();
+
+        // Dispatch the import job (which will handle DB update + Shopify sync)
+        ImportBarcodesJob::dispatch(
+            $shop->id,
+            $validated['custom_barcodes'],
+            $jobLog->id
+        );
+
+        return redirect()->route('jobs.show', $jobLog->id)
+            ->with('success', 'Barcode import started! Syncing with Shopify...');
     }
 }
