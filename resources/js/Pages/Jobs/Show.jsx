@@ -296,9 +296,9 @@ export default function JobShow({ job: initialJob }) {
                                                 Variants Processed
                                             </Text>
                                             <InlineStack gap="100">
-                                                <Badge tone="success">
+                                                {/* <Badge tone="success">
                                                     {processed - failed} OK
-                                                </Badge>
+                                                </Badge> */}
                                                 {failed > 0 && (
                                                     <Badge tone="critical">
                                                         {failed} Failed
@@ -307,14 +307,14 @@ export default function JobShow({ job: initialJob }) {
                                             </InlineStack>
                                         </BlockStack>
                                     </InlineStack>
-                                    <ProgressBar
+                                    {/* <ProgressBar
                                         progress={progress}
                                         tone={
                                             job.status === "failed"
                                                 ? "critical"
                                                 : "success"
                                         }
-                                    />
+                                    /> */}
                                 </BlockStack>
                             </Card>
 
