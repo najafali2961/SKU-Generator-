@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class BarcodeController extends Controller
 {
@@ -231,5 +233,196 @@ class BarcodeController extends Controller
             'stats'           => $stats,
             'overall_total'   => $overallTotal,
         ]);
+    }
+
+
+
+
+
+
+    public function import(Request $request)
+    {
+        $shop = Auth::user();
+
+        $validated = $request->validate([
+            'barcodes' => 'required|array|min:1',
+            'barcodes.*.variant_id' => 'required|integer',
+            'barcodes.*.barcode' => 'required|string|min:1|max:255',
+            'barcodes.*.format' => 'nullable|string|in:UPC,EAN,ISBN,CODE128,AUTO',
+            'barcodes.*.ean' => 'nullable|string|max:255',
+            'barcodes.*.upc' => 'nullable|string|max:255',
+            'barcodes.*.isbn' => 'nullable|string|max:255',
+        ]);
+
+        try {
+            $imported = 0;
+            $failed = 0;
+            $errors = [];
+            $skipped = [];
+
+            DB::beginTransaction();
+
+            foreach ($validated['barcodes'] as $index => $data) {
+                $variant = Variant::with('product')
+                    ->where('id', $data['variant_id'])
+                    ->whereHas('product', fn($q) => $q->where('user_id', $shop->id))
+                    ->first();
+
+                if (!$variant) {
+                    $failed++;
+                    $errors[] = [
+                        'row' => $index + 1,
+                        'variant_id' => $data['variant_id'],
+                        'error' => 'Variant not found or unauthorized',
+                    ];
+                    continue;
+                }
+
+                // Validate barcode format
+                $validation = $this->validateImportBarcode(
+                    $data['barcode'],
+                    $data['format'] ?? 'AUTO'
+                );
+
+                if (!$validation['valid']) {
+                    $failed++;
+                    $errors[] = [
+                        'row' => $index + 1,
+                        'variant_id' => $data['variant_id'],
+                        'barcode' => $data['barcode'],
+                        'error' => $validation['error'],
+                    ];
+                    continue;
+                }
+
+                // Check for duplicate barcode (excluding current variant)
+                $existingBarcode = Variant::where('barcode', $data['barcode'])
+                    ->where('id', '!=', $variant->id)
+                    ->whereHas('product', fn($q) => $q->where('user_id', $shop->id))
+                    ->first();
+
+                if ($existingBarcode) {
+                    $skipped[] = [
+                        'variant_id' => $data['variant_id'],
+                        'barcode' => $data['barcode'],
+                        'reason' => 'Barcode already assigned to another variant',
+                        'existing_variant_id' => $existingBarcode->id,
+                    ];
+                    continue;
+                }
+
+                // Update variant with new barcode
+                $oldBarcode = $variant->barcode;
+                $variant->update([
+                    'barcode' => $data['barcode'],
+                ]);
+
+                // Store import metadata if you want to track changes
+                $this->logBarcodeImport(
+                    $shop->id,
+                    $variant->id,
+                    $oldBarcode,
+                    $data['barcode'],
+                    $data['format'] ?? 'AUTO',
+                    $data
+                );
+
+                $imported++;
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Import completed: {$imported} imported, {$failed} failed, " . count($skipped) . " skipped",
+                'stats' => [
+                    'imported' => $imported,
+                    'failed' => $failed,
+                    'skipped' => count($skipped),
+                    'total' => count($validated['barcodes']),
+                ],
+                'errors' => $errors,
+                'skipped' => $skipped,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Import failed: ' . $e->getMessage(),
+                'error' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Validate imported barcode format
+     */
+    private function validateImportBarcode($barcode, $format = 'AUTO')
+    {
+        if (!$barcode || trim($barcode) === '') {
+            return [
+                'valid' => false,
+                'error' => 'Barcode cannot be empty',
+            ];
+        }
+
+        $cleaned = trim($barcode);
+
+        if ($format === 'UPC' || $format === 'AUTO') {
+            if (preg_match('/^\d{12}$/', $cleaned)) {
+                return ['valid' => true, 'format' => 'UPC'];
+            }
+        }
+
+        if ($format === 'EAN' || $format === 'AUTO') {
+            if (preg_match('/^\d{13}$/', $cleaned)) {
+                return ['valid' => true, 'format' => 'EAN'];
+            }
+        }
+
+        if ($format === 'ISBN' || $format === 'AUTO') {
+            if (preg_match('/^\d{10}$|^\d{13}$|^97[89]\d{10}$/', $cleaned)) {
+                return ['valid' => true, 'format' => 'ISBN'];
+            }
+        }
+
+        if ($format === 'CODE128' || $format === 'AUTO') {
+            if (preg_match('/^[A-Za-z0-9\-._~:\/?#\[\]@!$&\'()*+,;=]{1,}$/', $cleaned)) {
+                return ['valid' => true, 'format' => 'CODE128'];
+            }
+        }
+
+        return [
+            'valid' => false,
+            'error' => "Invalid {$format} format: {$cleaned}",
+        ];
+    }
+
+    /**
+     * Log barcode imports for audit trail
+     */
+    private function logBarcodeImport($userId, $variantId, $oldBarcode, $newBarcode, $format, $importData)
+    {
+        try {
+            // You might want to create a BarcodeImportLog model for this
+            DB::table('barcode_import_logs')->insertOrIgnore([
+                'user_id' => $userId,
+                'variant_id' => $variantId,
+                'old_barcode' => $oldBarcode,
+                'new_barcode' => $newBarcode,
+                'format' => $format,
+                'metadata' => json_encode($importData),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Exception $e) {
+            // Log silently to not break import
+            Log::warning('Failed to log barcode import', [
+                'user_id' => $userId,
+                'variant_id' => $variantId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

@@ -27,6 +27,7 @@
         "@shopify/app-bridge-react": "^4.2.8",
         "@shopify/polaris": "^13.9.5",
         "canvas-confetti": "^1.9.4",
-        "lucide-react": "^0.554.0"
+        "lucide-react": "^0.554.0",
+        "papaparse": "^5.5.3"
     }
 }

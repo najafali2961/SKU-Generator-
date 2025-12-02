@@ -5,6 +5,7 @@ import { router } from "@inertiajs/react";
 import BarcodeHeader from "./components/barcode/Header";
 import BarcodeSidebar from "./components/barcode/BarcodeSidebar";
 import BarcodePreviewTable from "./components/barcode/BarcodePreviewTable";
+import BarcodeImportModal from "./components/barcode/BarcodeImportModal";
 
 const DEBOUNCE_MS = 500;
 
@@ -121,8 +122,18 @@ export default function BarcodeGenerator() {
         );
     };
 
+    const [importModalOpen, setImportModalOpen] = useState(false);
+
     const handleImport = () => {
-        alert("Import EAN/UPC/ISBN from CSV – coming soon!");
+        setImportModalOpen(true);
+    };
+
+    const handleImportSuccess = (result) => {
+        // Refresh preview with new data
+        fetchPreview();
+
+        // Show success toast or notification
+        alert(`Success! ${result.stats.imported} barcodes imported`);
     };
 
     const handleExport = () => {
@@ -205,6 +216,11 @@ export default function BarcodeGenerator() {
                             setSelectedTypes={() => {}}
                         />
                     </div>
+                    <BarcodeImportModal
+                        isOpen={importModalOpen}
+                        onClose={() => setImportModalOpen(false)}
+                        onSuccess={handleImportSuccess}
+                    />
                 </div>
             </div>
         </div>
