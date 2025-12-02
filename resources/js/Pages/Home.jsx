@@ -15,10 +15,10 @@
 // import { Link, router } from "@inertiajs/react";
 // import {
 //     BarcodeIcon,
-//     MagicIcon,
+//     LabelPrinterIcon,
 //     StarFilledIcon,
 //     ArrowRightIcon,
-//     AlertTriangleIcon,
+//     ProductIcon,
 // } from "@shopify/polaris-icons";
 // import RecentJobsTable from "./RecentJobsTable";
 
@@ -99,7 +99,7 @@
 //                                         >
 //                                             Total Variants
 //                                         </Text>
-//                                         <Icon source={MagicIcon} tone="base" />
+//                                         <Icon source={LabelPrinterIcon} tone="base" />
 //                                     </InlineStack>
 //                                     <Text
 //                                         variant="heading2xl"
@@ -125,7 +125,7 @@
 //                                             Missing SKUs
 //                                         </Text>
 //                                         <Icon
-//                                             source={AlertTriangleIcon}
+//                                             source={ProductIcon}
 //                                             tone="base"
 //                                         />
 //                                     </InlineStack>
@@ -207,7 +207,7 @@
 //                                             gap="200"
 //                                             blockAlign="center"
 //                                         >
-//                                             <Icon source={AlertTriangleIcon} />
+//                                             <Icon source={ProductIcon} />
 //                                             <Text
 //                                                 variant="headingMd"
 //                                                 as="h3"
@@ -271,7 +271,7 @@
 //                                             gap="200"
 //                                             blockAlign="center"
 //                                         >
-//                                             <Icon source={MagicIcon} />
+//                                             <Icon source={LabelPrinterIcon} />
 //                                             <Text
 //                                                 variant="headingMd"
 //                                                 as="h3"
@@ -324,10 +324,12 @@ import {
 } from "@shopify/polaris";
 import {
     BarcodeIcon,
-    MagicIcon,
+    LabelPrinterIcon,
     StarFilledIcon,
     ArrowRightIcon,
-    AlertTriangleIcon,
+    ProductIcon,
+    MagicIcon,
+    PhoneIcon,
 } from "@shopify/polaris-icons";
 import { Link } from "@inertiajs/react";
 import RecentJobsTable from "./RecentJobsTable";
@@ -409,6 +411,7 @@ export default function Home({ stats = {}, recentJobs = [] }) {
                             <InlineStack gap="300">
                                 <Button
                                     size="large"
+                                    icon={<Icon source={PhoneIcon} />}
                                     tone="invert"
                                     url="/support"
                                 >
@@ -469,7 +472,7 @@ export default function Home({ stats = {}, recentJobs = [] }) {
                                         borderRadius="200"
                                     >
                                         <Icon
-                                            source={AlertTriangleIcon}
+                                            source={ProductIcon}
                                             tone="warning"
                                         />
                                     </Box>
@@ -554,7 +557,7 @@ export default function Home({ stats = {}, recentJobs = [] }) {
                                             borderRadius="200"
                                         >
                                             <Icon
-                                                source={AlertTriangleIcon}
+                                                source={ProductIcon}
                                                 tone="warning"
                                             />
                                         </Box>
@@ -654,7 +657,7 @@ export default function Home({ stats = {}, recentJobs = [] }) {
                                             borderRadius="200"
                                         >
                                             <Icon
-                                                source={MagicIcon}
+                                                source={LabelPrinterIcon}
                                                 tone="base"
                                             />
                                         </Box>
