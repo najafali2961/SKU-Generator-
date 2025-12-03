@@ -101,9 +101,6 @@ export default function BarcodePrinterIndex({
                     type: selectedTypes[0] || "",
                 },
             });
-
-            console.log("✅ Variants loaded:", res.data);
-
             setVariants(res.data.variants || []);
             setTotal(res.data.total || 0);
             setStats(res.data.stats || { missing: 0, with_barcode: 0, all: 0 });

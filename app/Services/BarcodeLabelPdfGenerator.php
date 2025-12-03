@@ -122,15 +122,20 @@ class BarcodeLabelPdfGenerator
     {
         $html = $this->buildHtml($labels);
 
+        $mmToPt = 2.83464567;
+
+        $widthPt = $this->setting->paper_width * $mmToPt;
+        $heightPt = $this->setting->paper_height * $mmToPt;
+
         return Pdf::loadHTML($html)
-            ->setPaper(
-                [$this->setting->paper_width, $this->setting->paper_height],
-                $this->setting->paper_orientation
-            )
-            ->setOption('margin-top', $this->setting->page_margin_top)
-            ->setOption('margin-bottom', $this->setting->page_margin_bottom)
-            ->setOption('margin-left', $this->setting->page_margin_left)
-            ->setOption('margin-right', $this->setting->page_margin_right)
+            ->setPaper([$widthPt, $heightPt], $this->setting->paper_orientation)
+            ->setOption('margin-top', $this->setting->page_margin_top * $mmToPt)
+            ->setOption('margin-bottom', $this->setting->page_margin_bottom * $mmToPt)
+            ->setOption('margin-left', $this->setting->page_margin_left * $mmToPt)
+            ->setOption('margin-right', $this->setting->page_margin_right * $mmToPt)
+            ->setOption('isRemoteEnabled', true)
+            ->setOption('defaultFont', 'Arial')
+            ->setOption('isHtml5ParserEnabled', true)
             ->stream('barcode-labels.pdf');
     }
 

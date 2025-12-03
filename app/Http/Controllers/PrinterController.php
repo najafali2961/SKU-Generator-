@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Variant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\FacadesLog;
 use Inertia\Inertia;
 
 class PrinterController extends Controller
@@ -191,10 +192,10 @@ class PrinterController extends Controller
                 'paper_height' => 'nullable|numeric',
 
                 // Margins
-                'margin_top' => 'nullable|numeric',
-                'margin_bottom' => 'nullable|numeric',
-                'margin_left' => 'nullable|numeric',
-                'margin_right' => 'nullable|numeric',
+                'page_margin_top' => 'nullable|numeric',
+                'page_margin_bottom' => 'nullable|numeric',
+                'page_margin_left' => 'nullable|numeric',
+                'page_margin_right' => 'nullable|numeric',
 
                 // Label Dimensions
                 'label_width' => 'nullable|numeric|min:10|max:500',
@@ -246,7 +247,6 @@ class PrinterController extends Controller
     {
         try {
             $user = auth()->user();
-
             if (!$user) {
                 return response()->json(['error' => 'Unauthorized'], 401);
             }
@@ -254,38 +254,33 @@ class PrinterController extends Controller
             $validated = $request->validate([
                 'setting_id' => 'required|exists:barcode_printer_settings,id',
                 'variant_ids' => 'required|array|min:1',
-                'quantity_per_variant' => 'integer|min:1',
+                'variant_ids.*' => 'integer',
+                'quantity_per_variant' => 'integer|min:1|max:100',
             ]);
 
             $setting = $user->barcodePrinterSettings()->findOrFail($validated['setting_id']);
 
-            Log::info('Generating PDF', [
-                'variant_count' => count($validated['variant_ids']),
-                'quantity' => $validated['quantity_per_variant']
-            ]);
-
-            // Check if service exists
-            if (!class_exists(\App\Services\BarcodeLabelPdfGenerator::class)) {
-                Log::warning('PDF Generator service not found, returning mock response');
-
-                return response()->json([
-                    'message' => 'PDF service not configured yet. Please create app/Services/BarcodeLabelPdfGenerator.php',
-                    'settings' => $setting,
-                    'variants' => $validated['variant_ids']
-                ], 501);
-            }
-
             $pdfGenerator = new \App\Services\BarcodeLabelPdfGenerator($setting);
-            return $pdfGenerator->generatePdf(
+            $pdf = $pdfGenerator->generatePdf(
                 $validated['variant_ids'],
-                $validated['quantity_per_variant']
+                $validated['quantity_per_variant'] ?? 1
             );
-        } catch (\Exception $e) {
-            Log::error('PDF generation error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+
+            return $pdf;
+        } catch (\Throwable $e) {  // Catch Throwable, not just Exception
+            Log::error('PDF Generation Failed', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all(),
             ]);
-            return response()->json(['error' => 'Failed to generate PDF'], 500);
+
+            return response()->json([
+                'error' => 'PDF generation failed',
+                'message' => $e->getMessage(),
+                'line' => $e->getLine(),
+            ], 500);
         }
     }
 
