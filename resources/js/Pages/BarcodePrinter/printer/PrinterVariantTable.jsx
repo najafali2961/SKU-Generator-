@@ -163,14 +163,95 @@ export default function PrinterVariantTable({
 
     const totalLabels = selected.size * config.quantity_per_variant;
 
-    // Generate barcode preview
+    // Realistic QR Code Preview Component (used in both live preview and table)
+    const QRCodePreview = ({ size, value = "SAMPLE-QR-CODE" }) => {
+        const moduleSize = 3;
+        const modules = Math.floor(size / moduleSize);
+
+        return (
+            <svg
+                width={size}
+                height={size}
+                viewBox={`0 0 ${modules} ${modules}`}
+                style={{
+                    width: `${size}px`,
+                    height: `${size}px`,
+                    imageRendering: "pixelated",
+                }}
+            >
+                <rect width={modules} height={modules} fill="white" />
+
+                {/* Top-left finder */}
+                <rect x="0" y="0" width="7" height="7" fill="black" />
+                <rect x="1" y="1" width="5" height="5" fill="white" />
+                <rect x="2" y="2" width="3" height="3" fill="black" />
+
+                {/* Top-right finder */}
+                <rect x={modules - 7} y="0" width="7" height="7" fill="black" />
+                <rect x={modules - 6} y="1" width="5" height="5" fill="white" />
+                <rect x={modules - 5} y="2" width="3" height="3" fill="black" />
+
+                {/* Bottom-left finder */}
+                <rect x="0" y={modules - 7} width="7" height="7" fill="black" />
+                <rect x="1" y={modules - 6} width="5" height="5" fill="white" />
+                <rect x="2" y={modules - 5} width="3" height="3" fill="black" />
+
+                {/* Random data bits */}
+                {Array.from({
+                    length: Math.floor(modules * modules * 0.4),
+                }).map((_, i) => {
+                    const x = 8 + Math.floor(Math.random() * (modules - 16));
+                    const y = 8 + Math.floor(Math.random() * (modules - 16));
+                    return (
+                        <rect
+                            key={i}
+                            x={x}
+                            y={y}
+                            width="1"
+                            height="1"
+                            fill="black"
+                        />
+                    );
+                })}
+
+                {Array.from({ length: modules - 16 }).map(
+                    (_, i) =>
+                        i % 2 === 0 && (
+                            <rect
+                                key={`h-${i}`}
+                                x={8 + i}
+                                y="6"
+                                width="1"
+                                height="1"
+                                fill="black"
+                            />
+                        )
+                )}
+                {Array.from({ length: modules - 16 }).map(
+                    (_, i) =>
+                        i % 2 === 0 && (
+                            <rect
+                                key={`v-${i}`}
+                                x="6"
+                                y={8 + i}
+                                width="1"
+                                height="1"
+                                fill="black"
+                            />
+                        )
+                )}
+            </svg>
+        );
+    };
+
+    // Generate barcode preview for table rows and modal
     const generateBarcodePreview = (variant) => {
         const barcode = variant.barcode || variant.sku || "000000000000";
         const isQRType =
             config.barcode_type === "qr" ||
             config.barcode_type === "datamatrix";
         const qrSize =
-            Math.min(config.barcode_width, config.barcode_height) * 3.78; // mm to px
+            Math.min(config.barcode_width, config.barcode_height) * 3.78;
 
         return (
             <div
@@ -216,10 +297,6 @@ export default function PrinterVariantTable({
                                 style={{
                                     fontSize: `${config.font_size - 1}px`,
                                     opacity: 0.8,
-                                    marginBottom: "1px",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
                                 }}
                             >
                                 {variant.title}
@@ -231,7 +308,6 @@ export default function PrinterVariantTable({
                             style={{
                                 fontSize: `${config.font_size - 1}px`,
                                 opacity: 0.7,
-                                marginBottom: "1px",
                             }}
                         >
                             {variant.vendor}
@@ -242,7 +318,6 @@ export default function PrinterVariantTable({
                         <div
                             style={{
                                 fontSize: `${config.font_size - 1}px`,
-                                opacity: 0.7,
                                 fontFamily: "monospace",
                             }}
                         >
@@ -255,7 +330,6 @@ export default function PrinterVariantTable({
                             style={{
                                 fontWeight: "bold",
                                 fontSize: `${config.title_font_size}px`,
-                                marginTop: "2px",
                             }}
                         >
                             ${variant.price}
@@ -315,89 +389,6 @@ export default function PrinterVariantTable({
                     )}
                 </div>
             </div>
-        );
-    };
-    const QRCodePreview = ({ size, value }) => {
-        // Generate a more realistic QR pattern
-        const moduleSize = 3; // pixels per module
-        const modules = Math.floor(size / moduleSize);
-
-        return (
-            <svg
-                width={size}
-                height={size}
-                viewBox={`0 0 ${modules} ${modules}`}
-                style={{
-                    width: `${size}px`,
-                    height: `${size}px`,
-                    imageRendering: "pixelated",
-                }}
-            >
-                {/* White background */}
-                <rect width={modules} height={modules} fill="white" />
-
-                {/* Position markers (corners) */}
-                {/* Top-left */}
-                <rect x="0" y="0" width="7" height="7" fill="black" />
-                <rect x="1" y="1" width="5" height="5" fill="white" />
-                <rect x="2" y="2" width="3" height="3" fill="black" />
-
-                {/* Top-right */}
-                <rect x={modules - 7} y="0" width="7" height="7" fill="black" />
-                <rect x={modules - 6} y="1" width="5" height="5" fill="white" />
-                <rect x={modules - 5} y="2" width="3" height="3" fill="black" />
-
-                {/* Bottom-left */}
-                <rect x="0" y={modules - 7} width="7" height="7" fill="black" />
-                <rect x="1" y={modules - 6} width="5" height="5" fill="white" />
-                <rect x="2" y={modules - 5} width="3" height="3" fill="black" />
-
-                {/* Generate random data pattern */}
-                {Array.from({
-                    length: Math.floor(modules * modules * 0.4),
-                }).map((_, i) => {
-                    const x = 8 + Math.floor(Math.random() * (modules - 16));
-                    const y = 8 + Math.floor(Math.random() * (modules - 16));
-                    return (
-                        <rect
-                            key={i}
-                            x={x}
-                            y={y}
-                            width="1"
-                            height="1"
-                            fill="black"
-                        />
-                    );
-                })}
-
-                {/* Timing patterns */}
-                {Array.from({ length: modules - 16 }).map(
-                    (_, i) =>
-                        i % 2 === 0 && (
-                            <rect
-                                key={`h-${i}`}
-                                x={8 + i}
-                                y="6"
-                                width="1"
-                                height="1"
-                                fill="black"
-                            />
-                        )
-                )}
-                {Array.from({ length: modules - 16 }).map(
-                    (_, i) =>
-                        i % 2 === 0 && (
-                            <rect
-                                key={`v-${i}`}
-                                x="6"
-                                y={8 + i}
-                                width="1"
-                                height="1"
-                                fill="black"
-                            />
-                        )
-                )}
-            </svg>
         );
     };
 
@@ -504,7 +495,6 @@ export default function PrinterVariantTable({
     return (
         <>
             <BlockStack gap="400">
-                {/* LIVE PREVIEW CARD */}
                 {showPreview && (
                     <Card>
                         <Box padding="400">
@@ -620,24 +610,50 @@ export default function PrinterVariantTable({
                                             )}
                                         </div>
 
+                                        {/* NEW BARCODE PREVIEW LOGIC - YOUR REQUEST */}
                                         <div
                                             style={{
                                                 display: "flex",
                                                 flexDirection: "column",
                                                 alignItems: "center",
-                                                justifyContent:
-                                                    config.barcode_position ===
-                                                    "top"
-                                                        ? "flex-start"
-                                                        : config.barcode_position ===
-                                                          "bottom"
-                                                        ? "flex-end"
-                                                        : "center",
                                             }}
                                         >
-                                            {config.barcode_type !== "qr" &&
-                                            config.barcode_type !==
+                                            {config.barcode_type === "qr" ||
+                                            config.barcode_type ===
                                                 "datamatrix" ? (
+                                                <>
+                                                    <QRCodePreview
+                                                        size={
+                                                            Math.min(
+                                                                config.barcode_width,
+                                                                config.barcode_height
+                                                            ) * 3.78
+                                                        }
+                                                        value="SAMPLE-QR-CODE"
+                                                    />
+                                                    {config.show_barcode_value && (
+                                                        <div
+                                                            style={{
+                                                                fontFamily:
+                                                                    "monospace",
+                                                                fontSize: `${
+                                                                    config.font_size -
+                                                                    2
+                                                                }px`,
+                                                                marginTop:
+                                                                    "3px",
+                                                                letterSpacing:
+                                                                    "1px",
+                                                            }}
+                                                        >
+                                                            {config.barcode_type ===
+                                                            "qr"
+                                                                ? "QR CODE"
+                                                                : "DATA MATRIX"}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
                                                 <>
                                                     <div
                                                         style={{
@@ -673,36 +689,6 @@ export default function PrinterVariantTable({
                                                         </div>
                                                     )}
                                                 </>
-                                            ) : (
-                                                <div
-                                                    style={{
-                                                        width: `${Math.min(
-                                                            config.barcode_width,
-                                                            config.barcode_height
-                                                        )}mm`,
-                                                        height: `${Math.min(
-                                                            config.barcode_width,
-                                                            config.barcode_height
-                                                        )}mm`,
-                                                        background:
-                                                            config.barcode_type ===
-                                                            "qr"
-                                                                ? "linear-gradient(45deg, #000 25%, transparent 25%, transparent 75%, #000 75%), linear-gradient(45deg, #000 25%, transparent 25%, transparent 75%, #000 75%)"
-                                                                : "#000",
-                                                        backgroundSize:
-                                                            config.barcode_type ===
-                                                            "qr"
-                                                                ? "4px 4px"
-                                                                : "auto",
-                                                        backgroundPosition:
-                                                            config.barcode_type ===
-                                                            "qr"
-                                                                ? "0 0, 2px 2px"
-                                                                : "center",
-                                                        borderRadius: "2px",
-                                                        border: "1px solid #000",
-                                                    }}
-                                                ></div>
                                             )}
                                         </div>
                                     </div>
@@ -935,12 +921,10 @@ export default function PrinterVariantTable({
                                         >
                                             {selectedVariant.product_title}
                                         </Text>
-
                                         <Text variant="bodyMd" tone="subdued">
                                             {selectedVariant.vendor ||
                                                 "No vendor"}
                                         </Text>
-
                                         <Text
                                             variant="headingLg"
                                             fontWeight="bold"
@@ -1016,7 +1000,6 @@ export default function PrinterVariantTable({
                                     <Text variant="headingMd" fontWeight="bold">
                                         Label Preview
                                     </Text>
-
                                     <Box paddingBlockStart="400">
                                         {generateBarcodePreview(
                                             selectedVariant
