@@ -1,16 +1,28 @@
+// resources/js/Pages/BarcodePrinter/Index.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { router } from "@inertiajs/react";
 
 import PrinterHeader from "../components/printer/PrinterHeader";
 import PrinterSidebar from "../components/printer/PrinterSidebar";
-import PrinterProductTable from "../components/printer/PrinterProductTable";
+import PrinterVariantTable from "../components/printer/PrinterVariantTable";
 
-export default function BarcodePrinterIndex({ setting }) {
-    const [products, setProducts] = useState([]);
+export default function BarcodePrinterIndex({
+    setting,
+    initialCollections = [],
+}) {
+    const [variants, setVariants] = useState([]);
+    const [total, setTotal] = useState(0);
+    const [stats, setStats] = useState({ missing: 0, with_barcode: 0, all: 0 });
     const [loading, setLoading] = useState(true);
-    const [selectedVariants, setSelectedVariants] = useState(new Set());
+    const [selected, setSelected] = useState(new Set());
     const [printing, setPrinting] = useState(false);
+
+    const [page, setPage] = useState(1);
+    const [activeTab, setActiveTab] = useState("all");
+    const [queryValue, setQueryValue] = useState("");
+    const [selectedCollectionIds, setSelectedCollectionIds] = useState([]);
+    const [selectedVendors, setSelectedVendors] = useState([]);
+    const [selectedTypes, setSelectedTypes] = useState([]);
 
     const [config, setConfig] = useState({
         // Label Design
@@ -63,54 +75,44 @@ export default function BarcodePrinterIndex({ setting }) {
 
         // Quantity
         quantity_per_variant: 1,
-
-        // Filters
-        search: "",
-        vendor: "",
-        type: "",
     });
 
     useEffect(() => {
-        loadProducts();
-    }, []);
+        loadVariants();
+    }, [
+        page,
+        activeTab,
+        queryValue,
+        selectedCollectionIds,
+        selectedVendors,
+        selectedTypes,
+    ]);
 
-    const loadProducts = async () => {
+    const loadVariants = async () => {
         try {
             setLoading(true);
-            const res = await axios.get("/barcode-printer/products");
-            console.log("Products loaded:", res.data);
+            const res = await axios.get("/barcode-printer/variants", {
+                params: {
+                    page,
+                    tab: activeTab,
+                    search: queryValue,
+                    collections: selectedCollectionIds,
+                    vendor: selectedVendors[0] || "",
+                    type: selectedTypes[0] || "",
+                },
+            });
 
-            // Ensure we have an array
-            const productsData = Array.isArray(res.data) ? res.data : [];
+            console.log("✅ Variants loaded:", res.data);
 
-            // Validate each product has variants array
-            const validatedProducts = productsData.map((product) => ({
-                ...product,
-                variants: Array.isArray(product.variants)
-                    ? product.variants
-                    : [],
-            }));
-
-            setProducts(validatedProducts);
-
-            console.log(
-                `✅ Successfully loaded ${
-                    validatedProducts.length
-                } products with ${validatedProducts.reduce(
-                    (sum, p) => sum + p.variants.length,
-                    0
-                )} variants`
-            );
+            setVariants(res.data.variants || []);
+            setTotal(res.data.total || 0);
+            setStats(res.data.stats || { missing: 0, with_barcode: 0, all: 0 });
         } catch (error) {
-            console.error("❌ Failed to load products:", error);
-            console.error("Error details:", error.response?.data);
-
-            setProducts([]); // Set empty array on error
-
+            console.error("❌ Failed to load variants:", error);
             alert(
-                `Failed to load products:\n${
+                `Failed to load variants: ${
                     error.response?.data?.message || error.message
-                }\n\nPlease check:\n- Are you authenticated?\n- Do you have products in your store?\n- Check browser console for details.`
+                }`
             );
         } finally {
             setLoading(false);
@@ -122,10 +124,30 @@ export default function BarcodePrinterIndex({ setting }) {
     };
 
     const generatePDF = async (scope = "selected") => {
-        const variantIds =
-            scope === "selected"
-                ? Array.from(selectedVariants)
-                : products.flatMap((p) => p.variants?.map((v) => v.id) || []);
+        let variantIds = [];
+
+        if (scope === "selected") {
+            variantIds = Array.from(selected);
+        } else if (scope === "all") {
+            // Get all variant IDs with current filters
+            try {
+                const res = await axios.get("/barcode-printer/variants", {
+                    params: {
+                        tab: activeTab,
+                        search: queryValue,
+                        collections: selectedCollectionIds,
+                        vendor: selectedVendors[0] || "",
+                        type: selectedTypes[0] || "",
+                        get_all_ids: true,
+                    },
+                });
+                variantIds = res.data.all_variant_ids || [];
+            } catch (error) {
+                console.error("Failed to get all variant IDs:", error);
+                alert("Failed to get variant IDs");
+                return;
+            }
+        }
 
         if (variantIds.length === 0) {
             alert("No variants selected!");
@@ -166,37 +188,12 @@ export default function BarcodePrinterIndex({ setting }) {
         }
     };
 
-    // Filter products based on search/filters
-    const filteredProducts = products.filter((product) => {
-        const searchLower = config.search.toLowerCase();
-        const matchesSearch =
-            !config.search ||
-            product.title?.toLowerCase().includes(searchLower) ||
-            product.variants?.some(
-                (v) =>
-                    v.sku?.toLowerCase().includes(searchLower) ||
-                    v.barcode?.toLowerCase().includes(searchLower)
-            );
-
-        const matchesVendor =
-            !config.vendor ||
-            product.vendor?.toLowerCase().includes(config.vendor.toLowerCase());
-
-        const matchesType =
-            !config.type ||
-            product.type?.toLowerCase().includes(config.type.toLowerCase());
-
-        return matchesSearch && matchesVendor && matchesType;
-    });
-
     return (
         <div className="min-h-screen bg-gray-50">
             <div className="p-6 mx-auto max-w-7xl">
                 <PrinterHeader
-                    selectedCount={selectedVariants.length}
-                    totalVariants={
-                        products.flatMap((p) => p.variants || []).length
-                    }
+                    selectedCount={selected.size}
+                    totalVariants={total}
                 />
 
                 <div className="grid gap-6 mt-6 lg:grid-cols-12">
@@ -209,17 +206,32 @@ export default function BarcodePrinterIndex({ setting }) {
                         />
                     </div>
 
-                    {/* RIGHT SECTION - Products */}
+                    {/* RIGHT SECTION - Variants */}
                     <div className="lg:col-span-8">
-                        <PrinterProductTable
-                            products={filteredProducts}
+                        <PrinterVariantTable
+                            variants={variants}
+                            total={total}
+                            stats={stats}
                             loading={loading}
-                            selectedVariants={selectedVariants}
-                            setSelectedVariants={setSelectedVariants}
+                            page={page}
+                            setPage={setPage}
+                            activeTab={activeTab}
+                            setActiveTab={setActiveTab}
+                            queryValue={queryValue}
+                            setQueryValue={setQueryValue}
+                            selected={selected}
+                            setSelected={setSelected}
                             printing={printing}
                             generatePDF={generatePDF}
                             config={config}
                             handleChange={handleChange}
+                            initialCollections={initialCollections}
+                            selectedCollectionIds={selectedCollectionIds}
+                            setSelectedCollectionIds={setSelectedCollectionIds}
+                            selectedVendors={selectedVendors}
+                            setSelectedVendors={setSelectedVendors}
+                            selectedTypes={selectedTypes}
+                            setSelectedTypes={setSelectedTypes}
                         />
                     </div>
                 </div>

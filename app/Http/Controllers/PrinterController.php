@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BarcodePrinterSetting;
 use App\Models\Product;
+use App\Models\Variant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -20,8 +21,13 @@ class PrinterController extends Controller
                 $setting = $this->createDefaultSetting($user);
             }
 
+            // Get collections for filters
+            $shopify = new \App\Services\ShopifyService($user);
+            $collections = $shopify->getCollections() ?? [];
+
             return Inertia::render('BarcodePrinter/Index', [
                 'setting' => $setting,
+                'initialCollections' => $collections,
             ]);
         } catch (\Exception $e) {
             Log::error('Barcode printer index error', [
@@ -32,72 +38,139 @@ class PrinterController extends Controller
         }
     }
 
-    public function products(Request $request)
+    public function variants(Request $request)
     {
         try {
             $user = auth()->user();
 
             if (!$user) {
-                Log::error('Products API: No authenticated user');
+                Log::error('Variants API: No authenticated user');
                 return response()->json(['error' => 'Unauthorized'], 401);
             }
 
-            Log::info('📦 Products API called', [
+            $page = max(1, (int)$request->input('page', 1));
+            $perPage = 8;
+            $tab = $request->input('tab', 'all');
+
+            Log::info('📦 Variants API called', [
                 'user_id' => $user->id,
-                'user_email' => $user->email ?? 'N/A'
+                'page' => $page,
+                'tab' => $tab,
             ]);
 
-            // Get products
-            $productsQuery = Product::where('user_id', $user->id);
-            $productsCount = $productsQuery->count();
+            // Build query for variants
+            $query = Variant::with(['product'])
+                ->whereHas('product', fn($q) => $q->where('user_id', $user->id));
 
-            Log::info("Found {$productsCount} products for user {$user->id}");
+            // Apply filters
+            if ($request->filled('vendor')) {
+                $query->whereHas(
+                    'product',
+                    fn($q) =>
+                    $q->where('vendor', 'like', '%' . trim($request->vendor) . '%')
+                );
+            }
 
-            // In PrinterController.php -> products() method
-            $products = $productsQuery->get()->map(function ($product) {
-                $variants = collect($product->variants ?? [])->map(function ($variant) {
-                    // Build full variant title like Shopify: "Default Title" or "Red / Large / Cotton"
-                    $optionParts = array_filter([
-                        $variant->option1,
-                        $variant->option2,
-                        $variant->option3,
-                    ]);
-                    $variantTitle = !empty($optionParts) ? implode(' / ', $optionParts) : 'Default Title';
+            if ($request->filled('type')) {
+                $query->whereHas(
+                    'product',
+                    fn($q) =>
+                    $q->where('product_type', 'like', '%' . trim($request->type) . '%')
+                );
+            }
 
-                    return [
-                        'id' => $variant->id,
-                        'title' => $variantTitle,                    // Critical: matches SkuPreviewTable
-                        'sku' => $variant->sku ?? '',                // Will show new SKU after generation
-                        'barcode' => $variant->barcode ?? '',
-                        'price' => $variant->price ?? '0.00',
-                        'image' => $variant->image_src ?? $variant->image ?? '', // Use image_src first
-                        'option1' => $variant->option1,
-                        'option2' => $variant->option2,
-                        'option3' => $variant->option3,
-                        'product_title' => $product->title ?? 'Untitled Product',
-                        'vendor' => $product->vendor ?? '',
-                    ];
-                })->values()->toArray();
+            if ($request->filled('collections') && is_array($request->collections) && count($request->collections)) {
+                $query->whereHas(
+                    'product.collections',
+                    fn($q) =>
+                    $q->whereIn('collection_id', $request->collections)
+                );
+            }
+
+            // Get all variants for stats
+            $allVariants = $query->get();
+
+            // Calculate stats
+            $missingBarcodes = $allVariants->filter(fn($v) => empty($v->barcode))->count();
+            $withBarcodes = $allVariants->filter(fn($v) => !empty($v->barcode))->count();
+
+            // Filter by tab
+            if ($tab === 'missing') {
+                $allVariants = $allVariants->filter(fn($v) => empty($v->barcode));
+            } elseif ($tab === 'with_barcode') {
+                $allVariants = $allVariants->filter(fn($v) => !empty($v->barcode));
+            }
+
+            // Search filter
+            if ($request->filled('search')) {
+                $searchTerm = strtolower(trim($request->search));
+                $allVariants = $allVariants->filter(function ($variant) use ($searchTerm) {
+                    return str_contains(strtolower($variant->product->title ?? ''), $searchTerm) ||
+                        str_contains(strtolower($variant->sku ?? ''), $searchTerm) ||
+                        str_contains(strtolower($variant->barcode ?? ''), $searchTerm) ||
+                        str_contains(strtolower($variant->product->vendor ?? ''), $searchTerm);
+                });
+            }
+
+            $total = $allVariants->count();
+
+            // Paginate
+            $variants = $allVariants->slice(($page - 1) * $perPage, $perPage)->values();
+
+            // Format variants
+            $formattedVariants = $variants->map(function ($variant) {
+                $optionParts = array_filter([
+                    $variant->option1,
+                    $variant->option2,
+                    $variant->option3,
+                ]);
+                $variantTitle = !empty($optionParts) ? implode(' / ', $optionParts) : 'Default Title';
 
                 return [
-                    'id' => $product->id,
-                    'title' => $product->title ?? 'Untitled',
-                    'vendor' => $product->vendor ?? '',
-                    'type' => $product->product_type ?? '',
-                    'variants' => $variants,
+                    'id' => $variant->id,
+                    'title' => $variantTitle,
+                    'product_title' => $variant->product->title ?? 'Untitled Product',
+                    'sku' => $variant->sku ?? '',
+                    'barcode' => $variant->barcode ?? '',
+                    'price' => $variant->price ?? '0.00',
+                    'image' => $variant->image_src ?? $variant->image ?? '',
+                    'option1' => $variant->option1,
+                    'option2' => $variant->option2,
+                    'option3' => $variant->option3,
+                    'vendor' => $variant->product->vendor ?? '',
+                    'product_type' => $variant->product->product_type ?? '',
+                    'shopify_variant_id' => $variant->shopify_variant_id,
+                    'inventory_quantity' => $variant->inventory_quantity ?? 0,
                 ];
-            })->values()->toArray();
+            });
 
-            $totalVariants = array_sum(array_map(fn($p) => count($p['variants']), $products));
+            $visibleIds = $formattedVariants->pluck('id')->toArray();
 
-            Log::info('✅ Products loaded successfully', [
-                'products_count' => count($products),
-                'total_variants' => $totalVariants
+            // If requesting all IDs for "Apply to All"
+            if ($request->boolean('get_all_ids')) {
+                return response()->json([
+                    'all_variant_ids' => $allVariants->pluck('id')->toArray(),
+                ]);
+            }
+
+            Log::info('✅ Variants loaded successfully', [
+                'total' => $total,
+                'page' => $page,
+                'returned' => $formattedVariants->count(),
             ]);
 
-            return response()->json($products, 200);
+            return response()->json([
+                'variants' => $formattedVariants,
+                'total' => $total,
+                'visibleIds' => $visibleIds,
+                'stats' => [
+                    'missing' => $missingBarcodes,
+                    'with_barcode' => $withBarcodes,
+                    'all' => $allVariants->count(),
+                ],
+            ]);
         } catch (\Exception $e) {
-            Log::error('❌ Products API CRITICAL ERROR', [
+            Log::error('❌ Variants API CRITICAL ERROR', [
                 'error' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'file' => basename($e->getFile()),
@@ -105,10 +178,8 @@ class PrinterController extends Controller
             ]);
 
             return response()->json([
-                'error' => 'Failed to load products',
+                'error' => 'Failed to load variants',
                 'message' => $e->getMessage(),
-                'line' => $e->getLine(),
-                'file' => basename($e->getFile()),
             ], 500);
         }
     }
@@ -208,7 +279,6 @@ class PrinterController extends Controller
             if (!class_exists(\App\Services\BarcodeLabelPdfGenerator::class)) {
                 Log::warning('PDF Generator service not found, returning mock response');
 
-                // Return a mock PDF for testing
                 return response()->json([
                     'message' => 'PDF service not configured yet. Please create app/Services/BarcodeLabelPdfGenerator.php',
                     'settings' => $setting,
@@ -227,34 +297,6 @@ class PrinterController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
             return response()->json(['error' => 'Failed to generate PDF'], 500);
-        }
-    }
-
-    public function storeTemplate(Request $request)
-    {
-        try {
-            $user = auth()->user();
-
-            if (!$user) {
-                return response()->json(['error' => 'Unauthorized'], 401);
-            }
-
-            $data = $request->validate([
-                'name' => 'required|string|max:255',
-                'description' => 'nullable|string',
-                'settings' => 'required|array',
-            ]);
-
-            $template = $user->labelTemplates()->create($data);
-
-            Log::info('Template created', ['template_id' => $template->id]);
-
-            return response()->json(['success' => true, 'template' => $template]);
-        } catch (\Exception $e) {
-            Log::error('Store template error', [
-                'error' => $e->getMessage()
-            ]);
-            return response()->json(['error' => 'Failed to save template'], 500);
         }
     }
 

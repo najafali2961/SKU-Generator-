@@ -56,6 +56,14 @@ Route::middleware(['verify.shopify'])->group(function () {
         Route::post('/update-setting/{id}', [PrinterController::class, 'updateSetting'])->name('update-setting');
         Route::post('/store-template', [PrinterController::class, 'storeTemplate'])->name('store-template');
         Route::post('/generate-pdf', [PrinterController::class, 'generatePdf'])->name('generate-pdf');
+
+
+
+
+
+        Route::get('/variants', [PrinterController::class, 'variants'])->name('variants'); // NEW
+        Route::post('/update-setting/{id}', [PrinterController::class, 'updateSetting'])->name('update-setting');
+        Route::post('/generate-pdf', [PrinterController::class, 'generatePdf'])->name('generate-pdf');
     });
 });
 
