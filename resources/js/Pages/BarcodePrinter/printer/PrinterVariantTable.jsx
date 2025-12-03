@@ -166,6 +166,11 @@ export default function PrinterVariantTable({
     // Generate barcode preview
     const generateBarcodePreview = (variant) => {
         const barcode = variant.barcode || variant.sku || "000000000000";
+        const isQRType =
+            config.barcode_type === "qr" ||
+            config.barcode_type === "datamatrix";
+        const qrSize =
+            Math.min(config.barcode_width, config.barcode_height) * 3.78; // mm to px
 
         return (
             <div
@@ -266,8 +271,24 @@ export default function PrinterVariantTable({
                         marginTop: "4px",
                     }}
                 >
-                    {config.barcode_type !== "qr" &&
-                    config.barcode_type !== "datamatrix" ? (
+                    {isQRType ? (
+                        <>
+                            <QRCodePreview size={qrSize} value={barcode} />
+                            {config.show_barcode_value && (
+                                <div
+                                    style={{
+                                        fontFamily: "monospace",
+                                        fontSize: `${config.font_size - 2}px`,
+                                        marginTop: "2px",
+                                        letterSpacing: "0.5px",
+                                        textAlign: "center",
+                                    }}
+                                >
+                                    {barcode.substring(0, 20)}
+                                </div>
+                            )}
+                        </>
+                    ) : (
                         <>
                             <div
                                 style={{
@@ -291,36 +312,92 @@ export default function PrinterVariantTable({
                                 </div>
                             )}
                         </>
-                    ) : (
-                        <div
-                            style={{
-                                width: `${Math.min(
-                                    config.barcode_width,
-                                    config.barcode_height
-                                )}mm`,
-                                height: `${Math.min(
-                                    config.barcode_width,
-                                    config.barcode_height
-                                )}mm`,
-                                background:
-                                    config.barcode_type === "qr"
-                                        ? "linear-gradient(45deg, #000 25%, transparent 25%, transparent 75%, #000 75%), linear-gradient(45deg, #000 25%, transparent 25%, transparent 75%, #000 75%)"
-                                        : "#000",
-                                backgroundSize:
-                                    config.barcode_type === "qr"
-                                        ? "3px 3px"
-                                        : "auto",
-                                backgroundPosition:
-                                    config.barcode_type === "qr"
-                                        ? "0 0, 1.5px 1.5px"
-                                        : "center",
-                                borderRadius: "2px",
-                                border: "1px solid #000",
-                            }}
-                        ></div>
                     )}
                 </div>
             </div>
+        );
+    };
+    const QRCodePreview = ({ size, value }) => {
+        // Generate a more realistic QR pattern
+        const moduleSize = 3; // pixels per module
+        const modules = Math.floor(size / moduleSize);
+
+        return (
+            <svg
+                width={size}
+                height={size}
+                viewBox={`0 0 ${modules} ${modules}`}
+                style={{
+                    width: `${size}px`,
+                    height: `${size}px`,
+                    imageRendering: "pixelated",
+                }}
+            >
+                {/* White background */}
+                <rect width={modules} height={modules} fill="white" />
+
+                {/* Position markers (corners) */}
+                {/* Top-left */}
+                <rect x="0" y="0" width="7" height="7" fill="black" />
+                <rect x="1" y="1" width="5" height="5" fill="white" />
+                <rect x="2" y="2" width="3" height="3" fill="black" />
+
+                {/* Top-right */}
+                <rect x={modules - 7} y="0" width="7" height="7" fill="black" />
+                <rect x={modules - 6} y="1" width="5" height="5" fill="white" />
+                <rect x={modules - 5} y="2" width="3" height="3" fill="black" />
+
+                {/* Bottom-left */}
+                <rect x="0" y={modules - 7} width="7" height="7" fill="black" />
+                <rect x="1" y={modules - 6} width="5" height="5" fill="white" />
+                <rect x="2" y={modules - 5} width="3" height="3" fill="black" />
+
+                {/* Generate random data pattern */}
+                {Array.from({
+                    length: Math.floor(modules * modules * 0.4),
+                }).map((_, i) => {
+                    const x = 8 + Math.floor(Math.random() * (modules - 16));
+                    const y = 8 + Math.floor(Math.random() * (modules - 16));
+                    return (
+                        <rect
+                            key={i}
+                            x={x}
+                            y={y}
+                            width="1"
+                            height="1"
+                            fill="black"
+                        />
+                    );
+                })}
+
+                {/* Timing patterns */}
+                {Array.from({ length: modules - 16 }).map(
+                    (_, i) =>
+                        i % 2 === 0 && (
+                            <rect
+                                key={`h-${i}`}
+                                x={8 + i}
+                                y="6"
+                                width="1"
+                                height="1"
+                                fill="black"
+                            />
+                        )
+                )}
+                {Array.from({ length: modules - 16 }).map(
+                    (_, i) =>
+                        i % 2 === 0 && (
+                            <rect
+                                key={`v-${i}`}
+                                x="6"
+                                y={8 + i}
+                                width="1"
+                                height="1"
+                                fill="black"
+                            />
+                        )
+                )}
+            </svg>
         );
     };
 
