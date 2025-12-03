@@ -2,9 +2,9 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 
-import PrinterHeader from "../components/printer/PrinterHeader";
-import PrinterSidebar from "../components/printer/PrinterSidebar";
-import PrinterVariantTable from "../components/printer/PrinterVariantTable";
+import PrinterHeader from "./printer/PrinterHeader";
+import PrinterSidebar from "./printer/PrinterSidebar";
+import PrinterVariantTable from "./printer/PrinterVariantTable";
 
 export default function BarcodePrinterIndex({
     setting,

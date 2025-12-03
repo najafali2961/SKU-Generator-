@@ -52,11 +52,6 @@ class PrinterController extends Controller
             $perPage = 8;
             $tab = $request->input('tab', 'all');
 
-            Log::info('📦 Variants API called', [
-                'user_id' => $user->id,
-                'page' => $page,
-                'tab' => $tab,
-            ]);
 
             // Build query for variants
             $query = Variant::with(['product'])
@@ -152,12 +147,6 @@ class PrinterController extends Controller
                     'all_variant_ids' => $allVariants->pluck('id')->toArray(),
                 ]);
             }
-
-            Log::info('✅ Variants loaded successfully', [
-                'total' => $total,
-                'page' => $page,
-                'returned' => $formattedVariants->count(),
-            ]);
 
             return response()->json([
                 'variants' => $formattedVariants,
