@@ -10,6 +10,9 @@ use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\Writer\PngWriter;
 use Picqer\Barcode\BarcodeGeneratorPNG;
 use Illuminate\Support\Facades\Log;
+use Endroid\QrCode\Builder\Builder; // ← THIS IS THE NEW WAY
+use Endroid\QrCode\Encoding\Encoding;
+use Endroid\QrCode\RoundBlockSizeMode;
 
 class BarcodeLabelPdfGenerator
 {
@@ -57,12 +60,11 @@ class BarcodeLabelPdfGenerator
         try {
             $type = $this->mapBarcodeType($this->setting->barcode_type);
 
-            // Generate barcode as PNG and convert to base64
             $barcodeImage = $this->barcodeGeneratorPNG->getBarcode(
                 $value,
                 $type,
-                $this->setting->barcode_scale,
-                $this->setting->barcode_line_width
+                $this->setting->barcode_scale ?? 3,        // ← add fallback
+                $this->setting->barcode_line_width ?? 80   // ← add fallback
             );
 
             return 'data:image/png;base64,' . base64_encode($barcodeImage);
@@ -74,24 +76,28 @@ class BarcodeLabelPdfGenerator
 
     protected function generateQrCode($value)
     {
+        if (empty(trim($value))) {
+            return null;
+        }
+
         try {
-            $errorCorrection = $this->mapQrErrorCorrection($this->setting->qr_error_correction);
-
-            $qrCode = QrCode::create($value)
-                ->setSize(300)
-                ->setMargin($this->setting->qr_module_size)
-                ->setErrorCorrectionLevel($errorCorrection);
-
-            $writer = new PngWriter();
-            $result = $writer->write($qrCode);
+            // CORRECT v6+ SYNTAX — NO ::create() ANYMORE!
+            $result = Builder::create()
+                ->writer(new PngWriter())
+                ->data($value)
+                ->encoding(new Encoding('UTF-8'))
+                ->errorCorrectionLevel(ErrorCorrectionLevel::High)
+                ->size(300)
+                ->margin(10)
+                ->roundBlockSizeMode(RoundBlockSizeMode::Margin)
+                ->build();
 
             return 'data:image/png;base64,' . base64_encode($result->getString());
-        } catch (\Exception $e) {
-            Log::error('QR code generation error: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            Log::error('QR code generation failed: ' . $e->getMessage());
             return null;
         }
     }
-
     protected function mapBarcodeType($type)
     {
         $typeMap = [
@@ -108,13 +114,12 @@ class BarcodeLabelPdfGenerator
 
     protected function mapQrErrorCorrection($level): ErrorCorrectionLevel
     {
-        // ErrorCorrectionLevel: 7%, 15%, 25%, 30%
-        return match ($level) {
-            7 => ErrorCorrectionLevel::Low,
+        return match ((int)$level) {
+            7  => ErrorCorrectionLevel::Low,
             15 => ErrorCorrectionLevel::Medium,
             25 => ErrorCorrectionLevel::Quartile,
             30 => ErrorCorrectionLevel::High,
-            default => ErrorCorrectionLevel::Medium,
+            default => ErrorCorrectionLevel::High,
         };
     }
 
@@ -122,156 +127,116 @@ class BarcodeLabelPdfGenerator
     {
         $html = $this->buildHtml($labels);
 
-        $mmToPt = 2.83464567;
-
-        $widthPt = $this->setting->paper_width * $mmToPt;
-        $heightPt = $this->setting->paper_height * $mmToPt;
-
         return Pdf::loadHTML($html)
-            ->setPaper([$widthPt, $heightPt], $this->setting->paper_orientation)
-            ->setOption('margin-top', $this->setting->page_margin_top * $mmToPt)
-            ->setOption('margin-bottom', $this->setting->page_margin_bottom * $mmToPt)
-            ->setOption('margin-left', $this->setting->page_margin_left * $mmToPt)
-            ->setOption('margin-right', $this->setting->page_margin_right * $mmToPt)
+            ->setPaper('a4', $this->setting->paper_orientation) // Let DomPDF handle paper size
             ->setOption('isRemoteEnabled', true)
             ->setOption('defaultFont', 'Arial')
             ->setOption('isHtml5ParserEnabled', true)
-            ->stream('barcode-labels.pdf');
+            ->setOption('isPhpEnabled', false)
+            ->stream('labels.pdf', ['Attachment' => false]);
     }
 
     protected function buildHtml($labels)
     {
-        $labelWidth = $this->setting->label_width;
-        $labelHeight = $this->setting->label_height;
-        $barcodeHeight = $this->setting->barcode_height;
-        $barcodeWidth = $this->setting->barcode_width;
-        $spacing = $this->setting->label_spacing_horizontal;
-        $verticalSpacing = $this->setting->label_spacing_vertical;
+        // Convert mm → pt (1mm = 2.83464567pt)
+        $mm2pt = 2.83464567;
 
-        $html = <<<HTML
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        $paperWidth = $this->setting->paper_width * $mm2pt;
+        $paperHeight = $this->setting->paper_height * $mm2pt;
+        $labelWidth = $this->setting->label_width * $mm2pt;
+        $labelHeight = $this->setting->label_height * $mm2pt;
+        $spacingH = $this->setting->label_spacing_horizontal * $mm2pt;
+        $spacingV = $this->setting->label_spacing_vertical * $mm2pt;
+        $marginTop = $this->setting->page_margin_top * $mm2pt;
+        $marginRight = $this->setting->page_margin_right * $mm2pt;
+        $marginBottom = $this->setting->page_margin_bottom * $mm2pt;
+        $marginLeft = $this->setting->page_margin_left * $mm2pt;
+        $barcodeWidth = $this->setting->barcode_width * $mm2pt;
+        $barcodeHeight = $this->setting->barcode_height * $mm2pt;
 
-        body {
-            font-family: {$this->setting->font_family};
-            color: {$this->setting->font_color};
-        }
-
-        .page {
-            width: {$this->setting->paper_width}mm;
-            height: {$this->setting->paper_height}mm;
-            display: grid;
-            grid-template-columns: repeat({$this->setting->labels_per_row}, 1fr);
-            gap: {$spacing}mm {$verticalSpacing}mm;
-            padding: {$this->setting->page_margin_top}mm
-                     {$this->setting->page_margin_right}mm
-                     {$this->setting->page_margin_bottom}mm
-                     {$this->setting->page_margin_left}mm;
-        }
-
-        .label {
-            width: {$labelWidth}mm;
-            height: {$labelHeight}mm;
-            border: 1px solid #ddd;
-            padding: 3mm;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            font-size: {$this->setting->font_size}px;
-        }
-
-        .label-top {
-            display: flex;
-            flex-direction: column;
-            gap: 2mm;
-        }
-
-        .label-middle {
-            flex-grow: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .label-bottom {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .product-title {
-            font-weight: bold;
-            font-size: {$this->setting->font_size}px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .sku {
-            color: #666;
-        }
-
-        .variant-title {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .price {
-            font-weight: bold;
-        }
-
-        .barcode-img {
-            max-width: {$barcodeWidth}mm;
-            max-height: {$barcodeHeight}mm;
-            display: block;
-            margin: 0 auto;
-        }
-
-        .qr-code {
-            max-width: 20mm;
-            max-height: 20mm;
-            display: block;
-            margin: 0 auto;
-        }
-
-        .barcode-value {
-            font-family: monospace;
-            text-align: center;
-            margin-top: 1mm;
-        }
-
-        .page-break {
-            page-break-after: always;
-        }
-    </style>
-</head>
-<body>
-HTML;
-
-        $labelCount = 0;
         $labelsPerPage = $this->setting->labels_per_row * $this->setting->labels_per_column;
 
+        $html = '<!DOCTYPE html>
+    <html><head>
+        <meta charset="utf-8">
+        <style>
+            @page { margin: 0; }
+            body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+            .page {
+                width: ' . $paperWidth . 'pt;
+                height: ' . $paperHeight . 'pt;
+                padding: ' . $marginTop . 'pt ' . $marginRight . 'pt ' . $marginBottom . 'pt ' . $marginLeft . 'pt;
+                display: grid;
+                grid-template-columns: repeat(' . $this->setting->labels_per_row . ', 1fr);
+                gap: ' . $spacingV . 'pt ' . $spacingH . 'pt;
+                page-break-after: always;
+            }
+            .label {
+                width: ' . $labelWidth . 'pt;
+                height: ' . $labelHeight . 'pt;
+                border: 1pt solid #ddd;
+                padding: 8pt;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                font-size: ' . $this->setting->font_size . 'pt;
+                color: ' . $this->setting->font_color . ';
+            }
+            .barcode-img { max-width: ' . $barcodeWidth . 'pt; max-height: ' . $barcodeHeight . 'pt; display: block; margin: 0 auto; }
+            .qr-code { width: 60pt; height: 60pt; display: block; margin: 0 auto; }
+            .text-center { text-align: center; }
+            .font-mono { font-family: monospace; }
+            .bold { font-weight: bold; }
+        </style>
+    </head><body>';
+
+        $labelCount = 0;
         foreach ($labels as $label) {
-            if ($labelCount > 0 && $labelCount % $labelsPerPage === 0) {
-                $html .= '</div><div class="page">';
-            } elseif ($labelCount === 0) {
+            if ($labelCount % $labelsPerPage === 0) {
+                if ($labelCount > 0) $html .= '</div>';
                 $html .= '<div class="page">';
             }
 
-            $html .= $this->buildLabelHtml($label);
+            $html .= '<div class="label">';
+
+            // Top: Product info
+            if ($this->setting->show_product_title || $this->setting->show_sku || $this->setting->show_variant) {
+                $html .= '<div>';
+                if ($this->setting->show_product_title) {
+                    $html .= '<div class="bold">' . htmlspecialchars($label['product_title'] ?? '') . '</div>';
+                }
+                if ($this->setting->show_variant && !empty($label['variant_title'])) {
+                    $html .= '<div>' . htmlspecialchars($label['variant_title']) . '</div>';
+                }
+                if ($this->setting->show_sku && !empty($label['sku'])) {
+                    $html .= '<div class="font-mono">SKU: ' . htmlspecialchars($label['sku']) . '</div>';
+                }
+                $html .= '</div>';
+            }
+
+            // Price
+            if ($this->setting->show_price && !empty($label['price'])) {
+                $html .= '<div class="text-center bold">$' . number_format($label['price'], 2) . '</div>';
+            }
+
+            // Barcode / QR
+            if ($this->setting->show_linear_barcode && !empty($label['barcode_html'])) {
+                $html .= '<div class="text-center">';
+                $html .= '<img src="' . $label['barcode_html'] . '" class="barcode-img">';
+                if ($this->setting->print_barcode_value ?? true) {
+                    $html .= '<div class="font-mono">' . htmlspecialchars($label['barcode_value']) . '</div>';
+                }
+                $html .= '</div>';
+            } elseif ($this->setting->show_qr_code && !empty($label['qr_code'])) {
+                $html .= '<div class="text-center"><img src="' . $label['qr_code'] . '" class="qr-code"></div>';
+            }
+
+            $html .= '</div>'; // .label
             $labelCount++;
         }
 
-        $html .= '</div></body></html>';
+        if ($labelCount > 0) $html .= '</div>'; // last page
+        $html .= '</body></html>';
 
         return $html;
     }
