@@ -20,7 +20,6 @@ class BarcodeLabelPdfGenerator
 
     // Conversion constants
     const MM_TO_PT = 2.83464567;
-    const PT_TO_PX = 1.33333333;
 
     public function __construct(BarcodePrinterSetting $setting)
     {
@@ -71,7 +70,7 @@ class BarcodeLabelPdfGenerator
             'product_type' => $variant->product->product_type ?? '',
         ];
 
-        // Determine which barcode/QR to generate based on settings
+        // Generate barcode or QR code
         $showQr = $this->setting->show_qr_code ?? false;
         $showLinear = $this->setting->show_linear_barcode ?? true;
 
@@ -124,12 +123,10 @@ class BarcodeLabelPdfGenerator
             }
 
             $type = $this->mapBarcodeType($this->setting->barcode_type);
-
-            // Validate barcode value based on type
             $value = $this->validateBarcodeValue($value, $this->setting->barcode_type);
 
-            $scale = max(1, $this->setting->barcode_scale ?? 2);
-            $thickness = max(30, $this->setting->barcode_line_width ?? 60);
+            $scale = max(1, (int)($this->setting->barcode_scale ?? 2));
+            $thickness = max(30, (int)($this->setting->barcode_line_width ?? 50));
 
             $barcodeImage = $this->barcodeGenerator->getBarcode(
                 $value,
@@ -212,7 +209,6 @@ class BarcodeLabelPdfGenerator
         $white = imagecolorallocate($image, 255, 255, 255);
         $black = imagecolorallocate($image, 0, 0, 0);
 
-        // Center the text
         $fontSize = 3;
         $textWidth = imagefontwidth($fontSize) * strlen($text);
         $x = ($width - $textWidth) / 2;
@@ -275,10 +271,6 @@ class BarcodeLabelPdfGenerator
             ->setOption('defaultFont', $this->setting->font_family ?? 'Arial')
             ->setOption('dpi', 300)
             ->setOption('defaultMediaType', 'print')
-            ->setOption('debugLayout', false)
-            ->setOption('debugLayoutLines', false)
-            ->setOption('debugLayoutBlocks', false)
-            ->setOption('debugLayoutInline', false)
             ->stream('barcode-labels.pdf', ['Attachment' => false]);
     }
 
@@ -286,29 +278,35 @@ class BarcodeLabelPdfGenerator
     {
         $s = $this->setting;
 
-        // Convert all measurements to points
+        // Convert measurements to points (CSS points, not pixels)
         $labelWidth = $s->label_width * self::MM_TO_PT;
         $labelHeight = $s->label_height * self::MM_TO_PT;
-        $hSpacing = $s->label_spacing_horizontal * self::MM_TO_PT;
-        $vSpacing = $s->label_spacing_vertical * self::MM_TO_PT;
+        $hGap = $s->label_spacing_horizontal * self::MM_TO_PT;
+        $vGap = $s->label_spacing_vertical * self::MM_TO_PT;
+
         $marginTop = ($s->page_margin_top ?? 10) * self::MM_TO_PT;
         $marginRight = ($s->page_margin_right ?? 10) * self::MM_TO_PT;
         $marginBottom = ($s->page_margin_bottom ?? 10) * self::MM_TO_PT;
         $marginLeft = ($s->page_margin_left ?? 10) * self::MM_TO_PT;
 
-        $barcodeWidth = ($s->barcode_width ?? 60) * self::MM_TO_PT;
-        $barcodeHeight = ($s->barcode_height ?? 20) * self::MM_TO_PT;
+        $barcodeWidth = ($s->barcode_width ?? 30) * self::MM_TO_PT;
+        $barcodeHeight = ($s->barcode_height ?? 15) * self::MM_TO_PT;
 
         $cols = max(1, (int)$s->labels_per_row);
         $rows = max(1, (int)$s->labels_per_column);
         $labelsPerPage = $cols * $rows;
 
-        $fontSize = max(6, (int)($s->font_size ?? 10));
-        $titleSize = max(8, (int)($s->title_font_size ?? 12));
+        $fontSize = max(6, (int)($s->font_size ?? 8));
+        $titleSize = max(7, (int)($s->title_font_size ?? 9));
         $fontColor = $s->font_color ?? '#000000';
         $fontFamily = $s->font_family ?? 'Arial';
+        $titleBold = $s->title_bold ? 'bold' : 'normal';
 
-        $html = "<!DOCTYPE html>
+        // Calculate inner padding (reduced for small labels)
+        $labelPadding = max(2, min(4, $labelHeight * 0.03));
+
+        $html = <<<HTML
+<!DOCTYPE html>
 <html>
 <head>
     <meta charset='utf-8'>
@@ -317,161 +315,174 @@ class BarcodeLabelPdfGenerator
             margin: 0;
             size: {$s->paper_width}mm {$s->paper_height}mm;
         }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
+
         body {
             margin: {$marginTop}pt {$marginRight}pt {$marginBottom}pt {$marginLeft}pt;
             font-family: {$fontFamily}, Arial, sans-serif;
+            font-size: {$fontSize}pt;
+            color: {$fontColor};
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+            line-height: 1.1;
         }
+
         .page {
-            width: 100%;
             page-break-after: always;
+            width: 100%;
         }
+
         .page:last-child {
             page-break-after: avoid;
         }
+
         .label-grid {
-            display: table;
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: {$hSpacing}pt {$vSpacing}pt;
+            display: flex;
+            flex-wrap: wrap;
+            gap: {$vGap}pt {$hGap}pt;
         }
-        .label-row {
-            display: table-row;
-        }
+
         .label {
-            display: table-cell;
             width: {$labelWidth}pt;
             height: {$labelHeight}pt;
-            padding: 4pt;
-            vertical-align: top;
-            border: 0.5pt solid #ddd;
-            font-size: {$fontSize}pt;
-            color: {$fontColor};
+            border: 0.5pt solid #cccccc;
+            padding: {$labelPadding}pt;
             overflow: hidden;
-        }
-        .label-content {
-            width: 100%;
-            height: 100%;
             display: flex;
             flex-direction: column;
-            justify-content: flex-start;
-            gap: 2pt;
+            position: relative;
+            background: white;
         }
+
         .label-header {
             flex-shrink: 0;
+            margin-bottom: 1pt;
         }
-        .label-barcode {
-            flex-grow: 1;
+
+        .label-body {
+            flex: 1;
             display: flex;
-            align-items: center;
-            justify-content: center;
             flex-direction: column;
+            justify-content: center;
+            align-items: center;
             min-height: 0;
+            overflow: hidden;
         }
+
         .label-footer {
             flex-shrink: 0;
+            margin-top: 1pt;
         }
+
         .product-title {
-            font-weight: " . ($s->title_bold ? 'bold' : 'normal') . ";
+            font-weight: {$titleBold};
             font-size: {$titleSize}pt;
             line-height: 1.1;
-            margin-bottom: 2pt;
             overflow: hidden;
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
-            word-wrap: break-word;
+            word-break: break-word;
+            margin-bottom: 1pt;
         }
+
         .variant-title {
-            font-size: " . max(6, $fontSize - 1) . "pt;
+            font-size: {$fontSize}pt;
             color: #666;
-            margin-bottom: 1pt;
             line-height: 1.1;
+            margin-bottom: 0.5pt;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
+
         .sku {
-            font-size: " . max(6, $fontSize - 1) . "pt;
-            color: #444;
-            margin-bottom: 1pt;
+            font-size: {$fontSize}pt;
             font-family: 'Courier New', monospace;
+            color: #333;
+            line-height: 1.1;
+            margin-bottom: 0.5pt;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-        .vendor, .product-type {
-            font-size: " . max(6, $fontSize - 2) . "pt;
-            color: #888;
-            margin-bottom: 1pt;
-        }
+
         .price {
             font-weight: bold;
-            font-size: " . ($titleSize) . "pt;
-            margin: 2pt 0;
+            font-size: {$titleSize}pt;
             color: #000;
+            line-height: 1.1;
+            margin: 1pt 0;
         }
+
+        .vendor,
+        .product-type {
+            font-size: " . ($fontSize - 1) . "pt;
+            color: #888;
+            line-height: 1.1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
         .barcode-container {
-            text-align: center;
             width: 100%;
+            text-align: center;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
         }
+
         .barcode-img {
             max-width: 100%;
-            width: {$barcodeWidth}pt;
-            height: auto;
             max-height: {$barcodeHeight}pt;
+            width: auto;
+            height: auto;
             display: block;
             margin: 0 auto;
-            object-fit: contain;
         }
+
         .qr-code {
-            width: " . min($barcodeWidth, $barcodeHeight) . "pt;
-            height: " . min($barcodeWidth, $barcodeHeight) . "pt;
+            width: " . min($barcodeWidth, $barcodeHeight, $labelWidth * 0.6) . "pt;
+            height: " . min($barcodeWidth, $barcodeHeight, $labelWidth * 0.6) . "pt;
             display: block;
             margin: 0 auto;
-            object-fit: contain;
         }
+
         .barcode-value {
             font-family: 'Courier New', monospace;
-            font-size: " . max(6, $fontSize - 2) . "pt;
-            text-align: center;
+            font-size: " . ($fontSize - 1) . "pt;
+            line-height: 1.1;
             margin-top: 1pt;
-            letter-spacing: 0.3pt;
-            color: #000;
+            text-align: center;
+            letter-spacing: 0.2pt;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            width: 100%;
         }
     </style>
 </head>
-<body>";
+<body>
+HTML;
 
-        $chunks = array_chunk($labels, $labelsPerPage);
+        // Split labels into pages
+        $pages = array_chunk($labels, $labelsPerPage);
 
-        foreach ($chunks as $pageIndex => $pageLabels) {
+        foreach ($pages as $pageLabels) {
             $html .= "<div class='page'><div class='label-grid'>";
 
-            // Organize labels into rows
-            $labelRows = array_chunk($pageLabels, $cols);
-
-            foreach ($labelRows as $rowLabels) {
-                $html .= "<div class='label-row'>";
-
-                foreach ($rowLabels as $label) {
-                    $html .= $this->buildLabelHtml($label);
-                }
-
-                // Fill empty cells in last row
-                $emptyCells = $cols - count($rowLabels);
-                for ($i = 0; $i < $emptyCells; $i++) {
-                    $html .= "<div class='label'></div>";
-                }
-
-                $html .= "</div>"; // .label-row
+            foreach ($pageLabels as $label) {
+                $html .= $this->buildLabelHtml($label);
             }
 
-            $html .= "</div></div>"; // .label-grid .page
+            $html .= "</div></div>";
         }
 
         $html .= "</body></html>";
@@ -483,9 +494,9 @@ class BarcodeLabelPdfGenerator
     {
         $s = $this->setting;
 
-        $html = "<div class='label'><div class='label-content'>";
+        $html = "<div class='label'>";
 
-        // HEADER SECTION - Product Info
+        // HEADER
         $html .= "<div class='label-header'>";
 
         if ($s->show_product_title) {
@@ -512,36 +523,36 @@ class BarcodeLabelPdfGenerator
                 "</div>";
         }
 
-        $html .= "</div>"; // .label-header
+        $html .= "</div>"; // header
 
-        // BARCODE SECTION
-        $html .= "<div class='label-barcode'>";
-        $html .= $this->buildBarcodeSection($label);
-        $html .= "</div>"; // .label-barcode
+        // BODY (Barcode)
+        $html .= "<div class='label-body'>";
+        $html .= $this->buildBarcodeHtml($label);
+        $html .= "</div>"; // body
 
-        // FOOTER SECTION
+        // FOOTER
         $html .= "<div class='label-footer'>";
 
         if ($s->show_vendor && !empty($label['vendor'])) {
-            $html .= "<div class='vendor'>Vendor: " .
+            $html .= "<div class='vendor'>" .
                 htmlspecialchars($label['vendor']) .
                 "</div>";
         }
 
         if ($s->show_product_type && !empty($label['product_type'])) {
-            $html .= "<div class='product-type'>Type: " .
+            $html .= "<div class='product-type'>" .
                 htmlspecialchars($label['product_type']) .
                 "</div>";
         }
 
-        $html .= "</div>"; // .label-footer
+        $html .= "</div>"; // footer
 
-        $html .= "</div></div>"; // .label-content .label
+        $html .= "</div>"; // label
 
         return $html;
     }
 
-    protected function buildBarcodeSection($label)
+    protected function buildBarcodeHtml($label)
     {
         $s = $this->setting;
         $html = "<div class='barcode-container'>";
@@ -550,6 +561,7 @@ class BarcodeLabelPdfGenerator
         $showQr = $s->show_qr_code ?? false;
         $showValue = $s->show_barcode_value ?? true;
 
+        // Show linear barcode
         if ($showLinear && !empty($label['barcode_html'])) {
             $html .= "<img src='{$label['barcode_html']}' class='barcode-img' alt='Barcode' />";
 
@@ -560,6 +572,7 @@ class BarcodeLabelPdfGenerator
             }
         }
 
+        // Show QR code
         if ($showQr && !empty($label['qr_code'])) {
             $html .= "<img src='{$label['qr_code']}' class='qr-code' alt='QR Code' />";
 
@@ -570,9 +583,9 @@ class BarcodeLabelPdfGenerator
             }
         }
 
-        // If no barcode is available, show the value as text
+        // Fallback if no barcode available
         if (empty($label['barcode_html']) && empty($label['qr_code'])) {
-            $html .= "<div class='barcode-value' style='font-size: 14pt; padding: 10pt;'>" .
+            $html .= "<div class='barcode-value' style='padding: 5pt 0;'>" .
                 htmlspecialchars($label['barcode_value']) .
                 "</div>";
         }
