@@ -15,14 +15,12 @@ use App\Http\Controllers\WebhookController;
 
 Route::middleware(['verify.shopify'])->group(function () {
 
-
     Route::get('/', [HomeController::class, 'index'])->name('home');
 
     Route::get('/sku-generator', [SkuController::class, 'index'])->name('sku-generator');
     Route::post('/sku-generator/preview', [SkuController::class, 'preview']);
     Route::post('/sku-generator/apply', [SkuController::class, 'apply']);
     Route::get('/sku-generator/progress', [SkuController::class, 'progress']);
-
 
     Route::get('/barcode-printer', [PrinterController::class, 'index']);
 
@@ -38,43 +36,35 @@ Route::middleware(['verify.shopify'])->group(function () {
     Route::post('/barcode/import-apply', [BarcodeController::class, 'importApply']);
     Route::get('/barcode-import', [BarcodeController::class, 'importPage'])->name('barcode.import');
 
-
     Route::get('/jobs', [JobController::class, 'index'])->name('jobs.index');
     Route::get('/jobs/{jobLog}', [JobController::class, 'show'])->name('jobs.show');
     Route::get('/jobs/{jobLog}/progress', [JobController::class, 'progress'])->name('jobs.progress');
 
-
-
-
-
-
-
-    // === BARCODE PRINTER – CLEAN & WORKING ===
+    // === BARCODE PRINTER – WITH TEMPLATE MANAGEMENT ===
     Route::prefix('barcode-printer')->name('barcode-printer.')->group(function () {
+        // Main pages
         Route::get('/', [PrinterController::class, 'index'])->name('index');
-        Route::get('/products', [PrinterController::class, 'products'])->name('products');
+        Route::get('/variants', [PrinterController::class, 'variants'])->name('variants');
+
+        // Settings
         Route::post('/update-setting/{id}', [PrinterController::class, 'updateSetting'])->name('update-setting');
-        Route::post('/store-template', [PrinterController::class, 'storeTemplate'])->name('store-template');
-        Route::post('/generate-pdf', [PrinterController::class, 'generatePdf'])->name('generate-pdf');
-        Route::get('/variants', [PrinterController::class, 'variants'])->name('variants'); // NEW
-        Route::post('/update-setting/{id}', [PrinterController::class, 'updateSetting'])->name('update-setting');
+
+        // Template Management
+        Route::post('/save-template', [PrinterController::class, 'saveTemplate'])->name('save-template');
+        Route::get('/load-template/{id}', [PrinterController::class, 'loadTemplate'])->name('load-template');
+        Route::post('/update-template/{id}', [PrinterController::class, 'updateTemplate'])->name('update-template');
+        Route::delete('/delete-template/{id}', [PrinterController::class, 'deleteTemplate'])->name('delete-template');
+        Route::post('/set-default-template/{id}', [PrinterController::class, 'setDefaultTemplate'])->name('set-default-template');
+
+        // PDF Generation
         Route::post('/generate-pdf', [PrinterController::class, 'generatePdf'])->name('generate-pdf');
     });
 });
-
 
 Route::middleware(['auth.webhook'])->group(function () {
     Route::post('/webhook/products-update', [WebhookController::class, 'productsUpdate']);
     Route::post('/webhook/products-delete', [WebhookController::class, 'productsDelete']);
     Route::post('/webhook/products-create', [WebhookController::class, 'productsCreate']);
 });
-
-
-
-
-
-
-
-
 
 Route::get('logs', [\Rap2hpoutre\LaravelLogViewer\LogViewerController::class, 'index']);

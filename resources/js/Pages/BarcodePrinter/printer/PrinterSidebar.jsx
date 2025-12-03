@@ -13,17 +13,49 @@ import {
     Button,
     Box,
     Collapsible,
+    Modal,
+    TextContainer,
+    Badge,
+    Icon,
+    Tooltip,
 } from "@shopify/polaris";
-import { ChevronDownIcon, ChevronUpIcon } from "@shopify/polaris-icons";
+import {
+    ChevronDownIcon,
+    ChevronUpIcon,
+    SaveIcon,
+    DeleteIcon,
+    StarFilledIcon,
+    StarIcon,
+    EditIcon,
+    DuplicateIcon,
+} from "@shopify/polaris-icons";
+import axios from "axios";
 
-export default function PrinterSidebar({ config, handleChange, settingId }) {
+export default function PrinterSidebar({
+    config,
+    handleChange,
+    settingId,
+    templates = [],
+    onTemplatesUpdate,
+}) {
     const [expandedSections, setExpandedSections] = useState({
+        templates: true,
         paper: true,
         label: true,
         barcode: true,
         attributes: true,
         typography: false,
     });
+
+    // Template Management State
+    const [showSaveModal, setShowSaveModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [selectedTemplate, setSelectedTemplate] = useState(null);
+    const [templateName, setTemplateName] = useState("");
+    const [templateDescription, setTemplateDescription] = useState("");
+    const [setAsDefault, setSetAsDefault] = useState(false);
+    const [saving, setSaving] = useState(false);
 
     const toggleSection = (section) => {
         setExpandedSections((prev) => ({
@@ -60,8 +92,303 @@ export default function PrinterSidebar({ config, handleChange, settingId }) {
         </button>
     );
 
+    // Template Management Functions
+    const handleSaveTemplate = async () => {
+        if (!templateName.trim()) {
+            alert("Please enter a template name");
+            return;
+        }
+
+        setSaving(true);
+        try {
+            const response = await axios.post(
+                "/barcode-printer/save-template",
+                {
+                    name: templateName,
+                    description: templateDescription,
+                    settings: config,
+                    is_default: setAsDefault,
+                }
+            );
+
+            if (response.data.success) {
+                setShowSaveModal(false);
+                setTemplateName("");
+                setTemplateDescription("");
+                setSetAsDefault(false);
+
+                // Refresh templates
+                if (onTemplatesUpdate) {
+                    onTemplatesUpdate();
+                }
+
+                alert("Template saved successfully!");
+            }
+        } catch (error) {
+            console.error("Failed to save template:", error);
+            alert("Failed to save template. Please try again.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleLoadTemplate = async (template) => {
+        try {
+            const response = await axios.get(
+                `/barcode-printer/load-template/${template.id}`
+            );
+
+            if (response.data.success) {
+                // Load all settings from template
+                Object.entries(response.data.settings).forEach(
+                    ([key, value]) => {
+                        handleChange(key, value);
+                    }
+                );
+
+                alert(`Template "${template.name}" loaded successfully!`);
+            }
+        } catch (error) {
+            console.error("Failed to load template:", error);
+            alert("Failed to load template. Please try again.");
+        }
+    };
+
+    const handleUpdateTemplate = async () => {
+        if (!selectedTemplate || !templateName.trim()) {
+            alert("Please enter a template name");
+            return;
+        }
+
+        setSaving(true);
+        try {
+            const response = await axios.post(
+                `/barcode-printer/update-template/${selectedTemplate.id}`,
+                {
+                    name: templateName,
+                    description: templateDescription,
+                    settings: config,
+                    is_default: setAsDefault,
+                }
+            );
+
+            if (response.data.success) {
+                setShowEditModal(false);
+                setSelectedTemplate(null);
+                setTemplateName("");
+                setTemplateDescription("");
+                setSetAsDefault(false);
+
+                if (onTemplatesUpdate) {
+                    onTemplatesUpdate();
+                }
+
+                alert("Template updated successfully!");
+            }
+        } catch (error) {
+            console.error("Failed to update template:", error);
+            alert("Failed to update template. Please try again.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDeleteTemplate = async () => {
+        if (!selectedTemplate) return;
+
+        setSaving(true);
+        try {
+            const response = await axios.delete(
+                `/barcode-printer/delete-template/${selectedTemplate.id}`
+            );
+
+            if (response.data.success) {
+                setShowDeleteModal(false);
+                setSelectedTemplate(null);
+
+                if (onTemplatesUpdate) {
+                    onTemplatesUpdate();
+                }
+
+                alert("Template deleted successfully!");
+            }
+        } catch (error) {
+            console.error("Failed to delete template:", error);
+            alert("Failed to delete template. Please try again.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleSetDefaultTemplate = async (templateId) => {
+        try {
+            const response = await axios.post(
+                `/barcode-printer/set-default-template/${templateId}`
+            );
+
+            if (response.data.success) {
+                if (onTemplatesUpdate) {
+                    onTemplatesUpdate();
+                }
+                alert("Default template set successfully!");
+            }
+        } catch (error) {
+            console.error("Failed to set default template:", error);
+            alert("Failed to set default template. Please try again.");
+        }
+    };
+
+    const openEditModal = (template) => {
+        setSelectedTemplate(template);
+        setTemplateName(template.name);
+        setTemplateDescription(template.description || "");
+        setSetAsDefault(template.is_default);
+        setShowEditModal(true);
+    };
+
+    const openDeleteModal = (template) => {
+        setSelectedTemplate(template);
+        setShowDeleteModal(true);
+    };
+
     return (
         <BlockStack gap="400">
+            {/* TEMPLATE MANAGEMENT */}
+            <Card>
+                <Box padding="400">
+                    <BlockStack gap="400">
+                        <InlineStack align="space-between" blockAlign="center">
+                            <SectionHeader
+                                title="📋 Templates"
+                                section="templates"
+                            />
+                            <Button
+                                size="slim"
+                                icon={SaveIcon}
+                                onClick={() => setShowSaveModal(true)}
+                            >
+                                Save
+                            </Button>
+                        </InlineStack>
+
+                        <Collapsible
+                            open={expandedSections.templates}
+                            id="templates-section"
+                        >
+                            <BlockStack gap="300">
+                                {templates.length === 0 ? (
+                                    <Box
+                                        padding="400"
+                                        background="bg-surface-secondary"
+                                        borderRadius="200"
+                                    >
+                                        <Text tone="subdued" alignment="center">
+                                            No templates saved yet. Save your
+                                            current configuration to reuse it
+                                            later.
+                                        </Text>
+                                    </Box>
+                                ) : (
+                                    templates.map((template) => (
+                                        <Box
+                                            key={template.id}
+                                            padding="300"
+                                            background="bg-surface-secondary"
+                                            borderRadius="200"
+                                        >
+                                            <BlockStack gap="200">
+                                                <InlineStack
+                                                    align="space-between"
+                                                    blockAlign="center"
+                                                >
+                                                    <InlineStack
+                                                        gap="200"
+                                                        blockAlign="center"
+                                                    >
+                                                        <Text fontWeight="semibold">
+                                                            {template.name}
+                                                        </Text>
+                                                        {template.is_default && (
+                                                            <Badge tone="success">
+                                                                Default
+                                                            </Badge>
+                                                        )}
+                                                    </InlineStack>
+
+                                                    <InlineStack gap="100">
+                                                        {!template.is_default && (
+                                                            <Tooltip content="Set as default">
+                                                                <Button
+                                                                    size="micro"
+                                                                    icon={
+                                                                        StarIcon
+                                                                    }
+                                                                    onClick={() =>
+                                                                        handleSetDefaultTemplate(
+                                                                            template.id
+                                                                        )
+                                                                    }
+                                                                />
+                                                            </Tooltip>
+                                                        )}
+                                                        <Tooltip content="Edit">
+                                                            <Button
+                                                                size="micro"
+                                                                icon={EditIcon}
+                                                                onClick={() =>
+                                                                    openEditModal(
+                                                                        template
+                                                                    )
+                                                                }
+                                                            />
+                                                        </Tooltip>
+                                                        <Tooltip content="Delete">
+                                                            <Button
+                                                                size="micro"
+                                                                icon={
+                                                                    DeleteIcon
+                                                                }
+                                                                tone="critical"
+                                                                onClick={() =>
+                                                                    openDeleteModal(
+                                                                        template
+                                                                    )
+                                                                }
+                                                            />
+                                                        </Tooltip>
+                                                    </InlineStack>
+                                                </InlineStack>
+
+                                                {template.description && (
+                                                    <Text
+                                                        variant="bodySm"
+                                                        tone="subdued"
+                                                    >
+                                                        {template.description}
+                                                    </Text>
+                                                )}
+
+                                                <Button
+                                                    fullWidth
+                                                    size="slim"
+                                                    onClick={() =>
+                                                        handleLoadTemplate(
+                                                            template
+                                                        )
+                                                    }
+                                                >
+                                                    Load Template
+                                                </Button>
+                                            </BlockStack>
+                                        </Box>
+                                    ))
+                                )}
+                            </BlockStack>
+                        </Collapsible>
+                    </BlockStack>
+                </Box>
+            </Card>
+
             {/* PAPER SETUP */}
             <Card>
                 <Box padding="400">
@@ -83,7 +410,6 @@ export default function PrinterSidebar({ config, handleChange, settingId }) {
                                         value={config.paper_size}
                                         onChange={(v) => {
                                             handleChange("paper_size", v);
-                                            // Auto-set dimensions
                                             const sizes = {
                                                 a4: { width: 210, height: 297 },
                                                 letter: {
@@ -631,6 +957,147 @@ export default function PrinterSidebar({ config, handleChange, settingId }) {
                     </FormLayout>
                 </Box>
             </Card>
+
+            {/* SAVE TEMPLATE MODAL */}
+            <Modal
+                open={showSaveModal}
+                onClose={() => {
+                    setShowSaveModal(false);
+                    setTemplateName("");
+                    setTemplateDescription("");
+                    setSetAsDefault(false);
+                }}
+                title="Save Template"
+                primaryAction={{
+                    content: "Save Template",
+                    onAction: handleSaveTemplate,
+                    loading: saving,
+                }}
+                secondaryActions={[
+                    {
+                        content: "Cancel",
+                        onAction: () => {
+                            setShowSaveModal(false);
+                            setTemplateName("");
+                            setTemplateDescription("");
+                            setSetAsDefault(false);
+                        },
+                    },
+                ]}
+            >
+                <Modal.Section>
+                    <FormLayout>
+                        <TextField
+                            label="Template Name"
+                            value={templateName}
+                            onChange={setTemplateName}
+                            placeholder="e.g., Jewelry Labels, Shipping Labels"
+                            autoComplete="off"
+                        />
+                        <TextField
+                            label="Description (Optional)"
+                            value={templateDescription}
+                            onChange={setTemplateDescription}
+                            placeholder="Brief description of this template"
+                            multiline={3}
+                            autoComplete="off"
+                        />
+                        <Checkbox
+                            label="Set as default template"
+                            checked={setAsDefault}
+                            onChange={setSetAsDefault}
+                        />
+                    </FormLayout>
+                </Modal.Section>
+            </Modal>
+
+            {/* EDIT TEMPLATE MODAL */}
+            <Modal
+                open={showEditModal}
+                onClose={() => {
+                    setShowEditModal(false);
+                    setSelectedTemplate(null);
+                    setTemplateName("");
+                    setTemplateDescription("");
+                    setSetAsDefault(false);
+                }}
+                title="Edit Template"
+                primaryAction={{
+                    content: "Update Template",
+                    onAction: handleUpdateTemplate,
+                    loading: saving,
+                }}
+                secondaryActions={[
+                    {
+                        content: "Cancel",
+                        onAction: () => {
+                            setShowEditModal(false);
+                            setSelectedTemplate(null);
+                            setTemplateName("");
+                            setTemplateDescription("");
+                            setSetAsDefault(false);
+                        },
+                    },
+                ]}
+            >
+                <Modal.Section>
+                    <FormLayout>
+                        <TextField
+                            label="Template Name"
+                            value={templateName}
+                            onChange={setTemplateName}
+                            autoComplete="off"
+                        />
+                        <TextField
+                            label="Description (Optional)"
+                            value={templateDescription}
+                            onChange={setTemplateDescription}
+                            multiline={3}
+                            autoComplete="off"
+                        />
+                        <Checkbox
+                            label="Set as default template"
+                            checked={setAsDefault}
+                            onChange={setSetAsDefault}
+                        />
+                    </FormLayout>
+                </Modal.Section>
+            </Modal>
+
+            {/* DELETE TEMPLATE MODAL */}
+            <Modal
+                open={showDeleteModal}
+                onClose={() => {
+                    setShowDeleteModal(false);
+                    setSelectedTemplate(null);
+                }}
+                title="Delete Template"
+                primaryAction={{
+                    content: "Delete",
+                    onAction: handleDeleteTemplate,
+                    destructive: true,
+                    loading: saving,
+                }}
+                secondaryActions={[
+                    {
+                        content: "Cancel",
+                        onAction: () => {
+                            setShowDeleteModal(false);
+                            setSelectedTemplate(null);
+                        },
+                    },
+                ]}
+            >
+                <Modal.Section>
+                    <TextContainer>
+                        <Text>
+                            Are you sure you want to delete the template "
+                            {selectedTemplate?.name}"? This action cannot be
+                            undone.
+                        </Text>
+                    </TextContainer>
+                </Modal.Section>
+            </Modal>
         </BlockStack>
     );
 }

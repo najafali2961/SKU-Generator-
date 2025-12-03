@@ -80,24 +80,21 @@ class PrinterController extends Controller
             if ($request->filled('vendor')) {
                 $query->whereHas(
                     'product',
-                    fn($q) =>
-                    $q->where('vendor', 'like', '%' . trim($request->vendor) . '%')
+                    fn($q) => $q->where('vendor', 'like', '%' . trim($request->vendor) . '%')
                 );
             }
 
             if ($request->filled('type')) {
                 $query->whereHas(
                     'product',
-                    fn($q) =>
-                    $q->where('product_type', 'like', '%' . trim($request->type) . '%')
+                    fn($q) => $q->where('product_type', 'like', '%' . trim($request->type) . '%')
                 );
             }
 
             if ($request->filled('collections') && is_array($request->collections)) {
                 $query->whereHas(
                     'product.collections',
-                    fn($q) =>
-                    $q->whereIn('collection_id', $request->collections)
+                    fn($q) => $q->whereIn('collection_id', $request->collections)
                 );
             }
 
@@ -259,9 +256,8 @@ class PrinterController extends Controller
         }
     }
 
+    // ========== TEMPLATE MANAGEMENT ==========
 
-
-    // Template Management
     public function saveTemplate(Request $request)
     {
         try {
@@ -314,6 +310,40 @@ class PrinterController extends Controller
         }
     }
 
+    public function updateTemplate(Request $request, $id)
+    {
+        try {
+            $user = auth()->user();
+            $template = $user->labelTemplates()->findOrFail($id);
+
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'description' => 'nullable|string|max:1000',
+                'settings' => 'required|array',
+                'is_default' => 'nullable|boolean',
+            ]);
+
+            // If setting as default, unset other defaults
+            if ($validated['is_default'] ?? false) {
+                $user->labelTemplates()
+                    ->where('id', '!=', $id)
+                    ->update(['is_default' => false]);
+            }
+
+            $template->update($validated);
+
+            return response()->json([
+                'success' => true,
+                'template' => $template,
+                'message' => 'Template updated successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to update template'
+            ], 500);
+        }
+    }
+
     public function deleteTemplate($id)
     {
         try {
@@ -331,6 +361,80 @@ class PrinterController extends Controller
             ], 500);
         }
     }
+
+    public function setDefaultTemplate($id)
+    {
+        try {
+            $user = auth()->user();
+
+            // Unset all defaults
+            $user->labelTemplates()->update(['is_default' => false]);
+
+            // Set new default
+            $template = $user->labelTemplates()->findOrFail($id);
+            $template->update(['is_default' => true]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Default template set successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to set default template'
+            ], 500);
+        }
+    }
+
+    // ========== PDF GENERATION ==========
+
+    public function generatePdf(Request $request)
+    {
+        try {
+            $user = auth()->user();
+
+            $validated = $request->validate([
+                'setting_id' => 'required|exists:barcode_printer_settings,id',
+                'variant_ids' => 'required|array|min:1|max:1000',
+                'variant_ids.*' => 'integer|exists:variants,id',
+                'quantity_per_variant' => 'nullable|integer|min:1|max:100',
+            ]);
+
+            $setting = $user->barcodePrinterSettings()->findOrFail($validated['setting_id']);
+
+            // Verify all variants belong to user
+            $variants = Variant::whereIn('id', $validated['variant_ids'])
+                ->whereHas('product', fn($q) => $q->where('user_id', $user->id))
+                ->with('product')
+                ->get();
+
+            if ($variants->isEmpty()) {
+                return response()->json([
+                    'error' => 'No valid variants found'
+                ], 400);
+            }
+
+            $pdfGenerator = new BarcodeLabelPdfGenerator($setting);
+
+            return $pdfGenerator->generatePdf(
+                $variants->pluck('id')->toArray(),
+                $validated['quantity_per_variant'] ?? 1
+            );
+        } catch (\Throwable $e) {
+            Log::error('PDF Generation Failed', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'PDF generation failed',
+                'message' => config('app.debug') ? $e->getMessage() : 'An error occurred',
+            ], 500);
+        }
+    }
+
+    // ========== HELPER METHODS ==========
 
     protected function formatVariant($variant)
     {
@@ -410,157 +514,5 @@ class PrinterController extends Controller
             'title_font_size' => 12,
             'title_bold' => true,
         ]);
-    }
-
-
-    protected function validateBarcodeForType($barcode, $type)
-    {
-        if (empty($barcode)) {
-            return ['valid' => false, 'message' => 'Barcode cannot be empty'];
-        }
-
-        $type = strtolower($type);
-
-        switch ($type) {
-            case 'ean13':
-                $numeric = preg_replace('/[^0-9]/', '', $barcode);
-                if (strlen($numeric) < 12) {
-                    return [
-                        'valid' => false,
-                        'message' => 'EAN-13 requires at least 12 digits'
-                    ];
-                }
-                return ['valid' => true];
-
-            case 'ean8':
-                $numeric = preg_replace('/[^0-9]/', '', $barcode);
-                if (strlen($numeric) < 7) {
-                    return [
-                        'valid' => false,
-                        'message' => 'EAN-8 requires at least 7 digits'
-                    ];
-                }
-                return ['valid' => true];
-
-            case 'upca':
-                $numeric = preg_replace('/[^0-9]/', '', $barcode);
-                if (strlen($numeric) < 11) {
-                    return [
-                        'valid' => false,
-                        'message' => 'UPC-A requires at least 11 digits'
-                    ];
-                }
-                return ['valid' => true];
-
-            case 'itf14':
-                $numeric = preg_replace('/[^0-9]/', '', $barcode);
-                if (strlen($numeric) < 13) {
-                    return [
-                        'valid' => false,
-                        'message' => 'ITF-14 requires at least 13 digits'
-                    ];
-                }
-                return ['valid' => true];
-
-            case 'code39':
-            case 'code93':
-                // Alphanumeric only
-                if (!preg_match('/^[A-Z0-9\-\.\ \$\/\+\%]+$/i', $barcode)) {
-                    return [
-                        'valid' => false,
-                        'message' => strtoupper($type) . ' only supports alphanumeric characters and -.$/%+ '
-                    ];
-                }
-                return ['valid' => true];
-
-            case 'codabar':
-                $numeric = preg_replace('/[^0-9]/', '', $barcode);
-                if (empty($numeric)) {
-                    return [
-                        'valid' => false,
-                        'message' => 'CODABAR requires numeric characters'
-                    ];
-                }
-                return ['valid' => true];
-
-            case 'code128':
-            case 'qr':
-            case 'datamatrix':
-            default:
-                // These support any characters
-                return ['valid' => true];
-        }
-    }
-
-    // Update the generatePdf method to include validation
-    public function generatePdf(Request $request)
-    {
-        try {
-            $user = auth()->user();
-
-            $validated = $request->validate([
-                'setting_id' => 'required|exists:barcode_printer_settings,id',
-                'variant_ids' => 'required|array|min:1|max:1000',
-                'variant_ids.*' => 'integer|exists:variants,id',
-                'quantity_per_variant' => 'nullable|integer|min:1|max:100',
-            ]);
-
-            $setting = $user->barcodePrinterSettings()->findOrFail($validated['setting_id']);
-
-            // Verify all variants belong to user
-            $variants = Variant::whereIn('id', $validated['variant_ids'])
-                ->whereHas('product', fn($q) => $q->where('user_id', $user->id))
-                ->with('product')
-                ->get();
-
-            if ($variants->isEmpty()) {
-                return response()->json([
-                    'error' => 'No valid variants found'
-                ], 400);
-            }
-
-            // Validate barcodes for the selected type
-            $invalidBarcodes = [];
-            foreach ($variants as $variant) {
-                $barcodeValue = $variant->barcode ?? $variant->sku ?? "VAR-{$variant->id}";
-                $validation = $this->validateBarcodeForType($barcodeValue, $setting->barcode_type);
-
-                if (!$validation['valid']) {
-                    $invalidBarcodes[] = [
-                        'variant' => $variant->product->title . ' - ' . ($variant->sku ?? 'No SKU'),
-                        'barcode' => $barcodeValue,
-                        'reason' => $validation['message']
-                    ];
-                }
-            }
-
-            // If there are invalid barcodes, return warning but continue
-            if (!empty($invalidBarcodes) && count($invalidBarcodes) < 10) {
-                Log::warning('Some barcodes may not be valid for the selected type', [
-                    'invalid_count' => count($invalidBarcodes),
-                    'type' => $setting->barcode_type,
-                    'invalid_barcodes' => $invalidBarcodes
-                ]);
-            }
-
-            $pdfGenerator = new BarcodeLabelPdfGenerator($setting);
-
-            return $pdfGenerator->generatePdf(
-                $variants->pluck('id')->toArray(),
-                $validated['quantity_per_variant'] ?? 1
-            );
-        } catch (\Throwable $e) {
-            Log::error('PDF Generation Failed', [
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            return response()->json([
-                'error' => 'PDF generation failed',
-                'message' => config('app.debug') ? $e->getMessage() : 'An error occurred',
-            ], 500);
-        }
     }
 }

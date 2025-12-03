@@ -48,4 +48,10 @@ class User extends Authenticatable implements IShopModel
     {
         return $this->hasMany(\App\Models\Product::class);
     }
+
+
+    public function defaultLabelTemplate()
+    {
+        return $this->hasOne(LabelTemplate::class)->where('is_default', true);
+    }
 }

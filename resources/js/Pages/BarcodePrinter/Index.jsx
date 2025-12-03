@@ -8,6 +8,7 @@ import PrinterVariantTable from "./printer/PrinterVariantTable";
 
 export default function BarcodePrinterIndex({
     setting,
+    templates: initialTemplates = [],
     initialCollections = [],
 }) {
     const [variants, setVariants] = useState([]);
@@ -16,6 +17,7 @@ export default function BarcodePrinterIndex({
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState(new Set());
     const [printing, setPrinting] = useState(false);
+    const [templates, setTemplates] = useState(initialTemplates);
 
     const [page, setPage] = useState(1);
     const [activeTab, setActiveTab] = useState("all");
@@ -36,10 +38,10 @@ export default function BarcodePrinterIndex({
         paper_height: Number(setting?.paper_height) || 297,
 
         // Page Margins (mm)
-        margin_top: Number(setting?.margin_top) || 10,
-        margin_bottom: Number(setting?.margin_bottom) || 10,
-        margin_left: Number(setting?.margin_left) || 10,
-        margin_right: Number(setting?.margin_right) || 10,
+        margin_top: Number(setting?.page_margin_top) || 10,
+        margin_bottom: Number(setting?.page_margin_bottom) || 10,
+        margin_left: Number(setting?.page_margin_left) || 10,
+        margin_right: Number(setting?.page_margin_right) || 10,
 
         // Label Dimensions (mm)
         label_width: Number(setting?.label_width) || 80,
@@ -118,6 +120,11 @@ export default function BarcodePrinterIndex({
 
     const handleChange = (key, value) => {
         setConfig((prev) => ({ ...prev, [key]: value }));
+    };
+
+    const handleTemplatesUpdate = () => {
+        // Reload the page to get fresh templates
+        window.location.reload();
     };
 
     const generatePDF = async (scope = "selected") => {
@@ -200,6 +207,8 @@ export default function BarcodePrinterIndex({
                             config={config}
                             handleChange={handleChange}
                             settingId={setting.id}
+                            templates={templates}
+                            onTemplatesUpdate={handleTemplatesUpdate}
                         />
                     </div>
 
