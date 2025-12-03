@@ -319,23 +319,21 @@ class BarcodeLabelPdfGenerator
     {
         $html = $this->buildHtml($labels);
 
-        $paperSize = [
-            0,
-            0,
-            $this->setting->paper_width * self::MM_TO_PT,
-            $this->setting->paper_height * self::MM_TO_PT
-        ];
+        $paperSize = [0, 0, $this->setting->paper_width * self::MM_TO_PT, $this->setting->paper_height * self::MM_TO_PT];
 
-        return Pdf::loadHTML($html)
-            ->setPaper($paperSize, $this->setting->paper_orientation)
-            ->setOption('isRemoteEnabled', true)
-            ->setOption('isHtml5ParserEnabled', true)
-            ->setOption('isPhpEnabled', false)
-            ->setOption('isFontSubsettingEnabled', true)
-            ->setOption('defaultFont', $this->setting->font_family ?? 'Arial')
-            ->setOption('dpi', 300)
-            ->setOption('defaultMediaType', 'print')
-            ->stream('barcode-labels.pdf', ['Attachment' => false]);
+        $pdf = Pdf::loadHTML($html)
+            ->setPaper($paperSize, $this->setting->paper_orientation ?? 'portrait')
+            ->setOptions([
+                'isRemoteEnabled'        => true,
+                'isHtml5ParserEnabled'   => true,
+                'isPhpEnabled'           => false,
+                'isFontSubsettingEnabled' => true,
+                'defaultFont'            => $this->setting->font_family ?? 'Arial',
+                'dpi'                    => 300,
+            ]);
+
+        // ←←← RETURN RAW PDF STRING (NOT a Response object)
+        return $pdf->output();
     }
 
     protected function buildHtml($labels)

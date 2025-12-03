@@ -492,7 +492,6 @@ class PrinterController extends Controller
         }
     }
 
-    // Update the generatePdf method to include validation
     public function generatePdf(Request $request)
     {
         try {
@@ -507,48 +506,27 @@ class PrinterController extends Controller
 
             $setting = $user->barcodePrinterSettings()->findOrFail($validated['setting_id']);
 
-            // Verify all variants belong to user
             $variants = Variant::whereIn('id', $validated['variant_ids'])
                 ->whereHas('product', fn($q) => $q->where('user_id', $user->id))
                 ->with('product')
                 ->get();
 
             if ($variants->isEmpty()) {
-                return response()->json([
-                    'error' => 'No valid variants found'
-                ], 400);
-            }
-
-            // Validate barcodes for the selected type
-            $invalidBarcodes = [];
-            foreach ($variants as $variant) {
-                $barcodeValue = $variant->barcode ?? $variant->sku ?? "VAR-{$variant->id}";
-                $validation = $this->validateBarcodeForType($barcodeValue, $setting->barcode_type);
-
-                if (!$validation['valid']) {
-                    $invalidBarcodes[] = [
-                        'variant' => $variant->product->title . ' - ' . ($variant->sku ?? 'No SKU'),
-                        'barcode' => $barcodeValue,
-                        'reason' => $validation['message']
-                    ];
-                }
-            }
-
-            // If there are invalid barcodes, return warning but continue
-            if (!empty($invalidBarcodes) && count($invalidBarcodes) < 10) {
-                Log::warning('Some barcodes may not be valid for the selected type', [
-                    'invalid_count' => count($invalidBarcodes),
-                    'type' => $setting->barcode_type,
-                    'invalid_barcodes' => $invalidBarcodes
-                ]);
+                return response()->json(['error' => 'No valid variants found'], 400);
             }
 
             $pdfGenerator = new BarcodeLabelPdfGenerator($setting);
 
-            return $pdfGenerator->generatePdf(
+            // This now returns raw PDF string
+            $pdfContent = $pdfGenerator->generatePdf(
                 $variants->pluck('id')->toArray(),
                 $validated['quantity_per_variant'] ?? 1
             );
+
+            // THIS IS THE FINAL FIX
+            return response($pdfContent, 200)
+                ->header('Content-Type', 'application/pdf')
+                ->header('Content-Disposition', 'inline; filename="barcode-labels.pdf"');
         } catch (\Throwable $e) {
             Log::error('PDF Generation Failed', [
                 'message' => $e->getMessage(),
