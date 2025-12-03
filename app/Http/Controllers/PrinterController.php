@@ -3,11 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\BarcodePrinterSetting;
-use App\Models\Product;
+use App\Models\LabelTemplate;
 use App\Models\Variant;
+use App\Services\BarcodeLabelPdfGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\FacadesLog;
+use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 
 class PrinterController extends Controller
@@ -22,20 +23,45 @@ class PrinterController extends Controller
                 $setting = $this->createDefaultSetting($user);
             }
 
+            // Load user's templates
+            $templates = $user->labelTemplates()
+                ->orderBy('is_default', 'desc')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
             // Get collections for filters
             $shopify = new \App\Services\ShopifyService($user);
             $collections = $shopify->getCollections() ?? [];
 
+            // Get unique vendors and product types for filters
+            $vendors = $user->products()
+                ->whereNotNull('vendor')
+                ->distinct()
+                ->pluck('vendor')
+                ->filter()
+                ->values();
+
+            $productTypes = $user->products()
+                ->whereNotNull('product_type')
+                ->distinct()
+                ->pluck('product_type')
+                ->filter()
+                ->values();
+
             return Inertia::render('BarcodePrinter/Index', [
                 'setting' => $setting,
+                'templates' => $templates,
                 'initialCollections' => $collections,
+                'vendors' => $vendors,
+                'productTypes' => $productTypes,
             ]);
         } catch (\Exception $e) {
             Log::error('Barcode printer index error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            abort(500, 'Failed to load page');
+
+            return back()->with('error', 'Failed to load printer page');
         }
     }
 
@@ -43,18 +69,10 @@ class PrinterController extends Controller
     {
         try {
             $user = auth()->user();
-
-            if (!$user) {
-                Log::error('Variants API: No authenticated user');
-                return response()->json(['error' => 'Unauthorized'], 401);
-            }
-
             $page = max(1, (int)$request->input('page', 1));
-            $perPage = 8;
+            $perPage = (int)$request->input('per_page', 20);
             $tab = $request->input('tab', 'all');
 
-
-            // Build query for variants
             $query = Variant::with(['product'])
                 ->whereHas('product', fn($q) => $q->where('user_id', $user->id));
 
@@ -75,7 +93,7 @@ class PrinterController extends Controller
                 );
             }
 
-            if ($request->filled('collections') && is_array($request->collections) && count($request->collections)) {
+            if ($request->filled('collections') && is_array($request->collections)) {
                 $query->whereHas(
                     'product.collections',
                     fn($q) =>
@@ -83,87 +101,67 @@ class PrinterController extends Controller
                 );
             }
 
-            // Get all variants for stats
-            $allVariants = $query->get();
-
-            // Calculate stats
-            $missingBarcodes = $allVariants->filter(fn($v) => empty($v->barcode))->count();
-            $withBarcodes = $allVariants->filter(fn($v) => !empty($v->barcode))->count();
+            // Get all variants for stats before filtering by tab
+            $allVariants = clone $query;
+            $totalAll = $allVariants->count();
+            $missingBarcodes = $allVariants->whereNull('barcode')->orWhere('barcode', '')->count();
+            $withBarcodes = $totalAll - $missingBarcodes;
 
             // Filter by tab
             if ($tab === 'missing') {
-                $allVariants = $allVariants->filter(fn($v) => empty($v->barcode));
+                $query->where(function ($q) {
+                    $q->whereNull('barcode')->orWhere('barcode', '');
+                });
             } elseif ($tab === 'with_barcode') {
-                $allVariants = $allVariants->filter(fn($v) => !empty($v->barcode));
+                $query->whereNotNull('barcode')->where('barcode', '!=', '');
             }
 
             // Search filter
             if ($request->filled('search')) {
-                $searchTerm = strtolower(trim($request->search));
-                $allVariants = $allVariants->filter(function ($variant) use ($searchTerm) {
-                    return str_contains(strtolower($variant->product->title ?? ''), $searchTerm) ||
-                        str_contains(strtolower($variant->sku ?? ''), $searchTerm) ||
-                        str_contains(strtolower($variant->barcode ?? ''), $searchTerm) ||
-                        str_contains(strtolower($variant->product->vendor ?? ''), $searchTerm);
+                $search = strtolower(trim($request->search));
+                $query->where(function ($q) use ($search) {
+                    $q->where('sku', 'like', "%{$search}%")
+                        ->orWhere('barcode', 'like', "%{$search}%")
+                        ->orWhereHas('product', function ($pq) use ($search) {
+                            $pq->where('title', 'like', "%{$search}%")
+                                ->orWhere('vendor', 'like', "%{$search}%");
+                        });
                 });
             }
 
-            $total = $allVariants->count();
+            // Get total after all filters
+            $total = $query->count();
 
-            // Paginate
-            $variants = $allVariants->slice(($page - 1) * $perPage, $perPage)->values();
-
-            // Format variants
-            $formattedVariants = $variants->map(function ($variant) {
-                $optionParts = array_filter([
-                    $variant->option1,
-                    $variant->option2,
-                    $variant->option3,
-                ]);
-                $variantTitle = !empty($optionParts) ? implode(' / ', $optionParts) : 'Default Title';
-
-                return [
-                    'id' => $variant->id,
-                    'title' => $variantTitle,
-                    'product_title' => $variant->product->title ?? 'Untitled Product',
-                    'sku' => $variant->sku ?? '',
-                    'barcode' => $variant->barcode ?? '',
-                    'price' => $variant->price ?? '0.00',
-                    'image' => $variant->image_src ?? $variant->image ?? '',
-                    'option1' => $variant->option1,
-                    'option2' => $variant->option2,
-                    'option3' => $variant->option3,
-                    'vendor' => $variant->product->vendor ?? '',
-                    'product_type' => $variant->product->product_type ?? '',
-                    'shopify_variant_id' => $variant->shopify_variant_id,
-                    'inventory_quantity' => $variant->inventory_quantity ?? 0,
-                ];
-            });
-
-            $visibleIds = $formattedVariants->pluck('id')->toArray();
-
-            // If requesting all IDs for "Apply to All"
+            // For "Apply to All" functionality
             if ($request->boolean('get_all_ids')) {
                 return response()->json([
-                    'all_variant_ids' => $allVariants->pluck('id')->toArray(),
+                    'all_variant_ids' => $query->pluck('id')->toArray(),
                 ]);
             }
 
+            // Paginate
+            $variants = $query->skip(($page - 1) * $perPage)
+                ->take($perPage)
+                ->get()
+                ->map(function ($variant) {
+                    return $this->formatVariant($variant);
+                });
+
             return response()->json([
-                'variants' => $formattedVariants,
+                'variants' => $variants,
                 'total' => $total,
-                'visibleIds' => $visibleIds,
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'last_page' => ceil($total / $perPage),
                 'stats' => [
+                    'all' => $totalAll,
                     'missing' => $missingBarcodes,
                     'with_barcode' => $withBarcodes,
-                    'all' => $allVariants->count(),
                 ],
             ]);
         } catch (\Exception $e) {
-            Log::error('❌ Variants API CRITICAL ERROR', [
+            Log::error('Variants API error', [
                 'error' => $e->getMessage(),
-                'line' => $e->getLine(),
-                'file' => basename($e->getFile()),
                 'trace' => $e->getTraceAsString()
             ]);
 
@@ -180,66 +178,84 @@ class PrinterController extends Controller
             $user = auth()->user();
             $setting = $user->barcodePrinterSettings()->findOrFail($id);
 
-            $data = $request->validate([
+            $validated = $request->validate([
                 // Label Design
                 'label_name' => 'nullable|string|max:255',
                 'barcode_type' => 'nullable|string',
+                'barcode_format' => 'nullable|string',
 
                 // Paper Setup
                 'paper_size' => 'nullable|string',
-                'paper_orientation' => 'nullable|string',
-                'paper_width' => 'nullable|numeric',
-                'paper_height' => 'nullable|numeric',
+                'paper_orientation' => 'nullable|in:portrait,landscape',
+                'paper_width' => 'nullable|numeric|min:10|max:1000',
+                'paper_height' => 'nullable|numeric|min:10|max:1000',
 
                 // Margins
-                'page_margin_top' => 'nullable|numeric',
-                'page_margin_bottom' => 'nullable|numeric',
-                'page_margin_left' => 'nullable|numeric',
-                'page_margin_right' => 'nullable|numeric',
+                'page_margin_top' => 'nullable|numeric|min:0|max:100',
+                'page_margin_bottom' => 'nullable|numeric|min:0|max:100',
+                'page_margin_left' => 'nullable|numeric|min:0|max:100',
+                'page_margin_right' => 'nullable|numeric|min:0|max:100',
 
                 // Label Dimensions
                 'label_width' => 'nullable|numeric|min:10|max:500',
                 'label_height' => 'nullable|numeric|min:10|max:500',
 
                 // Layout
-                'labels_per_row' => 'nullable|integer|min:1|max:10',
-                'labels_per_column' => 'nullable|integer|min:1|max:20',
-                'label_spacing_horizontal' => 'nullable|numeric',
-                'label_spacing_vertical' => 'nullable|numeric',
+                'labels_per_row' => 'nullable|integer|min:1|max:20',
+                'labels_per_column' => 'nullable|integer|min:1|max:50',
+                'label_spacing_horizontal' => 'nullable|numeric|min:0|max:50',
+                'label_spacing_vertical' => 'nullable|numeric|min:0|max:50',
 
                 // Barcode Settings
-                'barcode_width' => 'nullable|numeric',
-                'barcode_height' => 'nullable|numeric',
-                'barcode_position' => 'nullable|string',
-                'show_barcode_value' => 'nullable|boolean',
+                'barcode_width' => 'nullable|numeric|min:5|max:200',
+                'barcode_height' => 'nullable|numeric|min:5|max:200',
+                'barcode_scale' => 'nullable|integer|min:1|max:5',
+                'barcode_line_width' => 'nullable|integer|min:30|max:150',
+                'barcode_position' => 'nullable|in:top,center,bottom',
 
-                // Attributes
-                'show_title' => 'nullable|boolean',
+                // QR Code Settings
+                'qr_error_correction' => 'nullable|integer|in:7,15,25,30',
+                'qr_module_size' => 'nullable|integer|min:1|max:10',
+
+                // Display Options
+                'show_barcode_value' => 'nullable|boolean',
+                'show_product_title' => 'nullable|boolean',
                 'show_sku' => 'nullable|boolean',
                 'show_price' => 'nullable|boolean',
                 'show_variant' => 'nullable|boolean',
                 'show_vendor' => 'nullable|boolean',
                 'show_product_type' => 'nullable|boolean',
+                'show_qr_code' => 'nullable|boolean',
+                'show_linear_barcode' => 'nullable|boolean',
 
                 // Typography
                 'font_family' => 'nullable|string',
-                'font_size' => 'nullable|integer',
+                'font_size' => 'nullable|integer|min:6|max:72',
                 'font_color' => 'nullable|string',
-                'title_font_size' => 'nullable|integer',
+                'title_font_size' => 'nullable|integer|min:8|max:72',
                 'title_bold' => 'nullable|boolean',
+
+                // Custom Fields
+                'custom_fields' => 'nullable|array',
             ]);
 
-            $setting->update($data);
+            $setting->update($validated);
 
-            Log::info('Setting updated', ['setting_id' => $id]);
-
-            return response()->json(['success' => true, 'setting' => $setting]);
+            return response()->json([
+                'success' => true,
+                'setting' => $setting,
+                'message' => 'Settings updated successfully'
+            ]);
         } catch (\Exception $e) {
             Log::error('Update setting error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            return response()->json(['error' => 'Failed to update settings'], 500);
+
+            return response()->json([
+                'error' => 'Failed to update settings',
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
 
@@ -247,87 +263,192 @@ class PrinterController extends Controller
     {
         try {
             $user = auth()->user();
-            if (!$user) {
-                return response()->json(['error' => 'Unauthorized'], 401);
-            }
 
             $validated = $request->validate([
                 'setting_id' => 'required|exists:barcode_printer_settings,id',
-                'variant_ids' => 'required|array|min:1',
-                'variant_ids.*' => 'integer',
-                'quantity_per_variant' => 'integer|min:1|max:100',
+                'variant_ids' => 'required|array|min:1|max:1000',
+                'variant_ids.*' => 'integer|exists:variants,id',
+                'quantity_per_variant' => 'nullable|integer|min:1|max:100',
             ]);
 
             $setting = $user->barcodePrinterSettings()->findOrFail($validated['setting_id']);
 
-            $pdfGenerator = new \App\Services\BarcodeLabelPdfGenerator($setting);
-            $pdf = $pdfGenerator->generatePdf(
-                $validated['variant_ids'],
+            // Verify all variants belong to user
+            $validVariants = Variant::whereIn('id', $validated['variant_ids'])
+                ->whereHas('product', fn($q) => $q->where('user_id', $user->id))
+                ->pluck('id')
+                ->toArray();
+
+            if (count($validVariants) === 0) {
+                return response()->json([
+                    'error' => 'No valid variants found'
+                ], 400);
+            }
+
+            $pdfGenerator = new BarcodeLabelPdfGenerator($setting);
+
+            return $pdfGenerator->generatePdf(
+                $validVariants,
                 $validated['quantity_per_variant'] ?? 1
             );
-
-            return $pdf;
-        } catch (\Throwable $e) {  // Catch Throwable, not just Exception
+        } catch (\Throwable $e) {
             Log::error('PDF Generation Failed', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all(),
             ]);
 
             return response()->json([
                 'error' => 'PDF generation failed',
-                'message' => $e->getMessage(),
-                'line' => $e->getLine(),
+                'message' => config('app.debug') ? $e->getMessage() : 'An error occurred',
             ], 500);
         }
     }
 
-    private function createDefaultSetting($user)
+    // Template Management
+    public function saveTemplate(Request $request)
+    {
+        try {
+            $user = auth()->user();
+
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'description' => 'nullable|string|max:1000',
+                'settings' => 'required|array',
+                'is_default' => 'nullable|boolean',
+            ]);
+
+            // If setting as default, unset other defaults
+            if ($validated['is_default'] ?? false) {
+                $user->labelTemplates()->update(['is_default' => false]);
+            }
+
+            $template = $user->labelTemplates()->create($validated);
+
+            return response()->json([
+                'success' => true,
+                'template' => $template,
+                'message' => 'Template saved successfully'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Save template error', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'error' => 'Failed to save template',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function loadTemplate(Request $request, $id)
+    {
+        try {
+            $user = auth()->user();
+            $template = $user->labelTemplates()->findOrFail($id);
+
+            return response()->json([
+                'success' => true,
+                'settings' => $template->settings,
+                'template' => $template
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Template not found'
+            ], 404);
+        }
+    }
+
+    public function deleteTemplate($id)
+    {
+        try {
+            $user = auth()->user();
+            $template = $user->labelTemplates()->findOrFail($id);
+            $template->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Template deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to delete template'
+            ], 500);
+        }
+    }
+
+    protected function formatVariant($variant)
+    {
+        $options = array_filter([
+            $variant->option1,
+            $variant->option2,
+            $variant->option3,
+        ]);
+
+        $variantTitle = !empty($options) ? implode(' / ', $options) : 'Default Title';
+
+        return [
+            'id' => $variant->id,
+            'title' => $variantTitle,
+            'product_title' => $variant->product->title ?? 'Untitled Product',
+            'sku' => $variant->sku ?? '',
+            'barcode' => $variant->barcode ?? '',
+            'price' => $variant->price ?? '0.00',
+            'image' => $variant->image_src ?? $variant->image ?? '',
+            'option1' => $variant->option1,
+            'option2' => $variant->option2,
+            'option3' => $variant->option3,
+            'vendor' => $variant->product->vendor ?? '',
+            'product_type' => $variant->product->product_type ?? '',
+            'shopify_variant_id' => $variant->shopify_variant_id,
+            'inventory_quantity' => $variant->inventory_quantity ?? 0,
+        ];
+    }
+
+    protected function createDefaultSetting($user)
     {
         return $user->barcodePrinterSettings()->create([
-            // Label Design
             'label_name' => 'Default Label',
             'barcode_type' => 'code128',
+            'barcode_format' => 'linear',
 
-            // Paper Setup
             'paper_size' => 'a4',
             'paper_orientation' => 'portrait',
             'paper_width' => 210,
             'paper_height' => 297,
 
-            // Margins
-            'margin_top' => 10,
-            'margin_bottom' => 10,
-            'margin_left' => 10,
-            'margin_right' => 10,
+            'page_margin_top' => 10,
+            'page_margin_bottom' => 10,
+            'page_margin_left' => 10,
+            'page_margin_right' => 10,
 
-            // Label Dimensions
             'label_width' => 80,
             'label_height' => 40,
 
-            // Layout
             'labels_per_row' => 2,
-            'labels_per_column' => 5,
+            'labels_per_column' => 7,
             'label_spacing_horizontal' => 5,
             'label_spacing_vertical' => 5,
 
-            // Barcode Settings
             'barcode_width' => 60,
             'barcode_height' => 20,
+            'barcode_scale' => 2,
+            'barcode_line_width' => 60,
             'barcode_position' => 'center',
-            'show_barcode_value' => true,
 
-            // Attributes
+            'qr_error_correction' => 15,
+            'qr_module_size' => 5,
+
+            'show_barcode_value' => true,
             'show_product_title' => true,
             'show_sku' => true,
             'show_price' => false,
             'show_variant' => true,
             'show_vendor' => false,
             'show_product_type' => false,
+            'show_qr_code' => false,
+            'show_linear_barcode' => true,
 
-            // Typography
             'font_family' => 'Arial',
             'font_size' => 10,
             'font_color' => '#000000',
