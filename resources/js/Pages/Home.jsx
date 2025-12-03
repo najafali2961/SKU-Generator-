@@ -645,7 +645,7 @@ export default function Home({ stats = {}, recentJobs = [] }) {
                         </Link>
 
                         <Link
-                            href="/print-generator"
+                            href="/barcode-printer"
                             style={{ textDecoration: "none" }}
                         >
                             <Card>

@@ -32,4 +32,20 @@ class User extends Authenticatable implements IShopModel
         'password',
         'remember_token',
     ];
+
+
+    public function barcodePrinterSettings()
+    {
+        return $this->hasMany(\App\Models\BarcodePrinterSetting::class);
+    }
+
+    public function labelTemplates()
+    {
+        return $this->hasMany(\App\Models\LabelTemplate::class);
+    }
+
+    public function products()
+    {
+        return $this->hasMany(\App\Models\Product::class);
+    }
 }

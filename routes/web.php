@@ -42,6 +42,21 @@ Route::middleware(['verify.shopify'])->group(function () {
     Route::get('/jobs', [JobController::class, 'index'])->name('jobs.index');
     Route::get('/jobs/{jobLog}', [JobController::class, 'show'])->name('jobs.show');
     Route::get('/jobs/{jobLog}/progress', [JobController::class, 'progress'])->name('jobs.progress');
+
+
+
+
+
+
+
+    // === BARCODE PRINTER – CLEAN & WORKING ===
+    Route::prefix('barcode-printer')->name('barcode-printer.')->group(function () {
+        Route::get('/', [PrinterController::class, 'index'])->name('index');
+        Route::get('/products', [PrinterController::class, 'products'])->name('products');
+        Route::post('/update-setting/{id}', [PrinterController::class, 'updateSetting'])->name('update-setting');
+        Route::post('/store-template', [PrinterController::class, 'storeTemplate'])->name('store-template');
+        Route::post('/generate-pdf', [PrinterController::class, 'generatePdf'])->name('generate-pdf');
+    });
 });
 
 
