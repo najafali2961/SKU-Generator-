@@ -1,9 +1,13 @@
 <?php
+// ==============================================================================
+// FILE 5: app/Http/Controllers/PrinterController.php (COMPLETE REPLACEMENT)
+// ==============================================================================
 
 namespace App\Http\Controllers;
 
 use App\Models\BarcodePrinterSetting;
 use App\Models\LabelTemplate;
+use App\Models\PrinterPreset;
 use App\Models\Variant;
 use App\Services\BarcodeLabelPdfGenerator;
 use Illuminate\Http\Request;
@@ -29,6 +33,12 @@ class PrinterController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->get();
 
+            // Load printer presets
+            $printerPresets = PrinterPreset::where('is_system', true)
+                ->orderBy('brand')
+                ->orderBy('name')
+                ->get();
+
             // Get collections for filters
             $shopify = new \App\Services\ShopifyService($user);
             $collections = $shopify->getCollections() ?? [];
@@ -51,6 +61,7 @@ class PrinterController extends Controller
             return Inertia::render('BarcodePrinter/Index', [
                 'setting' => $setting,
                 'templates' => $templates,
+                'printerPresets' => $printerPresets,
                 'initialCollections' => $collections,
                 'vendors' => $vendors,
                 'productTypes' => $productTypes,
@@ -181,6 +192,10 @@ class PrinterController extends Controller
                 'barcode_type' => 'nullable|string',
                 'barcode_format' => 'nullable|string',
 
+                // QR Code Settings (NEW)
+                'qr_data_source' => 'nullable|string|in:barcode,sku,variant_id,product_url,custom',
+                'qr_custom_format' => 'nullable|string|max:500',
+
                 // Paper Setup
                 'paper_size' => 'nullable|string',
                 'paper_orientation' => 'nullable|in:portrait,landscape',
@@ -232,15 +247,23 @@ class PrinterController extends Controller
                 'title_font_size' => 'nullable|integer|min:8|max:72',
                 'title_bold' => 'nullable|boolean',
 
+                // Text Layout (NEW)
+                'text_layout' => 'nullable|array',
+
                 // Custom Fields
                 'custom_fields' => 'nullable|array',
             ]);
 
             $setting->update($validated);
 
+            Log::info('Settings updated successfully', [
+                'setting_id' => $setting->id,
+                'updated_fields' => array_keys($validated),
+            ]);
+
             return response()->json([
                 'success' => true,
-                'setting' => $setting,
+                'setting' => $setting->fresh(),
                 'message' => 'Settings updated successfully'
             ]);
         } catch (\Exception $e) {
@@ -385,6 +408,25 @@ class PrinterController extends Controller
         }
     }
 
+    // ========== PRINTER PRESET ==========
+
+    public function loadPrinterPreset($id)
+    {
+        try {
+            $preset = PrinterPreset::findOrFail($id);
+
+            return response()->json([
+                'success' => true,
+                'settings' => $preset->settings,
+                'preset' => $preset
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Preset not found'
+            ], 404);
+        }
+    }
+
     // ========== PDF GENERATION ==========
 
     public function generatePdf(Request $request)
@@ -399,7 +441,21 @@ class PrinterController extends Controller
                 'quantity_per_variant' => 'nullable|integer|min:1|max:100',
             ]);
 
-            $setting = $user->barcodePrinterSettings()->findOrFail($validated['setting_id']);
+            // CRITICAL: Refresh settings from database
+            $setting = $user->barcodePrinterSettings()
+                ->findOrFail($validated['setting_id']);
+            $setting->refresh();
+
+            // Log settings being used
+            Log::info('Generating PDF with settings', [
+                'setting_id' => $setting->id,
+                'barcode_width' => $setting->barcode_width,
+                'barcode_height' => $setting->barcode_height,
+                'barcode_type' => $setting->barcode_type,
+                'qr_data_source' => $setting->qr_data_source,
+                'label_width' => $setting->label_width,
+                'label_height' => $setting->label_height,
+            ]);
 
             // Verify all variants belong to user
             $variants = Variant::whereIn('id', $validated['variant_ids'])
@@ -470,6 +526,7 @@ class PrinterController extends Controller
             'label_name' => 'Default Label',
             'barcode_type' => 'code128',
             'barcode_format' => 'linear',
+            'qr_data_source' => 'barcode',
 
             'paper_size' => 'a4',
             'paper_orientation' => 'portrait',

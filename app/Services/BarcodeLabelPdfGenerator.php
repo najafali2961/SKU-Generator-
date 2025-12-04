@@ -1,4 +1,7 @@
 <?php
+// ==============================================================================
+// FILE 6: app/Services/BarcodeLabelPdfGenerator.php (COMPLETE REPLACEMENT)
+// ==============================================================================
 
 namespace App\Services;
 
@@ -56,7 +59,7 @@ class BarcodeLabelPdfGenerator
 
     protected function generateLabelData($variant)
     {
-        $barcodeValue = $this->getBarcodeValue($variant);
+        $barcodeValue = $this->getQrDataValue($variant);
 
         $data = [
             'variant' => $variant,
@@ -85,15 +88,56 @@ class BarcodeLabelPdfGenerator
         return $data;
     }
 
-    protected function getBarcodeValue($variant)
+    protected function getQrDataValue($variant)
     {
-        if (!empty($variant->barcode)) {
-            return $variant->barcode;
+        $dataSource = $this->setting->qr_data_source ?? 'barcode';
+
+        switch ($dataSource) {
+            case 'sku':
+                return $variant->sku ?: "VAR-{$variant->id}";
+
+            case 'variant_id':
+                return (string)$variant->shopify_variant_id;
+
+            case 'product_url':
+                $shop = $variant->product->user->shopify_domain ?? '';
+                $productId = $variant->product->shopify_product_id ?? '';
+                $variantId = $variant->shopify_variant_id ?? '';
+                if ($shop && $productId) {
+                    return "https://{$shop}/products/{$productId}?variant={$variantId}";
+                }
+                return $variant->barcode ?: "VAR-{$variant->id}";
+
+            case 'custom':
+                return $this->parseCustomFormat($variant);
+
+            case 'barcode':
+            default:
+                if (!empty($variant->barcode)) {
+                    return $variant->barcode;
+                }
+                if (!empty($variant->sku)) {
+                    return $variant->sku;
+                }
+                return "VAR-{$variant->id}";
         }
-        if (!empty($variant->sku)) {
-            return $variant->sku;
-        }
-        return "VAR-{$variant->id}";
+    }
+
+    protected function parseCustomFormat($variant)
+    {
+        $format = $this->setting->qr_custom_format ?? '{barcode}';
+
+        $replacements = [
+            '{sku}' => $variant->sku ?? '',
+            '{barcode}' => $variant->barcode ?? '',
+            '{price}' => $variant->price ?? '0.00',
+            '{title}' => $variant->product->title ?? '',
+            '{variant_id}' => $variant->shopify_variant_id ?? '',
+            '{product_id}' => $variant->product->shopify_product_id ?? '',
+            '{vendor}' => $variant->product->vendor ?? '',
+        ];
+
+        return str_replace(array_keys($replacements), array_values($replacements), $format);
     }
 
     protected function getVariantTitle($variant)
@@ -104,11 +148,6 @@ class BarcodeLabelPdfGenerator
             $variant->option3
         ]);
         return !empty($parts) ? implode(' / ', $parts) : 'Default Title';
-    }
-
-    protected function isQrCodeType()
-    {
-        return in_array(strtolower($this->setting->barcode_type), ['qr', 'datamatrix']);
     }
 
     protected function generateBarcode($value)
@@ -157,58 +196,41 @@ class BarcodeLabelPdfGenerator
     {
         switch ($type) {
             case 'ean13':
-                // EAN-13 requires exactly 13 digits
                 $numeric = preg_replace('/[^0-9]/', '', $value);
-                if (strlen($numeric) < 12) {
-                    return false; // Too short
-                }
+                if (strlen($numeric) < 12) return false;
                 return $this->padOrTruncate($value, 13, '0');
 
             case 'ean8':
-                // EAN-8 requires exactly 8 digits
                 $numeric = preg_replace('/[^0-9]/', '', $value);
-                if (strlen($numeric) < 7) {
-                    return false; // Too short
-                }
+                if (strlen($numeric) < 7) return false;
                 return $this->padOrTruncate($value, 8, '0');
 
             case 'upca':
-                // UPC-A requires exactly 12 digits
                 $numeric = preg_replace('/[^0-9]/', '', $value);
-                if (strlen($numeric) < 11) {
-                    return false; // Too short
-                }
+                if (strlen($numeric) < 11) return false;
                 return $this->padOrTruncate($value, 12, '0');
 
             case 'itf14':
-                // ITF-14 requires exactly 14 digits
                 $numeric = preg_replace('/[^0-9]/', '', $value);
-                if (strlen($numeric) < 13) {
-                    return false; // Too short
-                }
+                if (strlen($numeric) < 13) return false;
                 return $this->padOrTruncate($value, 14, '0');
 
             case 'code39':
-                // CODE 39 supports alphanumeric and some special chars
-                // Remove invalid characters
                 $value = strtoupper($value);
                 $value = preg_replace('/[^A-Z0-9\-\.\ \$\/\+\%]/', '', $value);
                 return !empty($value) ? $value : false;
 
             case 'code93':
-                // CODE 93 similar to CODE 39
                 $value = strtoupper($value);
                 $value = preg_replace('/[^A-Z0-9\-\.\ \$\/\+\%]/', '', $value);
                 return !empty($value) ? $value : false;
 
             case 'codabar':
-                // CODABAR only numeric with start/stop chars
                 $numeric = preg_replace('/[^0-9]/', '', $value);
                 return !empty($numeric) ? $numeric : false;
 
             case 'code128':
             default:
-                // CODE 128 supports full ASCII
                 return !empty(trim($value)) ? trim($value) : false;
         }
     }
@@ -231,26 +253,22 @@ class BarcodeLabelPdfGenerator
         try {
             // Calculate QR code size based on label dimensions
             $minSize = min(
-                $this->setting->label_width,
-                $this->setting->label_height
+                $this->setting->barcode_width ?? 30,
+                $this->setting->barcode_height ?? 30
             );
 
-            // QR should be about 60-70% of the smaller dimension
-            $qrSizeMm = $minSize * 0.65;
-            $qrSizePt = $qrSizeMm * self::MM_TO_PT;
+            // Convert mm to pixels (300 DPI)
+            $qrSizePixels = max(200, min(600, (int)($minSize * 11.811)));
 
-            // Convert to pixels (higher resolution for better quality)
-            $size = max(150, min(500, (int)($qrSizePt * 3)));
-
-            $errorLevel = $this->mapQrErrorCorrection($this->setting->qr_error_correction ?? 15);
+            $errorLevel = ErrorCorrectionLevel::Medium;
 
             $result = Builder::create()
                 ->writer(new PngWriter())
                 ->data($value)
                 ->encoding(new Encoding('UTF-8'))
                 ->errorCorrectionLevel($errorLevel)
-                ->size($size)
-                ->margin(10)
+                ->size($qrSizePixels)
+                ->margin(5)
                 ->roundBlockSizeMode(RoundBlockSizeMode::Margin)
                 ->build();
 
@@ -259,10 +277,39 @@ class BarcodeLabelPdfGenerator
             Log::error('QR code generation failed', [
                 'value' => $value,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
             ]);
-            return null;
+
+            return $this->generateQrFallback($value);
         }
+    }
+
+    protected function generateQrFallback($text)
+    {
+        $size = 200;
+        $image = imagecreate($size, $size);
+        $white = imagecolorallocate($image, 255, 255, 255);
+        $black = imagecolorallocate($image, 0, 0, 0);
+
+        imagefilledrectangle($image, 0, 0, $size, $size, $white);
+        imagerectangle($image, 10, 10, $size - 10, $size - 10, $black);
+
+        $fontSize = 3;
+        $lines = str_split($text, 15);
+        $y = ($size / 2) - (count($lines) * imagefontheight($fontSize) / 2);
+
+        foreach ($lines as $line) {
+            $textWidth = imagefontwidth($fontSize) * strlen($line);
+            $x = ($size - $textWidth) / 2;
+            imagestring($image, $fontSize, $x, $y, $line, $black);
+            $y += imagefontheight($fontSize) + 2;
+        }
+
+        ob_start();
+        imagepng($image);
+        $imageData = ob_get_clean();
+        imagedestroy($image);
+
+        return 'data:image/png;base64,' . base64_encode($imageData);
     }
 
     protected function generateFallbackBarcode($text = 'BARCODE ERROR')
@@ -304,17 +351,6 @@ class BarcodeLabelPdfGenerator
         return $typeMap[strtolower($type)] ?? BarcodeGeneratorPNG::TYPE_CODE_128;
     }
 
-    protected function mapQrErrorCorrection($level)
-    {
-        return match ((int)$level) {
-            7 => ErrorCorrectionLevel::Low,
-            15 => ErrorCorrectionLevel::Medium,
-            25 => ErrorCorrectionLevel::Quartile,
-            30 => ErrorCorrectionLevel::High,
-            default => ErrorCorrectionLevel::Medium,
-        };
-    }
-
     protected function renderPdf($labels)
     {
         $html = $this->buildHtml($labels);
@@ -322,8 +358,8 @@ class BarcodeLabelPdfGenerator
         $paperSize = [
             0,
             0,
-            $this->setting->paper_width * self::MM_TO_PT,
-            $this->setting->paper_height * self::MM_TO_PT
+            floatval($this->setting->paper_width) * self::MM_TO_PT,
+            floatval($this->setting->paper_height) * self::MM_TO_PT
         ];
 
         return Pdf::loadHTML($html)
@@ -342,33 +378,34 @@ class BarcodeLabelPdfGenerator
     {
         $s = $this->setting;
 
-        $labelWidth = $s->label_width * self::MM_TO_PT;
-        $labelHeight = $s->label_height * self::MM_TO_PT;
-        $hGap = $s->label_spacing_horizontal * self::MM_TO_PT;
-        $vGap = $s->label_spacing_vertical * self::MM_TO_PT;
+        // Convert all measurements properly
+        $labelWidth = floatval($s->label_width ?? 80) * self::MM_TO_PT;
+        $labelHeight = floatval($s->label_height ?? 40) * self::MM_TO_PT;
+        $hGap = floatval($s->label_spacing_horizontal ?? 5) * self::MM_TO_PT;
+        $vGap = floatval($s->label_spacing_vertical ?? 5) * self::MM_TO_PT;
 
-        $marginTop = ($s->page_margin_top ?? 10) * self::MM_TO_PT;
-        $marginRight = ($s->page_margin_right ?? 10) * self::MM_TO_PT;
-        $marginBottom = ($s->page_margin_bottom ?? 10) * self::MM_TO_PT;
-        $marginLeft = ($s->page_margin_left ?? 10) * self::MM_TO_PT;
+        $marginTop = floatval($s->page_margin_top ?? 10) * self::MM_TO_PT;
+        $marginRight = floatval($s->page_margin_right ?? 10) * self::MM_TO_PT;
+        $marginBottom = floatval($s->page_margin_bottom ?? 10) * self::MM_TO_PT;
+        $marginLeft = floatval($s->page_margin_left ?? 10) * self::MM_TO_PT;
 
-        $barcodeWidth = ($s->barcode_width ?? 30) * self::MM_TO_PT;
-        $barcodeHeight = ($s->barcode_height ?? 15) * self::MM_TO_PT;
+        $barcodeWidth = floatval($s->barcode_width ?? 60) * self::MM_TO_PT;
+        $barcodeHeight = floatval($s->barcode_height ?? 20) * self::MM_TO_PT;
 
         // For QR codes, use the smaller dimension
-        $qrSize = min($barcodeWidth, $barcodeHeight, $labelWidth * 0.7);
+        $qrSize = min($barcodeWidth, $barcodeHeight);
 
-        $cols = max(1, (int)$s->labels_per_row);
-        $rows = max(1, (int)$s->labels_per_column);
+        $cols = max(1, (int)($s->labels_per_row ?? 2));
+        $rows = max(1, (int)($s->labels_per_column ?? 7));
         $labelsPerPage = $cols * $rows;
 
-        $fontSize = max(6, (int)($s->font_size ?? 8));
-        $titleSize = max(7, (int)($s->title_font_size ?? 9));
+        $fontSize = max(6, (int)($s->font_size ?? 10));
+        $titleSize = max(7, (int)($s->title_font_size ?? 12));
         $fontColor = $s->font_color ?? '#000000';
         $fontFamily = $s->font_family ?? 'Arial';
         $titleBold = $s->title_bold ? 'bold' : 'normal';
 
-        $labelPadding = max(2, min(4, $labelHeight * 0.03));
+        $labelPadding = max(2, min(6, $labelHeight * 0.04));
 
         $html = <<<HTML
 <!DOCTYPE html>
@@ -425,7 +462,7 @@ class BarcodeLabelPdfGenerator
 
         .label-header {
             flex-shrink: 0;
-            margin-bottom: 1pt;
+            margin-bottom: 2pt;
         }
 
         .label-body {
@@ -504,10 +541,10 @@ class BarcodeLabelPdfGenerator
         }
 
         .barcode-img {
-            max-width: 100%;
-            max-height: {$barcodeHeight}pt;
-            width: auto;
-            height: auto;
+            max-width: {$barcodeWidth}pt !important;
+            max-height: {$barcodeHeight}pt !important;
+            width: auto !important;
+            height: auto !important;
             display: block;
             margin: 0 auto;
         }
@@ -519,6 +556,8 @@ class BarcodeLabelPdfGenerator
             margin: 0 auto;
             image-rendering: -webkit-optimize-contrast;
             image-rendering: crisp-edges;
+            image-rendering: pixelated;
+            -ms-interpolation-mode: nearest-neighbor;
         }
 
         .barcode-value {
@@ -558,34 +597,44 @@ HTML;
     protected function buildLabelHtml($label)
     {
         $s = $this->setting;
-
         $html = "<div class='label'>";
 
-        // HEADER
+        // Use custom text layout if configured
+        $textLayout = $s->text_layout ?? $this->getDefaultTextLayout();
+
+        // HEADER - Use text layout configuration
         $html .= "<div class='label-header'>";
 
-        if ($s->show_product_title) {
-            $html .= "<div class='product-title'>" .
-                htmlspecialchars($label['product_title']) .
-                "</div>";
-        }
+        if (is_array($textLayout) && !empty($textLayout)) {
+            usort($textLayout, fn($a, $b) => ($a['order'] ?? 0) - ($b['order'] ?? 0));
 
-        if ($s->show_variant && $label['variant_title'] !== 'Default Title') {
-            $html .= "<div class='variant-title'>" .
-                htmlspecialchars($label['variant_title']) .
-                "</div>";
-        }
+            foreach ($textLayout as $line) {
+                if (!($line['enabled'] ?? true)) continue;
 
-        if ($s->show_sku && !empty($label['sku'])) {
-            $html .= "<div class='sku'>SKU: " .
-                htmlspecialchars($label['sku']) .
-                "</div>";
-        }
+                $fontSize = $line['size'] ?? 10;
+                $fontWeight = ($line['bold'] ?? false) ? 'bold' : 'normal';
+                $value = $this->getFieldValue($label, $line['field']);
 
-        if ($s->show_price && !empty($label['price'])) {
-            $html .= "<div class='price'>$" .
-                number_format((float)$label['price'], 2) .
-                "</div>";
+                if (empty($value)) continue;
+
+                $html .= "<div style='font-size: {$fontSize}pt; font-weight: {$fontWeight}; line-height: 1.2; margin-bottom: 1pt;'>";
+                $html .= htmlspecialchars($value);
+                $html .= "</div>";
+            }
+        } else {
+            // Fallback to old logic
+            if ($s->show_product_title) {
+                $html .= "<div class='product-title'>" . htmlspecialchars($label['product_title']) . "</div>";
+            }
+            if ($s->show_variant && $label['variant_title'] !== 'Default Title') {
+                $html .= "<div class='variant-title'>" . htmlspecialchars($label['variant_title']) . "</div>";
+            }
+            if ($s->show_sku && !empty($label['sku'])) {
+                $html .= "<div class='sku'>SKU: " . htmlspecialchars($label['sku']) . "</div>";
+            }
+            if ($s->show_price && !empty($label['price'])) {
+                $html .= "<div class='price'>$" . number_format((float)$label['price'], 2) . "</div>";
+            }
         }
 
         $html .= "</div>";
@@ -597,24 +646,47 @@ HTML;
 
         // FOOTER
         $html .= "<div class='label-footer'>";
-
         if ($s->show_vendor && !empty($label['vendor'])) {
-            $html .= "<div class='vendor'>" .
-                htmlspecialchars($label['vendor']) .
-                "</div>";
+            $html .= "<div class='vendor'>" . htmlspecialchars($label['vendor']) . "</div>";
         }
-
         if ($s->show_product_type && !empty($label['product_type'])) {
-            $html .= "<div class='product-type'>" .
-                htmlspecialchars($label['product_type']) .
-                "</div>";
+            $html .= "<div class='product-type'>" . htmlspecialchars($label['product_type']) . "</div>";
         }
-
         $html .= "</div>";
 
         $html .= "</div>";
 
         return $html;
+    }
+
+    protected function getDefaultTextLayout()
+    {
+        return [
+            ['field' => 'title', 'size' => 12, 'bold' => true, 'enabled' => true, 'order' => 1],
+            ['field' => 'variant', 'size' => 10, 'bold' => false, 'enabled' => true, 'order' => 2],
+            ['field' => 'sku', 'size' => 9, 'bold' => false, 'enabled' => true, 'order' => 3],
+            ['field' => 'price', 'size' => 11, 'bold' => true, 'enabled' => false, 'order' => 4],
+        ];
+    }
+
+    protected function getFieldValue($label, $field)
+    {
+        switch ($field) {
+            case 'title':
+                return $label['product_title'];
+            case 'variant':
+                return $label['variant_title'] !== 'Default Title' ? $label['variant_title'] : '';
+            case 'sku':
+                return !empty($label['sku']) ? "SKU: {$label['sku']}" : '';
+            case 'price':
+                return !empty($label['price']) ? "$" . number_format((float)$label['price'], 2) : '';
+            case 'vendor':
+                return $label['vendor'] ?? '';
+            case 'product_type':
+                return $label['product_type'] ?? '';
+            default:
+                return '';
+        }
     }
 
     protected function buildBarcodeHtml($label)
@@ -629,9 +701,11 @@ HTML;
             $html .= "<img src='{$label['qr_code']}' class='qr-code' alt='QR Code' />";
 
             if ($showValue) {
-                $html .= "<div class='barcode-value'>" .
-                    htmlspecialchars($label['barcode_value']) .
-                    "</div>";
+                $displayValue = $label['barcode_value'];
+                if (strlen($displayValue) > 30) {
+                    $displayValue = substr($displayValue, 0, 30) . '...';
+                }
+                $html .= "<div class='barcode-value'>" . htmlspecialchars($displayValue) . "</div>";
             }
         }
         // Show linear barcode
@@ -639,9 +713,7 @@ HTML;
             $html .= "<img src='{$label['barcode_html']}' class='barcode-img' alt='Barcode' />";
 
             if ($showValue) {
-                $html .= "<div class='barcode-value'>" .
-                    htmlspecialchars($label['barcode_value']) .
-                    "</div>";
+                $html .= "<div class='barcode-value'>" . htmlspecialchars($label['barcode_value']) . "</div>";
             }
         }
         // Fallback text

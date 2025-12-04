@@ -1,4 +1,7 @@
-// resources/js/Pages/BarcodePrinter/Index.jsx
+// ==============================================================================
+// FILE 8: resources/js/Pages/BarcodePrinter/Index.jsx (COMPLETE REPLACEMENT)
+// ==============================================================================
+
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 
@@ -9,6 +12,7 @@ import PrinterVariantTable from "./printer/PrinterVariantTable";
 export default function BarcodePrinterIndex({
     setting,
     templates: initialTemplates = [],
+    printerPresets: initialPresets = [],
     initialCollections = [],
 }) {
     const [variants, setVariants] = useState([]);
@@ -18,6 +22,7 @@ export default function BarcodePrinterIndex({
     const [selected, setSelected] = useState(new Set());
     const [printing, setPrinting] = useState(false);
     const [templates, setTemplates] = useState(initialTemplates);
+    const [printerPresets] = useState(initialPresets);
 
     const [page, setPage] = useState(1);
     const [activeTab, setActiveTab] = useState("all");
@@ -30,6 +35,10 @@ export default function BarcodePrinterIndex({
         // Label Design
         label_name: setting?.label_name || "Default Label",
         barcode_type: setting?.barcode_type || "code128",
+
+        // QR Data Source (NEW)
+        qr_data_source: setting?.qr_data_source || "barcode",
+        qr_custom_format: setting?.qr_custom_format || "",
 
         // Paper Setup
         paper_size: setting?.paper_size || "a4",
@@ -74,6 +83,9 @@ export default function BarcodePrinterIndex({
         font_color: setting?.font_color || "#000000",
         title_font_size: Number(setting?.title_font_size) || 12,
         title_bold: setting?.title_bold !== false,
+
+        // Text Layout (NEW)
+        text_layout: setting?.text_layout || null,
 
         // Quantity
         quantity_per_variant: 1,
@@ -161,11 +173,14 @@ export default function BarcodePrinterIndex({
         try {
             setPrinting(true);
 
-            // Save config first
+            // Save config first - CRITICAL FIX
             await axios.post(
                 `/barcode-printer/update-setting/${setting.id}`,
                 config
             );
+
+            // Small delay to ensure database write completes
+            await new Promise((resolve) => setTimeout(resolve, 300));
 
             // Generate PDF
             const res = await axios.post(
@@ -208,6 +223,7 @@ export default function BarcodePrinterIndex({
                             handleChange={handleChange}
                             settingId={setting.id}
                             templates={templates}
+                            printerPresets={printerPresets}
                             onTemplatesUpdate={handleTemplatesUpdate}
                         />
                     </div>

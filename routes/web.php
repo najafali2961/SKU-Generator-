@@ -40,7 +40,6 @@ Route::middleware(['verify.shopify'])->group(function () {
     Route::get('/jobs/{jobLog}', [JobController::class, 'show'])->name('jobs.show');
     Route::get('/jobs/{jobLog}/progress', [JobController::class, 'progress'])->name('jobs.progress');
 
-    // === BARCODE PRINTER – WITH TEMPLATE MANAGEMENT ===
     Route::prefix('barcode-printer')->name('barcode-printer.')->group(function () {
         // Main pages
         Route::get('/', [PrinterController::class, 'index'])->name('index');
@@ -55,6 +54,9 @@ Route::middleware(['verify.shopify'])->group(function () {
         Route::post('/update-template/{id}', [PrinterController::class, 'updateTemplate'])->name('update-template');
         Route::delete('/delete-template/{id}', [PrinterController::class, 'deleteTemplate'])->name('delete-template');
         Route::post('/set-default-template/{id}', [PrinterController::class, 'setDefaultTemplate'])->name('set-default-template');
+
+        // Printer Presets (NEW)
+        Route::get('/load-printer-preset/{id}', [PrinterController::class, 'loadPrinterPreset'])->name('load-printer-preset');
 
         // PDF Generation
         Route::post('/generate-pdf', [PrinterController::class, 'generatePdf'])->name('generate-pdf');

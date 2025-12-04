@@ -1,4 +1,8 @@
-// resources/js/Pages/BarcodePrinter/components/printer/PrinterSidebar.jsx
+// ==============================================================================
+// FILE 9: resources/js/Pages/BarcodePrinter/printer/PrinterSidebar.jsx
+// PART 1 OF 2 - IMPORTS AND COMPONENT START
+// ==============================================================================
+
 import React, { useState } from "react";
 import {
     Card,
@@ -36,9 +40,11 @@ export default function PrinterSidebar({
     handleChange,
     settingId,
     templates = [],
+    printerPresets = [],
     onTemplatesUpdate,
 }) {
     const [expandedSections, setExpandedSections] = useState({
+        printerSetup: true,
         templates: true,
         paper: true,
         label: true,
@@ -92,6 +98,161 @@ export default function PrinterSidebar({
         </button>
     );
 
+    // Load Printer Preset
+    const loadPrinterPreset = async (presetId) => {
+        if (!presetId || presetId === "custom") return;
+
+        try {
+            const preset = printerPresets.find(
+                (p) => p.id === parseInt(presetId)
+            );
+            if (!preset) return;
+
+            // Apply all settings from preset
+            Object.entries(preset.settings).forEach(([key, value]) => {
+                handleChange(key, value);
+            });
+
+            alert(`Preset "${preset.name}" loaded successfully!`);
+        } catch (error) {
+            console.error("Failed to load preset:", error);
+            alert("Failed to load printer preset");
+        }
+    };
+
+    // Auto-size label content
+    const autoSizeLabelContent = () => {
+        const labelArea = config.label_width * config.label_height;
+
+        // Smart font sizing based on label size
+        let baseFontSize, titleFontSize, barcodeHeight;
+
+        if (labelArea < 1500) {
+            // Small labels (< 30x50mm)
+            baseFontSize = 7;
+            titleFontSize = 8;
+            barcodeHeight = Math.min(12, config.label_height * 0.3);
+        } else if (labelArea < 3500) {
+            // Medium labels
+            baseFontSize = 9;
+            titleFontSize = 11;
+            barcodeHeight = Math.min(18, config.label_height * 0.35);
+        } else {
+            // Large labels
+            baseFontSize = 11;
+            titleFontSize = 14;
+            barcodeHeight = Math.min(25, config.label_height * 0.4);
+        }
+
+        // Barcode width should be 70-80% of label width
+        const barcodeWidth = config.label_width * 0.75;
+
+        handleChange("font_size", baseFontSize);
+        handleChange("title_font_size", titleFontSize);
+        handleChange("barcode_width", Math.round(barcodeWidth));
+        handleChange("barcode_height", Math.round(barcodeHeight));
+
+        alert("Content sizes optimized for your label dimensions!");
+    };
+
+    // Grid Calculator Component
+    const LabelGridCalculator = ({ config }) => {
+        const calculateFit = () => {
+            const availableWidth =
+                config.paper_width - config.margin_left - config.margin_right;
+            const availableHeight =
+                config.paper_height - config.margin_top - config.margin_bottom;
+
+            const labelPlusGapWidth =
+                config.label_width + config.label_spacing_horizontal;
+            const labelPlusGapHeight =
+                config.label_height + config.label_spacing_vertical;
+
+            const maxCols = Math.floor(
+                (availableWidth + config.label_spacing_horizontal) /
+                    labelPlusGapWidth
+            );
+            const maxRows = Math.floor(
+                (availableHeight + config.label_spacing_vertical) /
+                    labelPlusGapHeight
+            );
+
+            const totalLabelsPerPage =
+                config.labels_per_row * config.labels_per_column;
+            const willFit =
+                config.labels_per_row <= maxCols &&
+                config.labels_per_column <= maxRows;
+
+            return { maxCols, maxRows, totalLabelsPerPage, willFit };
+        };
+
+        const { maxCols, maxRows, totalLabelsPerPage, willFit } =
+            calculateFit();
+
+        return (
+            <Box
+                padding="300"
+                background={
+                    willFit
+                        ? "bg-surface-success-subdued"
+                        : "bg-surface-critical-subdued"
+                }
+                borderRadius="200"
+            >
+                <BlockStack gap="200">
+                    <InlineStack align="space-between">
+                        <Text variant="bodySm" fontWeight="semibold">
+                            Grid Layout
+                        </Text>
+                        {willFit ? (
+                            <Badge tone="success">✓ Will Fit</Badge>
+                        ) : (
+                            <Badge tone="critical">⚠ Too Large</Badge>
+                        )}
+                    </InlineStack>
+
+                    <Text variant="bodySm" tone="subdued">
+                        {config.labels_per_row} × {config.labels_per_column} ={" "}
+                        {totalLabelsPerPage} labels/page
+                    </Text>
+
+                    {!willFit && (
+                        <Text variant="bodySm" tone="critical">
+                            Maximum that will fit: {maxCols} × {maxRows}
+                        </Text>
+                    )}
+
+                    <div
+                        style={{
+                            display: "grid",
+                            gridTemplateColumns: `repeat(${Math.min(
+                                config.labels_per_row,
+                                6
+                            )}, 1fr)`,
+                            gap: "2px",
+                            marginTop: "8px",
+                        }}
+                    >
+                        {Array.from({
+                            length: Math.min(totalLabelsPerPage, 24),
+                        }).map((_, i) => (
+                            <div
+                                key={i}
+                                style={{
+                                    aspectRatio: `${config.label_width}/${config.label_height}`,
+                                    border: "1px solid currentColor",
+                                    borderRadius: "2px",
+                                    opacity: willFit ? 1 : 0.5,
+                                    minHeight: "8px",
+                                }}
+                            />
+                        ))}
+                    </div>
+                </BlockStack>
+            </Box>
+        );
+    };
+
     // Template Management Functions
     const handleSaveTemplate = async () => {
         if (!templateName.trim()) {
@@ -117,7 +278,6 @@ export default function PrinterSidebar({
                 setTemplateDescription("");
                 setSetAsDefault(false);
 
-                // Refresh templates
                 if (onTemplatesUpdate) {
                     onTemplatesUpdate();
                 }
@@ -139,7 +299,6 @@ export default function PrinterSidebar({
             );
 
             if (response.data.success) {
-                // Load all settings from template
                 Object.entries(response.data.settings).forEach(
                     ([key, value]) => {
                         handleChange(key, value);
@@ -253,6 +412,78 @@ export default function PrinterSidebar({
 
     return (
         <BlockStack gap="400">
+            {/* PRINTER SETUP */}
+            <Card>
+                <Box padding="400">
+                    <BlockStack gap="400">
+                        <Text variant="headingMd" as="h3">
+                            🖨️ Printer Setup
+                        </Text>
+
+                        <Select
+                            label="Select Your Printer Model"
+                            placeholder="Choose a printer..."
+                            value=""
+                            onChange={(presetId) => loadPrinterPreset(presetId)}
+                            options={[
+                                {
+                                    label: "--- Thermal Printers ---",
+                                    value: "",
+                                    disabled: true,
+                                },
+                                ...printerPresets
+                                    .filter((p) => p.type === "thermal")
+                                    .map((p) => ({
+                                        label: `  ${p.name}`,
+                                        value: p.id.toString(),
+                                    })),
+                                {
+                                    label: "--- Sheet Label Printers ---",
+                                    value: "",
+                                    disabled: true,
+                                },
+                                ...printerPresets
+                                    .filter((p) => p.type === "laser")
+                                    .map((p) => ({
+                                        label: `  ${p.name}`,
+                                        value: p.id.toString(),
+                                    })),
+                                {
+                                    label: "--- Custom ---",
+                                    value: "",
+                                    disabled: true,
+                                },
+                                { label: "  Custom Setup", value: "custom" },
+                            ]}
+                        />
+
+                        <Box
+                            padding="300"
+                            background="bg-surface-info-subdued"
+                            borderRadius="200"
+                        >
+                            <BlockStack gap="200">
+                                <Text variant="bodyMd" fontWeight="semibold">
+                                    💡 Printer Tips
+                                </Text>
+                                <Text variant="bodySm">
+                                    • <strong>Thermal printers:</strong> Use
+                                    margins of 0-3mm
+                                </Text>
+                                <Text variant="bodySm">
+                                    • <strong>Laser printers:</strong> Use
+                                    margins of 5-10mm
+                                </Text>
+                                <Text variant="bodySm">
+                                    • <strong>Test first:</strong> Print 1 label
+                                    before bulk printing
+                                </Text>
+                            </BlockStack>
+                        </Box>
+                    </BlockStack>
+                </Box>
+            </Card>
+
             {/* TEMPLATE MANAGEMENT */}
             <Card>
                 <Box padding="400">
@@ -398,10 +629,6 @@ export default function PrinterSidebar({
                         <Collapsible
                             open={expandedSections.paper}
                             id="paper-section"
-                            transition={{
-                                duration: "200ms",
-                                timingFunction: "ease-in-out",
-                            }}
                         >
                             <BlockStack gap="400">
                                 <FormLayout>
@@ -673,6 +900,16 @@ export default function PrinterSidebar({
                                             autoComplete="off"
                                         />
                                     </FormLayout.Group>
+
+                                    <LabelGridCalculator config={config} />
+
+                                    <Button
+                                        fullWidth
+                                        size="slim"
+                                        onClick={autoSizeLabelContent}
+                                    >
+                                        🎯 Auto-Size Content
+                                    </Button>
                                 </FormLayout>
                             </BlockStack>
                         </Collapsible>
@@ -720,6 +957,71 @@ export default function PrinterSidebar({
                                             },
                                         ]}
                                     />
+
+                                    {/* QR DATA SOURCE - NEW FEATURE */}
+                                    {(config.barcode_type === "qr" ||
+                                        config.barcode_type ===
+                                            "datamatrix") && (
+                                        <>
+                                            <Select
+                                                label="QR Code Data Source"
+                                                value={
+                                                    config.qr_data_source ||
+                                                    "barcode"
+                                                }
+                                                onChange={(v) =>
+                                                    handleChange(
+                                                        "qr_data_source",
+                                                        v
+                                                    )
+                                                }
+                                                options={[
+                                                    {
+                                                        label: "Barcode (Primary)",
+                                                        value: "barcode",
+                                                    },
+                                                    {
+                                                        label: "SKU",
+                                                        value: "sku",
+                                                    },
+                                                    {
+                                                        label: "Variant ID",
+                                                        value: "variant_id",
+                                                    },
+                                                    {
+                                                        label: "Product Shopify URL",
+                                                        value: "product_url",
+                                                    },
+                                                    {
+                                                        label: "Custom Format",
+                                                        value: "custom",
+                                                    },
+                                                ]}
+                                                helpText="Choose what data the QR code should contain"
+                                            />
+
+                                            {config.qr_data_source ===
+                                                "custom" && (
+                                                <TextField
+                                                    label="Custom QR Format"
+                                                    value={
+                                                        config.qr_custom_format ||
+                                                        ""
+                                                    }
+                                                    onChange={(v) =>
+                                                        handleChange(
+                                                            "qr_custom_format",
+                                                            v
+                                                        )
+                                                    }
+                                                    multiline={2}
+                                                    placeholder="e.g., SKU:{sku}|PRICE:{price}"
+                                                    helpText="Use {sku}, {barcode}, {price}, {title}, {variant_id}"
+                                                    autoComplete="off"
+                                                />
+                                            )}
+                                        </>
+                                    )}
 
                                     <FormLayout.Group>
                                         <TextField
@@ -958,7 +1260,7 @@ export default function PrinterSidebar({
                 </Box>
             </Card>
 
-            {/* SAVE TEMPLATE MODAL */}
+            {/* MODALS */}
             <Modal
                 open={showSaveModal}
                 onClose={() => {
@@ -1011,7 +1313,6 @@ export default function PrinterSidebar({
                 </Modal.Section>
             </Modal>
 
-            {/* EDIT TEMPLATE MODAL */}
             <Modal
                 open={showEditModal}
                 onClose={() => {
@@ -1064,7 +1365,6 @@ export default function PrinterSidebar({
                 </Modal.Section>
             </Modal>
 
-            {/* DELETE TEMPLATE MODAL */}
             <Modal
                 open={showDeleteModal}
                 onClose={() => {
