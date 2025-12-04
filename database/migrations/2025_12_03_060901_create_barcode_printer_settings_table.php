@@ -48,7 +48,7 @@ return new class extends Migration
             // QR Code Specific
             $table->integer('qr_error_correction')->default(7); // 7%, 15%, 25%, 30%
             $table->integer('qr_module_size')->default(5);
-
+            $table->text('qr_custom_format')->nullable();
             // Text/Font Settings
             $table->json('display_attributes')->default('[]'); // Fields to display on label
             $table->string('font_family')->default('Arial');
@@ -69,6 +69,9 @@ return new class extends Migration
             $table->boolean('include_checksum')->default(true);
             $table->boolean('print_barcode_value')->default(true);
 
+            $table->boolean('show_vendor')->default(false);
+            $table->boolean('show_product_type')->default(false);
+            $table->json('text_layout')->nullable();
             $table->timestamps();
         });
     }

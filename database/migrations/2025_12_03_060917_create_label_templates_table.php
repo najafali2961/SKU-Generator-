@@ -18,6 +18,7 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->json('settings'); // Full settings configuration
             $table->boolean('is_default')->default(false);
+            $table->softDeletes(); // Adds deleted_at
             $table->timestamps();
         });
     }
@@ -27,6 +28,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::table('label_templates', function (Blueprint $table) {
+            $table->dropColumn('deleted_at');
+        });
+
         Schema::dropIfExists('label_templates');
     }
 };

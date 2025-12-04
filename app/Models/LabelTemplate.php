@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class LabelTemplate extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'user_id',
@@ -23,7 +24,7 @@ class LabelTemplate extends Model
     ];
 
     /**
-     * Get the user that owns the template
+     * Get the user that owns the template.
      */
     public function user()
     {
@@ -31,7 +32,7 @@ class LabelTemplate extends Model
     }
 
     /**
-     * Scope to get only default templates
+     * Scope to get only default templates.
      */
     public function scopeDefault($query)
     {
@@ -39,16 +40,14 @@ class LabelTemplate extends Model
     }
 
     /**
-     * Set this template as default (unsets others)
+     * Set this template as default (unsets others).
      */
     public function setAsDefault()
     {
-        // Unset all other defaults for this user
         self::where('user_id', $this->user_id)
             ->where('id', '!=', $this->id)
             ->update(['is_default' => false]);
 
-        // Set this as default
         $this->update(['is_default' => true]);
     }
 }

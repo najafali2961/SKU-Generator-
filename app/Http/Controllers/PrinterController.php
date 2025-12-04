@@ -10,6 +10,7 @@ use App\Models\LabelTemplate;
 use App\Models\PrinterPreset;
 use App\Models\Variant;
 use App\Services\BarcodeLabelPdfGenerator;
+use App\Services\ShopifyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -40,7 +41,7 @@ class PrinterController extends Controller
                 ->get();
 
             // Get collections for filters
-            $shopify = new \App\Services\ShopifyService($user);
+            $shopify = new ShopifyService($user);
             $collections = $shopify->getCollections() ?? [];
 
             // Get unique vendors and product types for filters
