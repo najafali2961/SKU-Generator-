@@ -456,38 +456,14 @@ export default function PrinterSidebar({
                                 { label: "  Custom Setup", value: "custom" },
                             ]}
                         />
-
-                        <Box
-                            padding="300"
-                            background="bg-surface-info-subdued"
-                            borderRadius="200"
-                        >
-                            <BlockStack gap="200">
-                                <Text variant="bodyMd" fontWeight="semibold">
-                                    💡 Printer Tips
-                                </Text>
-                                <Text variant="bodySm">
-                                    • <strong>Thermal printers:</strong> Use
-                                    margins of 0-3mm
-                                </Text>
-                                <Text variant="bodySm">
-                                    • <strong>Laser printers:</strong> Use
-                                    margins of 5-10mm
-                                </Text>
-                                <Text variant="bodySm">
-                                    • <strong>Test first:</strong> Print 1 label
-                                    before bulk printing
-                                </Text>
-                            </BlockStack>
-                        </Box>
                     </BlockStack>
                 </Box>
             </Card>
 
             {/* TEMPLATE MANAGEMENT */}
             <Card>
-                <Box padding="400">
-                    <BlockStack gap="400">
+                <Box padding="300">
+                    <BlockStack gap="300">
                         <InlineStack align="space-between" blockAlign="center">
                             <SectionHeader
                                 title="📋 Templates"
