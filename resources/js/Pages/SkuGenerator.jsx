@@ -166,7 +166,52 @@ export default function SkuGenerator({ initialCollections = [] }) {
         setDuplicatePage(1);
         setSelected(new Set());
     };
+    const handleExport = () => {
+        if (preview.length === 0) {
+            alert("No SKUs to export yet!");
+            return;
+        }
 
+        const headers = [
+            "Variant ID",
+            "Product Title",
+            "Variant Title",
+            "Current SKU",
+            "New SKU",
+            "Vendor",
+            "Product Type",
+            "Collections",
+        ];
+
+        const rows = preview.map((item) => [
+            item.id || "",
+            `"${(item.title || "").replace(/"/g, '""')}"`,
+            `"${(item.variant_title || "").replace(/"/g, '""')}"`,
+            item.current_sku || "",
+            item.new_sku || "",
+            `"${(item.vendor || "").replace(/"/g, '""')}"`,
+            `"${(item.type || "").replace(/"/g, '""')}"`,
+            `"${(item.collections || []).join(", ")}"`,
+        ]);
+
+        const csvContent = [headers, ...rows]
+            .map((row) => row.join(","))
+            .join("\n");
+
+        const blob = new Blob([csvContent], {
+            type: "text/csv;charset=utf-8;",
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `skus-export-${new Date()
+            .toISOString()
+            .slice(0, 10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
     const mediaUrl = (item) => item.image || null;
 
     return (
@@ -174,7 +219,7 @@ export default function SkuGenerator({ initialCollections = [] }) {
             <div className="p-6 mx-auto max-w-7xl">
                 <SkuHeader
                     onPreset={applySmartPreset}
-                    onExport={() => alert("Export CSV coming soon!")}
+                    onExport={handleExport}
                 />
 
                 <div className="grid gap-6 mt-6 lg:grid-cols-12">
