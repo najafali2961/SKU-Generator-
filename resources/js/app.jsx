@@ -113,7 +113,7 @@ createInertiaApp({
                         }}
                         rel="sku-generator"
                     >
-                        SKU Generator
+                        Generator SKU
                     </a>
                     <a
                         href="/barcode-generator"
@@ -123,7 +123,7 @@ createInertiaApp({
                         }}
                         rel="barcode-generator"
                     >
-                        Barcode Generator
+                        Generator Barcode
                     </a>
                     <a
                         href="/barcode-import"
@@ -140,6 +140,22 @@ createInertiaApp({
                         }}
                     >
                         Import Barcodes
+                    </a>
+                    <a
+                        href="/barcode-printer"
+                        onClick={(event) => {
+                            event.preventDefault();
+                            router.visit("/barcode-printer");
+                        }}
+                        rel="barcode-printer"
+                        style={{
+                            fontWeight:
+                                window.location.pathname === "/barcode-printer"
+                                    ? "bold"
+                                    : "normal",
+                        }}
+                    >
+                        Print Labels
                     </a>
                     <a
                         href="/jobs"
