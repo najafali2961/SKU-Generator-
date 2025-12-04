@@ -1,6 +1,6 @@
 <?php
 // ==============================================================================
-// FILE 6: app/Services/BarcodeLabelPdfGenerator.php (COMPLETE REPLACEMENT)
+// FILE: app/Services/BarcodeLabelPdfGenerator.php (FIXED FOR ENDROID 5.0.7)
 // ==============================================================================
 
 namespace App\Services;
@@ -10,7 +10,7 @@ use App\Models\Variant;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Encoding\Encoding;
-use Endroid\QrCode\ErrorCorrectionLevel;
+use Endroid\QrCode\ErrorCorrectionLevel; // Correct import for v5.x
 use Endroid\QrCode\RoundBlockSizeMode;
 use Endroid\QrCode\Writer\PngWriter;
 use Picqer\Barcode\BarcodeGeneratorPNG;
@@ -260,6 +260,8 @@ class BarcodeLabelPdfGenerator
             // Convert mm to pixels (300 DPI)
             $qrSizePixels = max(200, min(600, (int)($minSize * 11.811)));
 
+            // FIX: In Endroid 5.x, ErrorCorrectionLevel is an Enum
+            // Use the enum case directly instead of Medium constant
             $errorLevel = ErrorCorrectionLevel::Medium;
 
             $result = Builder::create()
