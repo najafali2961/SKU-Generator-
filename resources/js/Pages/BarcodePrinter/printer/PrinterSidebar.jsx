@@ -112,8 +112,6 @@ export default function PrinterSidebar({
             Object.entries(preset.settings).forEach(([key, value]) => {
                 handleChange(key, value);
             });
-
-            alert(`Preset "${preset.name}" loaded successfully!`);
         } catch (error) {
             console.error("Failed to load preset:", error);
             alert("Failed to load printer preset");
@@ -151,8 +149,6 @@ export default function PrinterSidebar({
         handleChange("title_font_size", titleFontSize);
         handleChange("barcode_width", Math.round(barcodeWidth));
         handleChange("barcode_height", Math.round(barcodeHeight));
-
-        alert("Content sizes optimized for your label dimensions!");
     };
 
     // Grid Calculator Component
@@ -281,8 +277,6 @@ export default function PrinterSidebar({
                 if (onTemplatesUpdate) {
                     onTemplatesUpdate();
                 }
-
-                alert("Template saved successfully!");
             }
         } catch (error) {
             console.error("Failed to save template:", error);
@@ -304,8 +298,6 @@ export default function PrinterSidebar({
                         handleChange(key, value);
                     }
                 );
-
-                alert(`Template "${template.name}" loaded successfully!`);
             }
         } catch (error) {
             console.error("Failed to load template:", error);
@@ -368,8 +360,6 @@ export default function PrinterSidebar({
                 if (onTemplatesUpdate) {
                     onTemplatesUpdate();
                 }
-
-                alert("Template deleted successfully!");
             }
         } catch (error) {
             console.error("Failed to delete template:", error);
@@ -389,7 +379,6 @@ export default function PrinterSidebar({
                 if (onTemplatesUpdate) {
                     onTemplatesUpdate();
                 }
-                alert("Default template set successfully!");
             }
         } catch (error) {
             console.error("Failed to set default template:", error);

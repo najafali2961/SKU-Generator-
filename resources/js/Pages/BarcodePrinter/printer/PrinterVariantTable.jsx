@@ -245,152 +245,152 @@ export default function PrinterVariantTable({
     };
 
     // Generate barcode preview for table rows and modal
-    const generateBarcodePreview = (variant) => {
-        const barcode = variant.barcode || variant.sku || "000000000000";
-        const isQRType =
-            config.barcode_type === "qr" ||
-            config.barcode_type === "datamatrix";
-        const qrSize =
-            Math.min(config.barcode_width, config.barcode_height) * 3.78;
+    // const generateBarcodePreview = (variant) => {
+    //     const barcode = variant.barcode || variant.sku || "000000000000";
+    //     const isQRType =
+    //         config.barcode_type === "qr" ||
+    //         config.barcode_type === "datamatrix";
+    //     const qrSize =
+    //         Math.min(config.barcode_width, config.barcode_height) * 3.78;
 
-        return (
-            <div
-                style={{
-                    width: `${config.label_width}mm`,
-                    height: `${config.label_height}mm`,
-                    border: "1px solid #e1e3e5",
-                    padding: "8px",
-                    fontSize: `${config.font_size}px`,
-                    fontFamily: config.font_family,
-                    color: config.font_color,
-                    background: "white",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                    transform: "scale(0.7)",
-                    transformOrigin: "left center",
-                }}
-            >
-                <div>
-                    {config.show_title && (
-                        <div
-                            style={{
-                                fontWeight: config.title_bold
-                                    ? "bold"
-                                    : "normal",
-                                fontSize: `${config.title_font_size}px`,
-                                marginBottom: "2px",
-                                lineHeight: "1.2",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                            }}
-                        >
-                            {variant.product_title}
-                        </div>
-                    )}
+    //     return (
+    //         <div
+    //             style={{
+    //                 width: `${config.label_width}mm`,
+    //                 height: `${config.label_height}mm`,
+    //                 border: "1px solid #e1e3e5",
+    //                 padding: "8px",
+    //                 fontSize: `${config.font_size}px`,
+    //                 fontFamily: config.font_family,
+    //                 color: config.font_color,
+    //                 background: "white",
+    //                 display: "flex",
+    //                 flexDirection: "column",
+    //                 justifyContent: "space-between",
+    //                 boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+    //                 transform: "scale(0.7)",
+    //                 transformOrigin: "left center",
+    //             }}
+    //         >
+    //             <div>
+    //                 {config.show_title && (
+    //                     <div
+    //                         style={{
+    //                             fontWeight: config.title_bold
+    //                                 ? "bold"
+    //                                 : "normal",
+    //                             fontSize: `${config.title_font_size}px`,
+    //                             marginBottom: "2px",
+    //                             lineHeight: "1.2",
+    //                             overflow: "hidden",
+    //                             textOverflow: "ellipsis",
+    //                             whiteSpace: "nowrap",
+    //                         }}
+    //                     >
+    //                         {variant.product_title}
+    //                     </div>
+    //                 )}
 
-                    {config.show_variant &&
-                        variant.title !== "Default Title" && (
-                            <div
-                                style={{
-                                    fontSize: `${config.font_size - 1}px`,
-                                    opacity: 0.8,
-                                }}
-                            >
-                                {variant.title}
-                            </div>
-                        )}
+    //                 {config.show_variant &&
+    //                     variant.title !== "Default Title" && (
+    //                         <div
+    //                             style={{
+    //                                 fontSize: `${config.font_size - 1}px`,
+    //                                 opacity: 0.8,
+    //                             }}
+    //                         >
+    //                             {variant.title}
+    //                         </div>
+    //                     )}
 
-                    {config.show_vendor && variant.vendor && (
-                        <div
-                            style={{
-                                fontSize: `${config.font_size - 1}px`,
-                                opacity: 0.7,
-                            }}
-                        >
-                            {variant.vendor}
-                        </div>
-                    )}
+    //                 {config.show_vendor && variant.vendor && (
+    //                     <div
+    //                         style={{
+    //                             fontSize: `${config.font_size - 1}px`,
+    //                             opacity: 0.7,
+    //                         }}
+    //                     >
+    //                         {variant.vendor}
+    //                     </div>
+    //                 )}
 
-                    {config.show_sku && variant.sku && (
-                        <div
-                            style={{
-                                fontSize: `${config.font_size - 1}px`,
-                                fontFamily: "monospace",
-                            }}
-                        >
-                            SKU: {variant.sku}
-                        </div>
-                    )}
+    //                 {config.show_sku && variant.sku && (
+    //                     <div
+    //                         style={{
+    //                             fontSize: `${config.font_size - 1}px`,
+    //                             fontFamily: "monospace",
+    //                         }}
+    //                     >
+    //                         SKU: {variant.sku}
+    //                     </div>
+    //                 )}
 
-                    {config.show_price && (
-                        <div
-                            style={{
-                                fontWeight: "bold",
-                                fontSize: `${config.title_font_size}px`,
-                            }}
-                        >
-                            ${variant.price}
-                        </div>
-                    )}
-                </div>
+    //                 {config.show_price && (
+    //                     <div
+    //                         style={{
+    //                             fontWeight: "bold",
+    //                             fontSize: `${config.title_font_size}px`,
+    //                         }}
+    //                     >
+    //                         ${variant.price}
+    //                     </div>
+    //                 )}
+    //             </div>
 
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        marginTop: "4px",
-                    }}
-                >
-                    {isQRType ? (
-                        <>
-                            <QRCodePreview size={qrSize} value={barcode} />
-                            {config.show_barcode_value && (
-                                <div
-                                    style={{
-                                        fontFamily: "monospace",
-                                        fontSize: `${config.font_size - 2}px`,
-                                        marginTop: "2px",
-                                        letterSpacing: "0.5px",
-                                        textAlign: "center",
-                                    }}
-                                >
-                                    {barcode.substring(0, 20)}
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <>
-                            <div
-                                style={{
-                                    width: `${config.barcode_width}mm`,
-                                    height: `${config.barcode_height}mm`,
-                                    background:
-                                        "repeating-linear-gradient(90deg, #000 0, #000 1px, white 1px, white 2px)",
-                                    borderRadius: "1px",
-                                }}
-                            ></div>
-                            {config.show_barcode_value && (
-                                <div
-                                    style={{
-                                        fontFamily: "monospace",
-                                        fontSize: `${config.font_size - 2}px`,
-                                        marginTop: "2px",
-                                        letterSpacing: "0.5px",
-                                    }}
-                                >
-                                    {barcode.substring(0, 13)}
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
-            </div>
-        );
-    };
+    //             <div
+    //                 style={{
+    //                     display: "flex",
+    //                     flexDirection: "column",
+    //                     alignItems: "center",
+    //                     marginTop: "4px",
+    //                 }}
+    //             >
+    //                 {isQRType ? (
+    //                     <>
+    //                         <QRCodePreview size={qrSize} value={barcode} />
+    //                         {config.show_barcode_value && (
+    //                             <div
+    //                                 style={{
+    //                                     fontFamily: "monospace",
+    //                                     fontSize: `${config.font_size - 2}px`,
+    //                                     marginTop: "2px",
+    //                                     letterSpacing: "0.5px",
+    //                                     textAlign: "center",
+    //                                 }}
+    //                             >
+    //                                 {barcode.substring(0, 20)}
+    //                             </div>
+    //                         )}
+    //                     </>
+    //                 ) : (
+    //                     <>
+    //                         <div
+    //                             style={{
+    //                                 width: `${config.barcode_width}mm`,
+    //                                 height: `${config.barcode_height}mm`,
+    //                                 background:
+    //                                     "repeating-linear-gradient(90deg, #000 0, #000 1px, white 1px, white 2px)",
+    //                                 borderRadius: "1px",
+    //                             }}
+    //                         ></div>
+    //                         {config.show_barcode_value && (
+    //                             <div
+    //                                 style={{
+    //                                     fontFamily: "monospace",
+    //                                     fontSize: `${config.font_size - 2}px`,
+    //                                     marginTop: "2px",
+    //                                     letterSpacing: "0.5px",
+    //                                 }}
+    //                             >
+    //                                 {barcode.substring(0, 13)}
+    //                             </div>
+    //                         )}
+    //                     </>
+    //                 )}
+    //             </div>
+    //         </div>
+    //     );
+    // };
 
     const rowMarkup =
         variants.length === 0 ? (
@@ -483,9 +483,9 @@ export default function PrinterVariantTable({
                         )}
                     </IndexTable.Cell>
 
-                    <IndexTable.Cell>
+                    {/* <IndexTable.Cell>
                         {generateBarcodePreview(variant)}
-                    </IndexTable.Cell>
+                    </IndexTable.Cell> */}
                 </IndexTable.Row>
             ))
         );
@@ -795,7 +795,7 @@ export default function PrinterVariantTable({
                             { title: "Product" },
                             { title: "SKU" },
                             { title: "Barcode" },
-                            { title: "Label Preview" },
+                            // { title: "Label Preview" },
                         ]}
                         loading={loading}
                     >
@@ -990,7 +990,7 @@ export default function PrinterVariantTable({
                             </InlineStack>
                         </Box>
 
-                        <Box padding="500">
+                        {/* <Box padding="500">
                             <BlockStack gap="400">
                                 <Box
                                     background="bg-surface-secondary"
@@ -1007,7 +1007,7 @@ export default function PrinterVariantTable({
                                     </Box>
                                 </Box>
                             </BlockStack>
-                        </Box>
+                        </Box> */}
 
                         <Box
                             padding="400"
