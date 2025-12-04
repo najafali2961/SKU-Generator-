@@ -67,9 +67,4 @@ class BarcodePrinterSetting extends Model
     {
         return $this->belongsTo(User::class);
     }
-
-    public function printJobs(): HasMany
-    {
-        return $this->hasMany(PrintJob::class);
-    }
 }
