@@ -22,7 +22,8 @@ return new class extends Migration
             $table->integer('stock')->nullable();
             $table->string('vendor')->nullable();
             $table->string('product_type')->nullable();
-            $table->json('tags')->nullable();
+            // $table->json('tags')->nullable();
+            $table->text('tags')->nullable();
             $table->json('images')->nullable();
             $table->json('variants')->nullable();
             $table->timestamps();

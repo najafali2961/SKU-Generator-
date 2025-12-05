@@ -80,7 +80,8 @@ class ProductsCreateJob implements ShouldQueue
                     'status'           => strtoupper($productData['status'] ?? 'DRAFT'),
                     'vendor'           => $productData['vendor'] ?? null,
                     'product_type'     => $productData['productType'] ?? $productData['product_type'] ?? null,
-                    'tags'             => $this->normalizeTags($productData['tags'] ?? []),
+                    // 'tags'             => $this->normalizeTags($productData['tags'] ?? []),
+                    'tags' => $this->normalizeTags($productData['tags'] ?? null),
                     'images'           => $this->extractImages($productData, $isGraphQL),
                     'updated_at'       => now(),
                     'created_at'       => now(),
@@ -249,12 +250,37 @@ class ProductsCreateJob implements ShouldQueue
         });
     }
 
-    private function normalizeTags($raw): array
+    // private function normalizeTags($raw): array
+    // {
+    //     if (empty($raw)) return [];
+    //     if (is_string($raw)) {
+    //         return array_values(array_unique(array_filter(array_map('trim', explode(',', $raw)))));
+    //     }
+    //     return array_values(array_unique(array_filter((array)$raw)));
+    // }
+    private function normalizeTags($raw): ?string
     {
-        if (empty($raw)) return [];
-        if (is_string($raw)) {
-            return array_values(array_unique(array_filter(array_map('trim', explode(',', $raw)))));
+        if (empty($raw)) return null;
+
+        $tags = [];
+
+        // Case 1: ResponseAccess object (from Gnikyt/BasicShopifyAPI)
+        if (is_object($raw) && method_exists($raw, 'toArray')) {
+            $tags = $raw->toArray();
         }
-        return array_values(array_unique(array_filter((array)$raw)));
+        // Case 2: Already an array
+        elseif (is_array($raw)) {
+            $tags = $raw;
+        }
+        // Case 3: Comma-separated string
+        elseif (is_string($raw)) {
+            $tags = array_map('trim', explode(',', $raw));
+        }
+
+        // Clean up and dedupe
+        $tags = array_filter(array_unique(array_map('trim', (array)$tags)));
+
+        // Return as comma-separated string (exactly like full sync)
+        return !empty($tags) ? implode(', ', $tags) : null;
     }
 }

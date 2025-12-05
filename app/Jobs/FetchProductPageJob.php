@@ -12,7 +12,6 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 
 class FetchProductPageJob implements ShouldQueue
 {
@@ -119,20 +118,57 @@ class FetchProductPageJob implements ShouldQueue
             $shopifyProductId = intval(basename($node['id']));
 
             try {
-                // === TAGS ===
-                $rawTags = $node['tags'] ?? [];
-                $tags = is_array($rawTags)
-                    ? array_filter($rawTags)
-                    : (is_string($rawTags) ? array_filter(array_map('trim', explode(',', $rawTags))) : []);
+                // === SAFELY EXTRACT VALUES FROM ResponseAccess OBJECTS ===
+
+                // Title
+                $title = $this->toString($node['title'] ?? 'Untitled Product');
+
+                // Body HTML
+                $bodyHtml = $this->toString($node['bodyHtml'] ?? null);
+
+                // Status
+                $status = strtolower($this->toString($node['status'] ?? 'draft'));
+
+                // Vendor
+                $vendor = $this->toString($node['vendor'] ?? null);
+
+                // Product Type
+                $productType = $this->toString($node['productType'] ?? null);
+
+                // === TAGS — THE FINAL BULLETPROOF FIX ===
+                $rawTags = $node['tags'] ?? null;
+                $tagsArray = [];
+
+                if ($rawTags !== null) {
+                    if (is_object($rawTags) && method_exists($rawTags, 'toArray')) {
+                        $tagsArray = $rawTags->toArray();
+                    } elseif (is_array($rawTags)) {
+                        $tagsArray = $rawTags;
+                    } elseif (is_string($rawTags)) {
+                        $tagsArray = array_filter(array_map('trim', explode(',', $rawTags)));
+                    }
+
+                    $tagsArray = array_filter(array_map('trim', (array)$tagsArray));
+                }
+
+                $tagsString = !empty($tagsArray) ? implode(', ', $tagsArray) : null;
 
                 // === PRODUCT IMAGES ===
                 $productImages = [];
-                foreach (($node['images']['edges'] ?? []) as $imgEdge) {
-                    $img = $imgEdge['node'] ?? [];
-                    $productImages[] = [
-                        'src' => $img['src'] ?? $img['originalSrc'] ?? null,
-                        'alt' => $img['altText'] ?? null,
-                    ];
+                $imagesEdges = $node['images']['edges'] ?? [];
+
+                if (is_object($imagesEdges) && method_exists($imagesEdges, 'toArray')) {
+                    $imagesEdges = $imagesEdges->toArray();
+                }
+
+                foreach ($imagesEdges as $imgEdge) {
+                    $img = $imgEdge['node'] ?? $imgEdge ?? [];
+                    $src = $this->toString($img['src'] ?? $img['originalSrc'] ?? null);
+                    $alt = $this->toString($img['altText'] ?? null);
+
+                    if ($src) {
+                        $productImages[] = ['src' => $src, 'alt' => $alt];
+                    }
                 }
 
                 // === SAVE PRODUCT ===
@@ -142,12 +178,12 @@ class FetchProductPageJob implements ShouldQueue
                         'user_id'    => $shop->id
                     ],
                     [
-                        'title'            => $node['title'] ?? 'Untitled Product',
-                        'description_html' => $node['bodyHtml'] ?? null,
-                        'status'           => strtolower($node['status'] ?? 'draft'),
-                        'vendor'           => $node['vendor'] ?? null,
-                        'product_type'     => $node['productType'] ?? null,
-                        'tags'             => $tags,
+                        'title'            => $title,
+                        'description_html' => $bodyHtml,
+                        'status'           => $status,
+                        'vendor'           => $vendor,
+                        'product_type'     => $productType,
+                        'tags'             => $tagsString,
                         'images'           => $productImages,
                         'updated_at'       => now(),
                     ]
@@ -157,17 +193,25 @@ class FetchProductPageJob implements ShouldQueue
                 $variantsData = [];
                 $variantEdges = $node['variants']['edges'] ?? [];
 
+                if (is_object($variantEdges) && method_exists($variantEdges, 'toArray')) {
+                    $variantEdges = $variantEdges->toArray();
+                }
+
                 foreach ($variantEdges as $vEdge) {
-                    $v = $vEdge['node'] ?? [];
+                    $v = $vEdge['node'] ?? $vEdge ?? [];
                     if (empty($v['id'])) continue;
 
-                    $shopifyVariantId = intval(basename($v['id']));
+                    $shopifyVariantId = intval(basename($this->toString($v['id'])));
 
-                    // Build option1, option2, option3 from selectedOptions
                     $options = [null, null, null];
-                    foreach ($v['selectedOptions'] ?? [] as $opt) {
-                        $name = strtolower($opt['name'] ?? '');
-                        $value = $opt['value'] ?? null;
+                    $selectedOptions = $v['selectedOptions'] ?? [];
+                    if (is_object($selectedOptions) && method_exists($selectedOptions, 'toArray')) {
+                        $selectedOptions = $selectedOptions->toArray();
+                    }
+
+                    foreach ($selectedOptions as $opt) {
+                        $name = strtolower($this->toString($opt['name'] ?? ''));
+                        $value = $this->toString($opt['value'] ?? null);
                         if ($name === 'size' || str_contains($name, 'option1')) {
                             $options[0] = $value;
                         } elseif ($name === 'color' || str_contains($name, 'option2')) {
@@ -177,13 +221,12 @@ class FetchProductPageJob implements ShouldQueue
                         }
                     }
 
-                    // Variant image fallback
                     $variantImage = null;
                     $variantImageAlt = null;
                     if (!empty($v['image'])) {
                         $img = $v['image'];
-                        $variantImage = $img['src'] ?? $img['originalSrc'] ?? null;
-                        $variantImageAlt = $img['altText'] ?? null;
+                        $variantImage = $this->toString($img['src'] ?? $img['originalSrc'] ?? null);
+                        $variantImageAlt = $this->toString($img['altText'] ?? null);
                     }
                     if (!$variantImage && !empty($productImages[0]['src'])) {
                         $variantImage = $productImages[0]['src'];
@@ -193,11 +236,11 @@ class FetchProductPageJob implements ShouldQueue
                     $variantsData[] = [
                         'product_id'         => $product->id,
                         'shopify_variant_id' => $shopifyVariantId,
-                        'title'              => $v['title'] ?? 'Default Title',
-                        'sku'                => $v['sku'] ?? '',
-                        'barcode'            => $v['barcode'] ?? '', // Shopify native barcode field!
-                        'price'              => (float) ($v['price'] ?? 0),
-                        'inventory_quantity' => (int) ($v['inventoryQuantity'] ?? 0),
+                        'title'              => $this->toString($v['title'] ?? 'Default Title'),
+                        'sku'                => $this->toString($v['sku'] ?? ''),
+                        'barcode'            => $this->toString($v['barcode'] ?? ''),
+                        'price'              => (float)($this->toString($v['price'] ?? 0)),
+                        'inventory_quantity' => (int)($this->toString($v['inventoryQuantity'] ?? 0)),
                         'option1'            => $options[0],
                         'option2'            => $options[1],
                         'option3'            => $options[2],
@@ -209,7 +252,6 @@ class FetchProductPageJob implements ShouldQueue
                 }
 
                 if (!empty($variantsData)) {
-                    // 1. Upsert Variants
                     Variant::upsert(
                         $variantsData,
                         ['product_id', 'shopify_variant_id'],
@@ -228,26 +270,21 @@ class FetchProductPageJob implements ShouldQueue
                         ]
                     );
 
-                    // 2. Get local variant IDs
                     $shopifyVariantIds = array_column($variantsData, 'shopify_variant_id');
                     $localVariantMap = Variant::whereIn('shopify_variant_id', $shopifyVariantIds)
                         ->pluck('id', 'shopify_variant_id')
                         ->toArray();
 
-                    // 3. Prepare Barcodes (using Shopify barcode if exists, fallback to SKU)
                     $barcodeInserts = [];
                     foreach ($variantsData as $vData) {
                         $localVariantId = $localVariantMap[$vData['shopify_variant_id']] ?? null;
-                        if (!$localVariantId) {
-                            Log::warning("Missing local variant for Shopify ID: {$vData['shopify_variant_id']}");
-                            continue;
-                        }
+                        if (!$localVariantId) continue;
 
                         $rawBarcode = trim($vData['barcode'] ?? $vData['sku'] ?? '');
                         $barcodeValue = $rawBarcode ?: 'AUTO-' . $vData['shopify_variant_id'];
 
                         $barcodeInserts[] = [
-                            'variant_id'     => $localVariantId,           // Local DB ID (correct!)
+                            'variant_id'     => $localVariantId,
                             'product_id'     => $vData['product_id'],
                             'barcode_value'  => $barcodeValue,
                             'format'         => $this->detectBarcodeFormat($barcodeValue),
@@ -262,14 +299,7 @@ class FetchProductPageJob implements ShouldQueue
                         Barcode::upsert(
                             $barcodeInserts,
                             ['variant_id'],
-                            [
-                                'product_id',
-                                'barcode_value',
-                                'format',
-                                'image_url',
-                                'is_duplicate',
-                                'updated_at'
-                            ]
+                            ['product_id', 'barcode_value', 'format', 'image_url', 'is_duplicate', 'updated_at']
                         );
                     }
                 }
@@ -285,8 +315,18 @@ class FetchProductPageJob implements ShouldQueue
     }
 
     /**
-     * Simple barcode format detection
+     * Safely convert ResponseAccess or any value to string
      */
+    private function toString($value): ?string
+    {
+        if ($value === null) return null;
+        if (is_string($value)) return $value;
+        if (is_object($value) && method_exists($value, '__toString')) return (string) $value;
+        if (is_object($value) && method_exists($value, 'toArray')) return $this->toString($value[0] ?? $value);
+        if (is_scalar($value)) return (string) $value;
+        return null;
+    }
+
     private function detectBarcodeFormat(string $barcode): string
     {
         $clean = preg_replace('/\D/', '', $barcode);
