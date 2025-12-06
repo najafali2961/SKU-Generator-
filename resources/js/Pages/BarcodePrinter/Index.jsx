@@ -1,6 +1,4 @@
-// ==============================================================================
-// FILE 8: resources/js/Pages/BarcodePrinter/Index.jsx (COMPLETE REPLACEMENT)
-// ==============================================================================
+// resources/js/Pages/BarcodePrinter/Index.jsx
 
 import React, { useState, useEffect } from "react";
 import axios from "axios";
@@ -30,6 +28,7 @@ export default function BarcodePrinterIndex({
     const [selectedCollectionIds, setSelectedCollectionIds] = useState([]);
     const [selectedVendors, setSelectedVendors] = useState([]);
     const [selectedTypes, setSelectedTypes] = useState([]);
+    const [selectedTags, setSelectedTags] = useState([]);
 
     const [config, setConfig] = useState({
         // Label Design
@@ -100,6 +99,7 @@ export default function BarcodePrinterIndex({
         selectedCollectionIds,
         selectedVendors,
         selectedTypes,
+        selectedTags,
     ]);
 
     const loadVariants = async () => {
@@ -113,6 +113,7 @@ export default function BarcodePrinterIndex({
                     collections: selectedCollectionIds,
                     vendor: selectedVendors[0] || "",
                     type: selectedTypes[0] || "",
+                    tags: selectedTags,
                 },
             });
             setVariants(res.data.variants || []);
@@ -154,6 +155,7 @@ export default function BarcodePrinterIndex({
                         collections: selectedCollectionIds,
                         vendor: selectedVendors[0] || "",
                         type: selectedTypes[0] || "",
+                        tags: selectedTags,
                         get_all_ids: true,
                     },
                 });
@@ -254,6 +256,8 @@ export default function BarcodePrinterIndex({
                             setSelectedVendors={setSelectedVendors}
                             selectedTypes={selectedTypes}
                             setSelectedTypes={setSelectedTypes}
+                            selectedTags={selectedTags}
+                            setSelectedTags={setSelectedTags}
                         />
                     </div>
                 </div>

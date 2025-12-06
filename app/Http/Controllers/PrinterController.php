@@ -6,6 +6,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BarcodePrinterSetting;
+use App\Models\Collection;
 use App\Models\LabelTemplate;
 use App\Models\PrinterPreset;
 use App\Models\Variant;
@@ -40,9 +41,12 @@ class PrinterController extends Controller
                 ->orderBy('name')
                 ->get();
 
-            // Get collections for filters
-            $shopify = new ShopifyService($user);
-            $collections = $shopify->getCollections() ?? [];
+            // ✅ GET COLLECTIONS FROM DATABASE (NOT SHOPIFY API)
+            $collections = Collection::where('user_id', $user->id)
+                ->orderBy('title')
+                ->get(['id', 'title'])
+                ->map(fn($c) => ['id' => $c->id, 'title' => $c->title])
+                ->toArray();
 
             // Get unique vendors and product types for filters
             $vendors = $user->products()
@@ -77,109 +81,6 @@ class PrinterController extends Controller
         }
     }
 
-    public function variants(Request $request)
-    {
-        try {
-            $user = auth()->user();
-            $page = max(1, (int)$request->input('page', 1));
-            $perPage = (int)$request->input('per_page', 20);
-            $tab = $request->input('tab', 'all');
-
-            $query = Variant::with(['product'])
-                ->whereHas('product', fn($q) => $q->where('user_id', $user->id));
-
-            // Apply filters
-            if ($request->filled('vendor')) {
-                $query->whereHas(
-                    'product',
-                    fn($q) => $q->where('vendor', 'like', '%' . trim($request->vendor) . '%')
-                );
-            }
-
-            if ($request->filled('type')) {
-                $query->whereHas(
-                    'product',
-                    fn($q) => $q->where('product_type', 'like', '%' . trim($request->type) . '%')
-                );
-            }
-
-            if ($request->filled('collections') && is_array($request->collections)) {
-                $query->whereHas(
-                    'product.collections',
-                    fn($q) => $q->whereIn('collection_id', $request->collections)
-                );
-            }
-
-            // Get all variants for stats before filtering by tab
-            $allVariants = clone $query;
-            $totalAll = $allVariants->count();
-            $missingBarcodes = $allVariants->whereNull('barcode')->orWhere('barcode', '')->count();
-            $withBarcodes = $totalAll - $missingBarcodes;
-
-            // Filter by tab
-            if ($tab === 'missing') {
-                $query->where(function ($q) {
-                    $q->whereNull('barcode')->orWhere('barcode', '');
-                });
-            } elseif ($tab === 'with_barcode') {
-                $query->whereNotNull('barcode')->where('barcode', '!=', '');
-            }
-
-            // Search filter
-            if ($request->filled('search')) {
-                $search = strtolower(trim($request->search));
-                $query->where(function ($q) use ($search) {
-                    $q->where('sku', 'like', "%{$search}%")
-                        ->orWhere('barcode', 'like', "%{$search}%")
-                        ->orWhereHas('product', function ($pq) use ($search) {
-                            $pq->where('title', 'like', "%{$search}%")
-                                ->orWhere('vendor', 'like', "%{$search}%");
-                        });
-                });
-            }
-
-            // Get total after all filters
-            $total = $query->count();
-
-            // For "Apply to All" functionality
-            if ($request->boolean('get_all_ids')) {
-                return response()->json([
-                    'all_variant_ids' => $query->pluck('id')->toArray(),
-                ]);
-            }
-
-            // Paginate
-            $variants = $query->skip(($page - 1) * $perPage)
-                ->take($perPage)
-                ->get()
-                ->map(function ($variant) {
-                    return $this->formatVariant($variant);
-                });
-
-            return response()->json([
-                'variants' => $variants,
-                'total' => $total,
-                'current_page' => $page,
-                'per_page' => $perPage,
-                'last_page' => ceil($total / $perPage),
-                'stats' => [
-                    'all' => $totalAll,
-                    'missing' => $missingBarcodes,
-                    'with_barcode' => $withBarcodes,
-                ],
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Variants API error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'error' => 'Failed to load variants',
-                'message' => $e->getMessage(),
-            ], 500);
-        }
-    }
 
     public function updateSetting(Request $request, $id)
     {
@@ -572,5 +473,152 @@ class PrinterController extends Controller
             'title_font_size' => 12,
             'title_bold' => true,
         ]);
+    }
+
+
+    public function variants(Request $request)
+    {
+        try {
+            $user = auth()->user();
+            $page = max(1, (int)$request->input('page', 1));
+            $perPage = (int)$request->input('per_page', 20);
+            $tab = $request->input('tab', 'all');
+
+            // ✅ BUILD BASE QUERY WITH ALL FILTERS
+            $baseQuery = $this->buildFilteredQuery($request, $user);
+
+            // ✅ GET ALL VARIANTS FOR STATS BEFORE FILTERING BY TAB
+            $allVariants = clone $baseQuery;
+            $totalAll = $allVariants->count();
+
+            // Count missing and with barcodes
+            $allVariantsList = $allVariants->get();
+            $missingBarcodes = $allVariantsList->filter(fn($v) => empty(trim($v->barcode ?? '')))->count();
+            $withBarcodes = $totalAll - $missingBarcodes;
+
+            // Filter by tab
+            $query = clone $baseQuery;
+            if ($tab === 'missing') {
+                $query->where(function ($q) {
+                    $q->whereNull('barcode')->orWhere('barcode', '');
+                });
+            } elseif ($tab === 'with_barcode') {
+                $query->whereNotNull('barcode')->where('barcode', '!=', '');
+            }
+
+            // ✅ MULTI-FIELD DYNAMIC SEARCH
+            if ($request->filled('search')) {
+                $search = strtolower(trim($request->search));
+                $query->where(function ($q) use ($search) {
+                    $q->where('id', 'like', "%{$search}%")
+                        ->orWhere('shopify_variant_id', 'like', "%{$search}%")
+                        ->orWhere('sku', 'like', "%{$search}%")
+                        ->orWhere('barcode', 'like', "%{$search}%")
+                        ->orWhere('title', 'like', "%{$search}%")
+                        ->orWhereHas('product', function ($pq) use ($search) {
+                            $pq->where('title', 'like', "%{$search}%")
+                                ->orWhere('vendor', 'like', "%{$search}%")
+                                ->orWhere('product_type', 'like', "%{$search}%")
+                                ->orWhere('tags', 'like', "%{$search}%");
+                        });
+                });
+            }
+
+            // Get total after all filters
+            $total = $query->count();
+
+            // For "Apply to All" functionality
+            if ($request->boolean('get_all_ids')) {
+                return response()->json([
+                    'all_variant_ids' => $query->pluck('id')->toArray(),
+                ]);
+            }
+
+            // Paginate
+            $variants = $query->skip(($page - 1) * $perPage)
+                ->take($perPage)
+                ->get()
+                ->map(function ($variant) {
+                    return $this->formatVariant($variant);
+                });
+
+            return response()->json([
+                'variants' => $variants,
+                'total' => $total,
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'last_page' => ceil($total / $perPage),
+                'stats' => [
+                    'all' => $totalAll,
+                    'missing' => $missingBarcodes,
+                    'with_barcode' => $withBarcodes,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Variants API error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'error' => 'Failed to load variants',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * ✅ BUILD FILTERED QUERY WITH ALL FILTERS APPLIED
+     */
+    private function buildFilteredQuery(Request $request, $user)
+    {
+        $query = Variant::with(['product'])
+            ->whereHas('product', fn($q) => $q->where('user_id', $user->id));
+
+        // Apply vendor filter
+        if ($request->filled('vendor')) {
+            $vendor = trim($request->vendor);
+            $query->whereHas('product', fn($q) => $q->where('vendor', 'like', '%' . $vendor . '%'));
+        }
+
+        // Apply product type filter
+        if ($request->filled('type')) {
+            $type = trim($request->type);
+            $query->whereHas('product', fn($q) => $q->where('product_type', 'like', '%' . $type . '%'));
+        }
+
+        // Apply collections filter (FROM DATABASE)
+        if ($request->filled('collections') && is_array($request->collections) && count($request->collections)) {
+            $collectionIds = array_filter($request->collections);
+            if (count($collectionIds) > 0) {
+                $query->whereHas('product.collections', fn($q) => $q->whereIn('collection_id', $collectionIds));
+            }
+        }
+
+        // Apply tags filter (supports comma-separated AND individual tags)
+        if ($request->filled('tags')) {
+            $tags = $request->tags;
+
+            // If it's a string (comma-separated), split it
+            if (is_string($tags)) {
+                $tags = array_map(
+                    fn($t) => trim($t),
+                    explode(',', $tags)
+                );
+            }
+
+            // Filter out empty strings
+            $tags = array_filter($tags, fn($t) => strlen($t) > 0);
+
+            if (count($tags) > 0) {
+                $query->whereHas('product', function ($q) use ($tags) {
+                    foreach ($tags as $tag) {
+                        $q->where('tags', 'LIKE', '%' . trim($tag) . '%');
+                    }
+                });
+            }
+        }
+
+        return $query;
     }
 }
