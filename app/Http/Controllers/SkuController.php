@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Variant;
+use App\Models\Collection;
 use App\Jobs\GenerateSkuJob;
 use App\Models\JobLog;
 use Illuminate\Http\Request;
@@ -16,8 +17,13 @@ class SkuController extends Controller
     public function index()
     {
         $shop = Auth::user();
-        $shopify = new \App\Services\ShopifyService($shop);
-        $collections = $shopify->getCollections() ?? [];
+
+        // ✅ GET COLLECTIONS FROM DATABASE (NOT SHOPIFY API)
+        $collections = Collection::where('user_id', $shop->id)
+            ->orderBy('title')
+            ->get(['id', 'title'])
+            ->map(fn($c) => ['id' => $c->id, 'title' => $c->title])
+            ->toArray();
 
         return Inertia::render('SkuGenerator', [
             'initialCollections' => $collections,
@@ -138,7 +144,9 @@ class SkuController extends Controller
         if ($request->filled('search') && !empty($preview)) {
             $q = strtolower(trim($request->search));
             $preview = array_values(array_filter($preview, function ($item) use ($q) {
-                return str_contains(strtolower($item['title'] ?? ''), $q) ||
+                return str_contains(strtolower((string)($item['id'] ?? '')), $q) ||
+                    str_contains(strtolower((string)($item['shopify_variant_id'] ?? '')), $q) ||
+                    str_contains(strtolower($item['title'] ?? ''), $q) ||
                     str_contains(strtolower($item['vendor'] ?? ''), $q) ||
                     str_contains(strtolower($item['old_sku'] ?? ''), $q) ||
                     str_contains(strtolower($item['new_sku'] ?? ''), $q);
@@ -189,7 +197,7 @@ class SkuController extends Controller
             $query->whereHas('product', fn($q) => $q->where('product_type', 'like', '%' . $type . '%'));
         }
 
-        // Apply collections filter
+        // Apply collections filter (FROM DATABASE)
         if ($request->filled('collections') && is_array($request->collections) && count($request->collections)) {
             $collectionIds = array_filter($request->collections);
             if (count($collectionIds) > 0) {
@@ -264,6 +272,7 @@ class SkuController extends Controller
     {
         return [
             'id'                    => $variant->id,
+            'shopify_variant_id'    => $variant->shopify_variant_id,
             'title'                 => $variant->product->title ?? 'Untitled Product',
             'vendor'                => $variant->product->vendor ?? '',
             'option1'               => $variant->option1,
@@ -272,7 +281,6 @@ class SkuController extends Controller
             'price'                 => $variant->price,
             'inventory_quantity'    => $variant->inventory_quantity,
             'barcode'               => $variant->barcode,
-            'shopify_variant_id'    => $variant->shopify_variant_id,
             'image'                 => $variant->image_src ?? $variant->image ?? null,
             'old_sku'               => $variant->sku,
             'new_sku'               => $newSku,

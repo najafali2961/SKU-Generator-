@@ -17,8 +17,6 @@ class ShopifyService
 
     public function graph(string $query, array $variables = []): array
     {
-
-
         try {
             $response = $this->shop->api()->graph($query, $variables);
 
@@ -87,44 +85,10 @@ GRAPHQL;
         return true;
     }
 
-    public function getCollections()
-    {
-        $list = [];
-        try {
-            $c = $this->shop->api()->rest('GET', '/admin/api/2025-10/custom_collections.json');
-            foreach ($c['body']['custom_collections'] ?? [] as $col) $list[] = ['id' => $col['id'], 'title' => $col['title']];
-            $s = $this->shop->api()->rest('GET', '/admin/api/2025-10/smart_collections.json');
-            foreach ($s['body']['smart_collections'] ?? [] as $col) $list[] = ['id' => $col['id'], 'title' => $col['title']];
-        } catch (\Exception $e) {
-            Log::error("Failed to fetch collections: {$e->getMessage()}");
-        }
-        return $list;
-    }
-
-    public function getProductIdsByCollections(array $collectionIds)
-    {
-        $result = [];
-        try {
-            foreach ($collectionIds as $id) {
-                $endpoint = "/admin/api/2025-10/collections/{$id}/products.json";
-                $params = ['limit' => 250];
-                do {
-                    $res = $this->shop->api()->rest('GET', $endpoint, $params);
-                    foreach ($res['body']['products'] ?? [] as $p) $result[$p['id']] = $id;
-                    $next = $res['link']['next'] ?? null;
-                    if ($next) {
-                        $endpoint = $next['url'];
-                        $params = [];
-                    } else {
-                        $endpoint = null;
-                    }
-                } while ($endpoint);
-            }
-        } catch (\Exception $e) {
-            Log::error("Failed fetching products: {$e->getMessage()}");
-        }
-        return $result;
-    }
+    /**
+     * ✅ REMOVED: getCollections() - Now use database instead
+     * Use Collection model directly in controllers
+     */
 
     public function updateVariantSkus(int $localProductId, array $skuMap): bool
     {
@@ -205,8 +169,6 @@ GRAPHQL;
         return true;
     }
 
-
-
     public function updateVariantBarcodes(int $localProductId, array $barcodeMap): bool
     {
         $product = Product::find($localProductId);
@@ -232,7 +194,7 @@ GRAPHQL;
             $bulkVariants[] = [
                 'id' => $this->toGid($variant->shopify_variant_id, 'ProductVariant'),
                 'inventoryItem' => [
-                    'barcode' => $newBarcode   // THIS IS THE CORRECT FIELD
+                    'barcode' => $newBarcode
                 ]
             ];
 
@@ -284,7 +246,9 @@ GRAPHQL;
         return true;
     }
 
-    // Fallback: single variant update (used if bulk fails or for single items)
+    /**
+     * Fallback: single variant update (used if bulk fails or for single items)
+     */
     public function updateSingleVariantBarcode($shopifyVariantId, string $barcode): bool
     {
         $endpoint = "admin/api/2025-10/variants/{$shopifyVariantId}.json";

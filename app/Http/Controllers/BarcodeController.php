@@ -3,23 +3,30 @@
 namespace App\Http\Controllers;
 
 use App\Models\Variant;
+use App\Models\Collection;
 use App\Jobs\GenerateBarcodeJob;
 use App\Jobs\ImportBarcodesJob;
 use App\Models\JobLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Collection as LaravelCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class BarcodeController extends Controller
 {
     public function index()
     {
         $shop = Auth::user();
-        $shopify = new \App\Services\ShopifyService($shop);
-        $collections = $shopify->getCollections() ?? [];
+
+        // ✅ GET COLLECTIONS FROM DATABASE (NOT SHOPIFY API)
+        $collections = Collection::where('user_id', $shop->id)
+            ->orderBy('title')
+            ->get(['id', 'title'])
+            ->map(fn($c) => ['id' => $c->id, 'title' => $c->title])
+            ->toArray();
 
         $variants = Variant::with(['product'])
             ->whereHas('product', fn($q) => $q->where('user_id', $shop->id))
@@ -52,7 +59,7 @@ class BarcodeController extends Controller
         if ($format === 'QR') {
             return $allow_qr_text
                 ? ($variant->sku ?: "https://yourstore.com/products/{$variant->product->handle}")
-                : 'QR-' . strtoupper(\Str::random(12));
+                : 'QR-' . strtoupper(Str::random(12));
         }
 
         if ($format === 'CODE128') {
@@ -136,7 +143,7 @@ class BarcodeController extends Controller
             $query->whereHas('product', fn($q) => $q->where('product_type', 'like', '%' . $type . '%'));
         }
 
-        // Apply collections filter
+        // Apply collections filter (FROM DATABASE)
         if ($request->filled('collections') && is_array($request->collections) && count($request->collections)) {
             $collectionIds = array_filter($request->collections);
             if (count($collectionIds) > 0) {
