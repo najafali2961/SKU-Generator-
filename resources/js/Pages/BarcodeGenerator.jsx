@@ -9,7 +9,7 @@ import BarcodeImportModal from "./components/barcode/BarcodeImportModal";
 
 const DEBOUNCE_MS = 500;
 
-export default function BarcodeGenerator() {
+export default function BarcodeGenerator({ initialCollections = [] }) {
     const [form, setForm] = useState({
         format: "UPC",
         prefix: "",
@@ -32,7 +32,7 @@ export default function BarcodeGenerator() {
     const [total, setTotal] = useState(0);
     const [overallTotal, setOverallTotal] = useState(0);
     const [duplicateGroups, setDuplicateGroups] = useState({});
-    const [stats, setStats] = useState({ missing: 0, duplicates: 0 }); // ← Real stats
+    const [stats, setStats] = useState({ missing: 0, duplicates: 0 });
     const [selected, setSelected] = useState(new Set());
     const [page, setPage] = useState(1);
     const [duplicatePage, setDuplicatePage] = useState(1);
@@ -41,43 +41,87 @@ export default function BarcodeGenerator() {
     const [applying, setApplying] = useState(false);
     const [progress, setProgress] = useState(0);
 
+    // ✅ ADD FILTERS STATE
+    const [selectedCollectionIds, setSelectedCollectionIds] = useState([]);
+    const [selectedVendors, setSelectedVendors] = useState([]);
+    const [selectedTypes, setSelectedTypes] = useState([]);
+    const [selectedTags, setSelectedTags] = useState([]);
+
     const debounceRef = useRef(null);
 
     const handleChange = (key, value) => {
         setForm((prev) => ({ ...prev, [key]: value }));
-        setPage(1);
-        setSelected(new Set());
     };
 
     const fetchPreview = async () => {
-        if (debounceRef.current) clearTimeout(debounceRef.current);
+        setLoading(true);
+        try {
+            const res = await axios.post("/barcode-generator/preview", {
+                ...form,
+                page: activeTab === "duplicates" ? duplicatePage : page,
+                tab: activeTab,
+                // ✅ ADD FILTERS TO REQUEST
+                collections: selectedCollectionIds,
+                vendor: selectedVendors[0] || null,
+                type: selectedTypes[0] || null,
+                tags: selectedTags,
+            });
 
-        debounceRef.current = setTimeout(async () => {
-            setLoading(true);
-            try {
-                const res = await axios.post("/barcode-generator/preview", {
-                    ...form,
-                    page,
-                    tab: activeTab,
-                });
-
-                setBarcodes(res.data.data || []);
-                setTotal(res.data.total || 0);
-                setOverallTotal(res.data.overall_total || 0);
-                setDuplicateGroups(res.data.duplicateGroups || {});
-                setStats(res.data.stats || { missing: 0, duplicates: 0 }); // ← Always up-to-date
-            } catch (err) {
-                console.error("Preview error:", err);
-            } finally {
-                setLoading(false);
-            }
-        }, DEBOUNCE_MS);
+            setBarcodes(res.data.data || []);
+            setTotal(res.data.total || 0);
+            setOverallTotal(res.data.overall_total || 0);
+            setDuplicateGroups(res.data.duplicateGroups || {});
+            setStats(res.data.stats || { missing: 0, duplicates: 0 });
+        } catch (err) {
+            console.error("Preview error:", err);
+        } finally {
+            setLoading(false);
+        }
     };
 
+    // ✅ FIXED DEBOUNCE EFFECT WITH ALL DEPENDENCIES
+    useEffect(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+
+        debounceRef.current = setTimeout(() => {
+            // Reset to page 1 when filters/search change
+            if (activeTab === "duplicates") {
+                setDuplicatePage(1);
+            } else {
+                setPage(1);
+            }
+        }, DEBOUNCE_MS);
+
+        return () => clearTimeout(debounceRef.current);
+    }, [
+        form,
+        activeTab,
+        selectedCollectionIds,
+        selectedVendors,
+        selectedTypes,
+        selectedTags, // ✅ ADDED
+    ]);
+
+    // ✅ FETCH WHEN PAGE CHANGES OR DEBOUNCE COMPLETES
     useEffect(() => {
         fetchPreview();
-        return () => clearTimeout(debounceRef.current);
-    }, [form, page, activeTab]);
+    }, [page, duplicatePage]); // fetchPreview will be called when these change
+
+    // ✅ SEPARATE EFFECT TO TRIGGER fetchPreview AFTER DEBOUNCE
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            fetchPreview();
+        }, DEBOUNCE_MS);
+
+        return () => clearTimeout(timer);
+    }, [
+        form,
+        activeTab,
+        selectedCollectionIds,
+        selectedVendors,
+        selectedTypes,
+        selectedTags,
+    ]);
 
     useEffect(() => {
         if (!applying) return;
@@ -111,6 +155,11 @@ export default function BarcodeGenerator() {
                 ...form,
                 apply_scope: scope,
                 selected_variant_ids: ids.length > 0 ? ids : undefined,
+                // ✅ ADD FILTERS TO APPLY REQUEST
+                collections: selectedCollectionIds,
+                vendor: selectedVendors[0] || null,
+                type: selectedTypes[0] || null,
+                tags: selectedTags,
             },
             {
                 onFinish: () => setSelected(new Set()),
@@ -163,6 +212,13 @@ export default function BarcodeGenerator() {
         URL.revokeObjectURL(url);
     };
 
+    const handleTabChange = (tab) => {
+        setActiveTab(tab);
+        setPage(1);
+        setDuplicatePage(1);
+        setSelected(new Set());
+    };
+
     return (
         <div className="min-h-screen bg-gray-50">
             <div className="p-6 mx-auto max-w-7xl">
@@ -185,13 +241,13 @@ export default function BarcodeGenerator() {
                             total={total}
                             overall_total={overallTotal}
                             duplicateGroups={duplicateGroups}
-                            stats={stats} // ← NOW SHOWS: Missing: 1839, Duplicates: 17
+                            stats={stats}
                             page={page}
                             setPage={setPage}
                             duplicatePage={duplicatePage}
                             setDuplicatePage={setDuplicatePage}
                             activeTab={activeTab}
-                            setActiveTab={setActiveTab}
+                            setActiveTab={handleTabChange}
                             selected={selected}
                             setSelected={setSelected}
                             loading={loading}
@@ -199,13 +255,16 @@ export default function BarcodeGenerator() {
                             applyBarcodes={applyBarcodes}
                             form={form}
                             handleChange={handleChange}
-                            initialCollections={[]}
-                            selectedCollectionIds={[]}
-                            setSelectedCollectionIds={() => {}}
-                            selectedVendors={[]}
-                            setSelectedVendors={() => {}}
-                            selectedTypes={[]}
-                            setSelectedTypes={() => {}}
+                            // ✅ PASS FILTERS TO PREVIEW TABLE
+                            initialCollections={initialCollections}
+                            selectedCollectionIds={selectedCollectionIds}
+                            setSelectedCollectionIds={setSelectedCollectionIds}
+                            selectedVendors={selectedVendors}
+                            setSelectedVendors={setSelectedVendors}
+                            selectedTypes={selectedTypes}
+                            setSelectedTypes={setSelectedTypes}
+                            selectedTags={selectedTags}
+                            setSelectedTags={setSelectedTags}
                         />
                     </div>
                     <BarcodeImportModal

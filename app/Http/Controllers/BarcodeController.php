@@ -18,6 +18,8 @@ class BarcodeController extends Controller
     public function index()
     {
         $shop = Auth::user();
+        $shopify = new \App\Services\ShopifyService($shop);
+        $collections = $shopify->getCollections() ?? [];
 
         $variants = Variant::with(['product'])
             ->whereHas('product', fn($q) => $q->where('user_id', $shop->id))
@@ -33,7 +35,8 @@ class BarcodeController extends Controller
                 'sku' => $v->sku,
                 'barcode' => $v->barcode,
                 'image_url' => $v->image ?? ($v->product->images[0]['src'] ?? null),
-            ])
+            ]),
+            'initialCollections' => $collections,
         ]);
     }
 
@@ -113,114 +116,168 @@ class BarcodeController extends Controller
             ->with('success', 'Barcode generation started! You\'ll be redirected to the progress page...');
     }
 
+    /**
+     * ✅ BUILD FILTERED QUERY WITH ALL FILTERS APPLIED
+     */
+    private function buildFilteredQuery(Request $request, $shop)
+    {
+        $query = Variant::with(['product'])
+            ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
+
+        // Apply vendor filter
+        if ($request->filled('vendor')) {
+            $vendor = trim($request->vendor);
+            $query->whereHas('product', fn($q) => $q->where('vendor', 'like', '%' . $vendor . '%'));
+        }
+
+        // Apply product type filter
+        if ($request->filled('type')) {
+            $type = trim($request->type);
+            $query->whereHas('product', fn($q) => $q->where('product_type', 'like', '%' . $type . '%'));
+        }
+
+        // Apply collections filter
+        if ($request->filled('collections') && is_array($request->collections) && count($request->collections)) {
+            $collectionIds = array_filter($request->collections);
+            if (count($collectionIds) > 0) {
+                $query->whereHas('product.collections', fn($q) => $q->whereIn('collection_id', $collectionIds));
+            }
+        }
+
+        // Apply tags filter (supports comma-separated AND individual tags)
+        if ($request->filled('tags')) {
+            $tags = $request->tags;
+
+            // If it's a string (comma-separated), split it
+            if (is_string($tags)) {
+                $tags = array_map(
+                    fn($t) => trim($t),
+                    explode(',', $tags)
+                );
+            }
+
+            // Filter out empty strings
+            $tags = array_filter($tags, fn($t) => strlen($t) > 0);
+
+            if (count($tags) > 0) {
+                $query->whereHas('product', function ($q) use ($tags) {
+                    foreach ($tags as $tag) {
+                        $q->where('tags', 'LIKE', '%' . trim($tag) . '%');
+                    }
+                });
+            }
+        }
+
+        return $query;
+    }
+
     public function preview(Request $request)
     {
         $shop = Auth::user();
         $page    = max(1, (int)$request->input('page', 1));
         $perPage = 25;
         $tab     = $request->input('tab', 'all');
-        $baseQuery = Variant::with(['product'])
-            ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
-        $allVariantsUnfiltered = $baseQuery->get();
+
+        // ✅ BUILD BASE QUERY WITH ALL FILTERS
+        $baseQuery = $this->buildFilteredQuery($request, $shop);
+
+        // ✅ GET ALL FILTERED VARIANTS FOR STATS
+        $allVariants = $baseQuery->get();
+        $totalVariants = $allVariants->count();
+
+        // ✅ CALCULATE STATS ON FILTERED DATA
         $isMissing = fn($v) => empty(trim($v->barcode ?? '')) || trim($v->barcode) === '-';
-        $overallTotal       = $allVariantsUnfiltered->count();
-        $missingCount       = $allVariantsUnfiltered->filter($isMissing)->count();
-        $realBarcodes = $allVariantsUnfiltered
+        $missingVariants = $allVariants->filter($isMissing);
+        $missingCount = $missingVariants->count();
+
+        // Find duplicates (only count variants with actual barcodes)
+        $barcodeCounts = $allVariants
             ->filter(fn($v) => !$isMissing($v))
             ->pluck('barcode')
-            ->map('trim');
-        $duplicateGroupsCount = $realBarcodes->countBy()
+            ->map('trim')
+            ->countBy();
+
+        $dupBarcodeList = $barcodeCounts
             ->filter(fn($count) => $count > 1)
-            ->count();
-        $stats = [
-            'missing'    => $missingCount,
-            'duplicates' => $duplicateGroupsCount,
-        ];
+            ->keys()
+            ->toArray();
 
-        $query = Variant::with(['product'])
-            ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                    ->orWhere('sku', 'like', "%{$search}%")
-                    ->orWhere('barcode', 'like', "%{$search}%")
-                    ->orWhereHas('product', fn($qq) => $qq->where('title', 'like', "%{$search}%"));
-            });
-        }
-        if ($request->filled('vendor')) {
-            $query->whereHas('product', fn($q) => $q->where('vendor', $request->vendor));
-        }
-        if ($request->filled('type')) {
-            $query->whereHas('product', fn($q) => $q->where('product_type', $request->type));
-        }
-        $allVariants = $query->get();
+        $duplicateVariants = $allVariants->filter(fn($v) => !$isMissing($v) && in_array(trim($v->barcode), $dupBarcodeList, true));
+        $duplicateCount = $duplicateVariants->count();
 
+        // ✅ BUILD PREVIEW WITH NEW BARCODES
         $format  = $request->input('format', 'UPC');
         $counter = (int)($request->input('start_number', 1));
         $preview = [];
+
         foreach ($allVariants as $variant) {
             $rawBarcode   = $variant->barcode;
             $cleanBarcode = (!empty(trim($rawBarcode)) && trim($rawBarcode) !== '-') ? trim($rawBarcode) : null;
             $newBarcode = $this->generateBarcode($variant, $request->all(), $counter);
+
             $preview[] = [
-                'id'            => $variant->id,
-                'title'         => $variant->product->title ?? 'Unknown Product',
-                'variant_title' => $variant->title ?? 'Default Variant',
-                'vendor'        => $variant->product->vendor ?? '',
-                'sku'           => $variant->sku ?? '',
-                'image_url'     => $variant->image ?? ($variant->product->images[0]['src'] ?? null),
-                'old_barcode'   => $cleanBarcode,
-                'new_barcode'   => $newBarcode,
-                'format'        => $format,
+                'id'                    => $variant->id,
+                'product_id'            => $variant->product_id,
+                'shopify_variant_id'    => $variant->shopify_variant_id,
+                'title'                 => $variant->product->title ?? 'Unknown Product',
+                'variant_title'         => $variant->title ?? 'Default Variant',
+                'vendor'                => $variant->product->vendor ?? '',
+                'sku'                   => $variant->sku ?? '',
+                'image_url'             => $variant->image ?? ($variant->product->images[0]['src'] ?? null),
+                'old_barcode'           => $cleanBarcode,
+                'new_barcode'           => $newBarcode,
+                'format'                => $format,
                 'option1'               => $variant->option1,
                 'option2'               => $variant->option2,
                 'option3'               => $variant->option3,
                 'price'                 => $variant->price,
                 'inventory_quantity'    => $variant->inventory_quantity,
-                'shopify_variant_id'    => $variant->shopify_variant_id,
                 'created_at'            => $variant->created_at,
                 'updated_at'            => $variant->updated_at,
-
             ];
 
             $counter++;
         }
 
+        // ✅ FILTER BY TAB - ON PREVIEW DATA
         $filtered = $preview;
         if ($tab === 'missing') {
             $filtered = array_filter($filtered, fn($i) => $i['old_barcode'] === null);
         } elseif ($tab === 'duplicates') {
-            $groups = collect($preview)
-                ->whereNotNull('old_barcode')
-                ->groupBy('old_barcode')
-                ->filter(fn($group) => $group->count() > 1);
-
-            $filtered = $groups->flatten(1)->values()->all();
+            $duplicateVariantIds = $duplicateVariants->pluck('id')->toArray();
+            $filtered = array_filter($filtered, fn($i) => in_array($i['id'], $duplicateVariantIds, true));
         }
 
+        // ✅ APPLY SEARCH FILTER - DYNAMIC ON ALL FIELDS
         if ($request->filled('search')) {
             $q = strtolower(trim($request->search));
             $filtered = array_filter(
                 $filtered,
                 fn($i) =>
-                str_contains(strtolower($i['variant_title'] ?? ''), $q) ||
+                str_contains(strtolower((string)$i['id']), $q) ||
+                    str_contains(strtolower((string)$i['product_id']), $q) ||
+                    str_contains(strtolower((string)$i['shopify_variant_id']), $q) ||
+                    str_contains(strtolower($i['variant_title'] ?? ''), $q) ||
                     str_contains(strtolower($i['title'] ?? ''), $q) ||
+                    str_contains(strtolower($i['vendor'] ?? ''), $q) ||
                     str_contains(strtolower($i['sku'] ?? ''), $q) ||
                     str_contains(strtolower($i['old_barcode'] ?? ''), $q) ||
                     str_contains(strtolower($i['new_barcode'] ?? ''), $q)
             );
         }
+
         $tableTotal    = count($filtered);
         $paginatedData = array_slice($filtered, ($page - 1) * $perPage, $perPage);
 
+        // ✅ BUILD DUPLICATE GROUPS FOR DUPLICATES TAB
         $duplicateGroups = [];
         if ($tab === 'duplicates') {
-            $groups = collect($preview)
-                ->whereNotNull('old_barcode')
-                ->groupBy('old_barcode');
+            $grouped = collect($preview)
+                ->filter(fn($v) => !empty(trim($v['old_barcode'] ?? '')))
+                ->groupBy('old_barcode')
+                ->filter(fn($group) => $group->count() > 1);
 
-            foreach ($groups as $barcode => $items) {
+            foreach ($grouped as $barcode => $items) {
                 if ($items->count() > 1) {
                     $duplicateGroups[$barcode] = $items->values()->all();
                 }
@@ -231,12 +288,14 @@ class BarcodeController extends Controller
             'data'            => array_values($paginatedData),
             'total'           => $tableTotal,
             'duplicateGroups' => $duplicateGroups,
-            'stats'           => $stats,
-            'overall_total'   => $overallTotal,
+            'stats'           => [
+                'missing'     => $missingCount,
+                'duplicates'  => $duplicateCount,
+                'total'       => $totalVariants,
+            ],
+            'overall_total'   => $totalVariants,
         ]);
     }
-
-
 
     public function importPage()
     {
@@ -246,14 +305,14 @@ class BarcodeController extends Controller
     public function importPreview(Request $request)
     {
         $shop = Auth::user();
-        $shopifyVariantIds = array_map('strval', $request->input('variant_ids', [])); // ← THIS LINE
+        $shopifyVariantIds = array_map('strval', $request->input('variant_ids', []));
 
         if (empty($shopifyVariantIds)) {
             return response()->json(['variants' => []]);
         }
 
         $variants = Variant::with(['product'])
-            ->whereIn('shopify_variant_id', $shopifyVariantIds) // now strings match strings
+            ->whereIn('shopify_variant_id', $shopifyVariantIds)
             ->whereHas('product', fn($q) => $q->where('user_id', $shop->id))
             ->get()
             ->map(fn($v) => [
@@ -286,10 +345,10 @@ class BarcodeController extends Controller
         DB::beginTransaction();
 
         foreach ($validated['barcodes'] as $index => $item) {
-            $shopifyId = strval($item['shopify_variant_id']); // ← THIS LINE
+            $shopifyId = strval($item['shopify_variant_id']);
             $newBarcode = trim($item['barcode']);
 
-            $variant = Variant::where('shopify_variant_id', $shopifyId) // string comparison
+            $variant = Variant::where('shopify_variant_id', $shopifyId)
                 ->whereHas('product', fn($q) => $q->where('user_id', $shop->id))
                 ->first();
 
@@ -324,7 +383,6 @@ class BarcodeController extends Controller
             'custom_barcodes.*.barcode' => 'required|string|min:8|max:255',
         ]);
 
-        // Create a JobLog for this import
         $jobLog = JobLog::create([
             'user_id' => $shop->id,
             'type' => 'barcode_import',
@@ -337,7 +395,6 @@ class BarcodeController extends Controller
 
         $jobLog->markAsStarted();
 
-        // Dispatch the import job (which will handle DB update + Shopify sync)
         ImportBarcodesJob::dispatch(
             $shop->id,
             $validated['custom_barcodes'],

@@ -20,6 +20,7 @@ import {
     ButtonGroup,
     Divider,
     Checkbox,
+    Tag,
 } from "@shopify/polaris";
 import {
     SearchIcon,
@@ -59,6 +60,7 @@ export default function SkuPreviewTable({
     setSelectedTags,
 }) {
     const [selectedVariant, setSelectedVariant] = React.useState(null);
+    const [tagsInput, setTagsInput] = React.useState("");
 
     const DUPLICATES_PER_PAGE = 5;
     const PRODUCTS_PER_PAGE = 8;
@@ -72,9 +74,9 @@ export default function SkuPreviewTable({
         duplicatePage * DUPLICATES_PER_PAGE
     );
 
-    // Tab configuration - use correct counts from stats
+    // ✅ TAB CONFIGURATION - USE STATS FROM BACKEND FOR EXACT COUNTS
     const tabs = [
-        { id: "all", content: `All Products (${total})` },
+        { id: "all", content: `All Products (${stats.total})` },
         { id: "duplicates", content: `Duplicates (${stats.duplicates})` },
         { id: "missing", content: `Missing SKUs (${stats.missing})` },
     ];
@@ -85,6 +87,27 @@ export default function SkuPreviewTable({
         setPage(1);
         setDuplicatePage(1);
         setSelected(new Set());
+    };
+
+    // ✅ HANDLE ADDING TAGS - SUPPORTS BOTH BUTTON AND COMMA-SEPARATED
+    const handleAddTag = () => {
+        if (!tagsInput.trim()) return;
+
+        // Split by comma if multiple tags are provided
+        const newTags = tagsInput
+            .split(",")
+            .map((t) => t.trim())
+            .filter((t) => t.length > 0)
+            .filter((t) => !selectedTags.includes(t)); // Avoid duplicates
+
+        if (newTags.length > 0) {
+            setSelectedTags([...selectedTags, ...newTags]);
+            setTagsInput("");
+        }
+    };
+
+    const handleRemoveTag = (tagToRemove) => {
+        setSelectedTags(selectedTags.filter((tag) => tag !== tagToRemove));
     };
 
     const handleClearAll = () => {
@@ -188,22 +211,48 @@ export default function SkuPreviewTable({
             key: "tags",
             label: "Tags",
             filter: (
-                <TextField
-                    label="Tags"
-                    labelHidden
-                    placeholder="e.g. Winter, Premium, Sale"
-                    value={selectedTags.join(", ")}
-                    onChange={(value) => {
-                        // ✅ FIXED: Allow user to type freely, parse tags on the fly
-                        const tags = value
-                            .split(",")
-                            .map((t) => t.trim())
-                            .filter((t) => t.length > 0);
-                        setSelectedTags(tags);
-                    }}
-                    autoComplete="off"
-                    helpText="Separate multiple tags with commas"
-                />
+                <BlockStack gap="300">
+                    <TextField
+                        labelHidden
+                        placeholder="e.g. Summer, Premium, Sale"
+                        value={tagsInput}
+                        onChange={setTagsInput}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleAddTag();
+                            }
+                        }}
+                        autoComplete="off"
+                        helpText="Separate multiple tags with commas"
+                    />
+                    <Button
+                        onClick={handleAddTag}
+                        size="slim"
+                        variant="primary"
+                    >
+                        Add Tag(s)
+                    </Button>
+                    {selectedTags.length > 0 && (
+                        <div
+                            style={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: "8px",
+                                marginTop: "8px",
+                            }}
+                        >
+                            {selectedTags.map((tag) => (
+                                <Tag
+                                    key={tag}
+                                    onRemove={() => handleRemoveTag(tag)}
+                                >
+                                    {tag}
+                                </Tag>
+                            ))}
+                        </div>
+                    )}
+                </BlockStack>
             ),
         },
     ];
@@ -581,7 +630,7 @@ export default function SkuPreviewTable({
                                             ? `Fix All Duplicates (${stats.duplicates})`
                                             : activeTab === "missing"
                                             ? `Fix All Missing (${stats.missing})`
-                                            : `Apply to All (${total})`}
+                                            : `Apply to All (${stats.total})`}
                                     </Button>
                                     <Button
                                         variant="primary"

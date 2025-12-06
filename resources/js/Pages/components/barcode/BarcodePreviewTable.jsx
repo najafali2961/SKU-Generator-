@@ -20,15 +20,16 @@ import {
     ChoiceList,
     TextField,
     Checkbox,
+    Tag,
 } from "@shopify/polaris";
 import { HashtagIcon, ArrowRightIcon } from "@shopify/polaris-icons";
 
 export default function BarcodePreviewTable({
     barcodes = [],
     total = 0,
-    overall_total = 0, // ← real total from backend
+    overall_total = 0, // ← filtered total from backend
     duplicateGroups = {},
-    stats = { missing: 0, duplicates: 0 }, // ← comes from backend (NEVER CHANGES)
+    stats = { missing: 0, duplicates: 0, total: 0 }, // ← comes from backend (ACCURATE)
     page,
     setPage,
     duplicatePage,
@@ -49,8 +50,11 @@ export default function BarcodePreviewTable({
     setSelectedVendors,
     selectedTypes = [],
     setSelectedTypes,
+    selectedTags = [],
+    setSelectedTags,
 }) {
     const [selectedVariant, setSelectedVariant] = React.useState(null);
+    const [tagsInput, setTagsInput] = React.useState("");
 
     // Convert duplicateGroups to list ONLY for display (pagination on THIS page)
     const duplicateGroupList = React.useMemo(() => {
@@ -71,16 +75,14 @@ export default function BarcodePreviewTable({
         duplicatePage * DUPLICATES_PER_PAGE
     );
 
-    // ============================================================
-    // PERFECT TAB COUNTS — USE STATS FROM BACKEND (NEVER CHANGES)
-    // ============================================================
+    // ✅ PERFECT TAB COUNTS - USE STATS FROM BACKEND (ALWAYS ACCURATE)
     const tabs = [
-        { id: "all", content: `All Variants (${overall_total})` },
+        { id: "all", content: `All Variants (${stats.total})` },
         {
             id: "duplicates",
-            content: `Duplicates (${stats.duplicates})`, // ← USE stats.duplicates
+            content: `Duplicates (${stats.duplicates})`,
         },
-        { id: "missing", content: `Missing Barcodes (${stats.missing})` }, // ← USE stats.missing
+        { id: "missing", content: `Missing Barcodes (${stats.missing})` },
     ];
 
     const handleTabChange = (selectedTabIndex) => {
@@ -91,11 +93,33 @@ export default function BarcodePreviewTable({
         setSelected(new Set());
     };
 
+    // ✅ HANDLE ADDING TAGS - SUPPORTS BOTH BUTTON AND COMMA-SEPARATED
+    const handleAddTag = () => {
+        if (!tagsInput.trim()) return;
+
+        // Split by comma if multiple tags are provided
+        const newTags = tagsInput
+            .split(",")
+            .map((t) => t.trim())
+            .filter((t) => t.length > 0)
+            .filter((t) => !selectedTags.includes(t)); // Avoid duplicates
+
+        if (newTags.length > 0) {
+            setSelectedTags([...selectedTags, ...newTags]);
+            setTagsInput("");
+        }
+    };
+
+    const handleRemoveTag = (tagToRemove) => {
+        setSelectedTags(selectedTags.filter((tag) => tag !== tagToRemove));
+    };
+
     const handleClearAll = () => {
         handleChange("search", "");
         setSelectedCollectionIds([]);
         setSelectedVendors([]);
         setSelectedTypes([]);
+        setSelectedTags([]);
     };
 
     const appliedFilters = [];
@@ -123,6 +147,13 @@ export default function BarcodePreviewTable({
             key: "type",
             label: `Type: ${selectedTypes.join(", ")}`,
             onRemove: () => setSelectedTypes([]),
+        });
+    }
+    if (selectedTags.length > 0) {
+        appliedFilters.push({
+            key: "tags",
+            label: `Tags: ${selectedTags.join(", ")}`,
+            onRemove: () => setSelectedTags([]),
         });
     }
 
@@ -173,6 +204,54 @@ export default function BarcodePreviewTable({
                     }
                     autoComplete="off"
                 />
+            ),
+        },
+        {
+            key: "tags",
+            label: "Tags",
+            filter: (
+                <BlockStack gap="300">
+                    <TextField
+                        labelHidden
+                        placeholder="e.g. Summer, Premium, Sale"
+                        value={tagsInput}
+                        onChange={setTagsInput}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleAddTag();
+                            }
+                        }}
+                        autoComplete="off"
+                        helpText="Separate multiple tags with commas"
+                    />
+                    <Button
+                        onClick={handleAddTag}
+                        size="slim"
+                        variant="primary"
+                    >
+                        Add Tag(s)
+                    </Button>
+                    {selectedTags.length > 0 && (
+                        <div
+                            style={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: "8px",
+                                marginTop: "8px",
+                            }}
+                        >
+                            {selectedTags.map((tag) => (
+                                <Tag
+                                    key={tag}
+                                    onRemove={() => handleRemoveTag(tag)}
+                                >
+                                    {tag}
+                                </Tag>
+                            ))}
+                        </div>
+                    )}
+                </BlockStack>
             ),
         },
     ];
@@ -426,7 +505,7 @@ export default function BarcodePreviewTable({
                         filters={filters}
                         appliedFilters={appliedFilters}
                         onClearAll={handleClearAll}
-                        queryPlaceholder="Search products, SKU, barcode..."
+                        queryPlaceholder="Search by ID, Shopify ID, title, vendor, SKU, barcode..."
                     />
                 </Box>
 
@@ -554,7 +633,7 @@ export default function BarcodePreviewTable({
                                             ? `Fix All Duplicates (${stats.duplicates})`
                                             : activeTab === "missing"
                                             ? `Fix All Missing (${stats.missing})`
-                                            : `Apply to All (${overall_total})`}
+                                            : `Apply to All (${stats.total})`}
                                     </Button>
                                     <Button
                                         variant="primary"
@@ -573,7 +652,6 @@ export default function BarcodePreviewTable({
                 )}
             </Card>
 
-            {/* Modal */}
             {/* Variant Details Modal */}
             {selectedVariant && (
                 <div

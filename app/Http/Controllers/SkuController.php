@@ -50,32 +50,14 @@ class SkuController extends Controller
         $perPage = 8;
         $tab     = $request->input('tab', 'all');
 
-        $query = Variant::with(['product'])
-            ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
+        // ✅ BUILD BASE QUERY WITH ALL FILTERS
+        $baseQuery = $this->buildFilteredQuery($request, $shop);
 
-        // Filters
-        if ($request->filled('vendor')) {
-            $query->whereHas('product', fn($q) => $q->where('vendor', 'like', '%' . trim($request->vendor) . '%'));
-        }
-        if ($request->filled('type')) {
-            $query->whereHas('product', fn($q) => $q->where('product_type', 'like', '%' . trim($request->type) . '%'));
-        }
-        if ($request->filled('collections') && is_array($request->collections) && count($request->collections)) {
-            $query->whereHas('product.collections', fn($q) => $q->whereIn('collection_id', $request->collections));
-        }
-        if ($request->filled('tags') && is_array($request->tags) && count($request->tags)) {
-            $tagList = $request->tags;
+        // ✅ GET ALL FILTERED VARIANTS FOR STATS
+        $allVariants = $baseQuery->get();
+        $totalVariants = $allVariants->count();
 
-            $query->whereHas('product', function ($q) use ($tagList) {
-                foreach ($tagList as $tag) {
-                    $q->where('tags', 'LIKE', '%' . trim($tag) . '%');
-                }
-            });
-        }
-
-        $allVariants = $query->get();
-
-        // Calculate stats BEFORE filtering by tab
+        // ✅ CALCULATE STATS ON FILTERED DATA
         $missingVariants = $allVariants->filter(fn($v) => is_null($v->sku) || $v->sku === '');
         $missingCount = $missingVariants->count();
 
@@ -87,7 +69,7 @@ class SkuController extends Controller
         $duplicateVariants = $allVariants->filter(fn($v) => !is_null($v->sku) && $v->sku !== '' && in_array($v->sku, $dupSkuList, true));
         $duplicateCount = $duplicateVariants->count();
 
-        // Counters
+        // ✅ COUNTERS FOR DIFFERENT MODES
         $startNumber = (int)($request->input('auto_start', 1));
         $padLength   = strlen((string)$request->input('auto_start', '0001'));
         $globalCounter = $startNumber;
@@ -124,7 +106,6 @@ class SkuController extends Controller
             // Filter by tab
             if ($tab === 'duplicates' && !$isDuplicate) continue;
             if ($tab === 'missing' && !$isMissing) continue;
-            // if ($tab === 'all' && ($isDuplicate || $isMissing)) continue;
 
             // Calculate counter based on category
             if ($isMissing) {
@@ -183,8 +164,64 @@ class SkuController extends Controller
             'stats'           => [
                 'missing'     => $missingCount,
                 'duplicates'  => $duplicateCount,
+                'total'       => $totalVariants,
             ],
         ]);
+    }
+
+    /**
+     * ✅ BUILD FILTERED QUERY WITH ALL FILTERS APPLIED
+     */
+    private function buildFilteredQuery(Request $request, $shop)
+    {
+        $query = Variant::with(['product'])
+            ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
+
+        // Apply vendor filter
+        if ($request->filled('vendor')) {
+            $vendor = trim($request->vendor);
+            $query->whereHas('product', fn($q) => $q->where('vendor', 'like', '%' . $vendor . '%'));
+        }
+
+        // Apply product type filter
+        if ($request->filled('type')) {
+            $type = trim($request->type);
+            $query->whereHas('product', fn($q) => $q->where('product_type', 'like', '%' . $type . '%'));
+        }
+
+        // Apply collections filter
+        if ($request->filled('collections') && is_array($request->collections) && count($request->collections)) {
+            $collectionIds = array_filter($request->collections);
+            if (count($collectionIds) > 0) {
+                $query->whereHas('product.collections', fn($q) => $q->whereIn('collection_id', $collectionIds));
+            }
+        }
+
+        // Apply tags filter (supports comma-separated AND individual tags)
+        if ($request->filled('tags')) {
+            $tags = $request->tags;
+
+            // If it's a string (comma-separated), split it
+            if (is_string($tags)) {
+                $tags = array_map(
+                    fn($t) => trim($t),
+                    explode(',', $tags)
+                );
+            }
+
+            // Filter out empty strings
+            $tags = array_filter($tags, fn($t) => strlen($t) > 0);
+
+            if (count($tags) > 0) {
+                $query->whereHas('product', function ($q) use ($tags) {
+                    foreach ($tags as $tag) {
+                        $q->where('tags', 'LIKE', '%' . trim($tag) . '%');
+                    }
+                });
+            }
+        }
+
+        return $query;
     }
 
     private function getSource($variant, $request)
