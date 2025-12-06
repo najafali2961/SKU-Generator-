@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Product;
 use App\Models\Variant;
+use App\Models\Collection;
 use App\Models\Barcode;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
@@ -81,6 +82,16 @@ class FetchProductPageJob implements ShouldQueue
                             }
                           }
                         }
+                        collections(first: 100) {
+                          edges {
+                            node {
+                              id
+                              title
+                              handle
+                              description
+                            }
+                          }
+                        }
                       }
                     }
                     pageInfo {
@@ -135,7 +146,7 @@ class FetchProductPageJob implements ShouldQueue
                 // Product Type
                 $productType = $this->toString($node['productType'] ?? null);
 
-                // === TAGS — THE FINAL BULLETPROOF FIX ===
+                // === TAGS — BULLETPROOF FIX ===
                 $rawTags = $node['tags'] ?? null;
                 $tagsArray = [];
 
@@ -188,6 +199,9 @@ class FetchProductPageJob implements ShouldQueue
                         'updated_at'       => now(),
                     ]
                 );
+
+                // === HANDLE COLLECTIONS ===
+                $this->syncCollections($product, $shop, $node['collections'] ?? []);
 
                 // === VARIANTS ===
                 $variantsData = [];
@@ -312,6 +326,50 @@ class FetchProductPageJob implements ShouldQueue
         }
 
         Log::info("Successfully processed product page for shop: {$shop->myshopify_domain}, cursor: {$this->afterCursor}");
+    }
+
+    /**
+     * ✅ SYNC COLLECTIONS FOR A PRODUCT
+     */
+    private function syncCollections(Product $product, User $shop, $collectionsData): void
+    {
+        try {
+            // Parse collections data
+            $collectionsEdges = $collectionsData['edges'] ?? [];
+            if (is_object($collectionsEdges) && method_exists($collectionsEdges, 'toArray')) {
+                $collectionsEdges = $collectionsEdges->toArray();
+            }
+
+            $collectionIds = [];
+
+            foreach ($collectionsEdges as $cEdge) {
+                $c = $cEdge['node'] ?? $cEdge ?? [];
+                if (empty($c['id'])) continue;
+
+                $shopifyCollectionId = intval(basename($this->toString($c['id'])));
+
+                // Create or update collection
+                $collection = Collection::updateOrCreate(
+                    [
+                        'shopify_id' => $shopifyCollectionId,
+                        'user_id'    => $shop->id
+                    ],
+                    [
+                        'title'       => $this->toString($c['title'] ?? 'Untitled Collection'),
+                        'handle'      => $this->toString($c['handle'] ?? null),
+                        'description' => $this->toString($c['description'] ?? null),
+                    ]
+                );
+
+                $collectionIds[] = $collection->id;
+            }
+
+            // Sync collections with product (this will update pivot table)
+            $product->collections()->sync($collectionIds);
+        } catch (\Throwable $e) {
+            Log::error("Failed to sync collections for product {$product->id}: " . $e->getMessage());
+            // Don't fail the whole job, just log and continue
+        }
     }
 
     /**
