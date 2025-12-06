@@ -74,10 +74,6 @@ class GenerateBarcodeBatchJob implements ShouldQueue
                 $processed++;
                 $counter++;
             } catch (\Exception $e) {
-                Log::error("[BARCODE-BATCH] Generation failed for variant {$variant->id}", [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
-                ]);
                 $jobLog->error("Generation Failed", "Variant #{$variant->id}: " . $e->getMessage());
                 $failed++;
             }
@@ -86,20 +82,12 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         // BULK SYNC TO SHOPIFY
         foreach ($productsToSync as $productId => $barcodeMap) {
             try {
-                Log::info("[BARCODE-BATCH] Attempting Shopify sync", [
-                    'product_id' => $productId,
-                    'variant_count' => count($barcodeMap),
-                    'barcodes' => $barcodeMap,
-                ]);
+
 
                 $success = $shopify->updateVariantBarcodes((int)$productId, $barcodeMap);
 
                 if ($success) {
                     $jobLog->info("Synced to Shopify", "Product ID {$productId} – " . count($barcodeMap) . " variants");
-                    Log::info("[BARCODE-BATCH] Shopify sync successful", [
-                        'product_id' => $productId,
-                        'variant_count' => count($barcodeMap),
-                    ]);
                 } else {
                     Log::warning("[BARCODE-BATCH] Shopify sync returned false", [
                         'product_id' => $productId,
@@ -122,13 +110,6 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         if ($failed > 0) {
             $jobLog->increment('failed_items', $failed);
         }
-
-        Log::info("[BARCODE-BATCH] Batch complete", [
-            'shop_id' => $this->shopId,
-            'processed' => $processed,
-            'failed' => $failed,
-            'total' => count($this->variantIds),
-        ]);
     }
 
     public function failed(Throwable $exception)
