@@ -19,15 +19,35 @@ class JobController extends Controller
             'job' => $jobLog
         ]);
     }
-    // JobController.php
+
+    /**
+     * Get recent jobs for the authenticated user only
+     */
     public function index()
     {
-        $jobs = JobLog::orderBy('created_at', 'desc')->get(); // or paginate if too many
+        // ✅ FIX: Filter by authenticated user
+        $jobs = JobLog::where('user_id', auth()->id())
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         return Inertia::render('History', [
             'jobs' => $jobs
         ]);
     }
+
+    /**
+     * Get jobs for home dashboard (recent jobs widget)
+     * Used by HomeController
+     */
+    public function getRecentJobs($limit = 5)
+    {
+        // ✅ Filter by authenticated user and limit results
+        return JobLog::where('user_id', auth()->id())
+            ->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get();
+    }
+
     public function progress(JobLog $jobLog)
     {
         if ($jobLog->user_id !== auth()->id()) {
