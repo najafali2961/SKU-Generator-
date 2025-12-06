@@ -55,6 +55,8 @@ export default function SkuPreviewTable({
     setSelectedVendors,
     selectedTypes,
     setSelectedTypes,
+    selectedTags,
+    setSelectedTags,
 }) {
     const [selectedVariant, setSelectedVariant] = React.useState(null);
 
@@ -90,6 +92,7 @@ export default function SkuPreviewTable({
         setSelectedCollectionIds([]);
         setSelectedVendors([]);
         setSelectedTypes([]);
+        setSelectedTags([]);
     };
 
     // Build applied filters list
@@ -118,6 +121,13 @@ export default function SkuPreviewTable({
             key: "type",
             label: `Product type: ${selectedTypes.join(", ")}`,
             onRemove: () => setSelectedTypes([]),
+        });
+    }
+    if (selectedTags.length > 0) {
+        appliedFilters.push({
+            key: "tags",
+            label: `Tags: ${selectedTags.join(", ")}`,
+            onRemove: () => setSelectedTags([]),
         });
     }
 
@@ -171,6 +181,28 @@ export default function SkuPreviewTable({
                         setSelectedTypes(v.trim() ? [v.trim()] : [])
                     }
                     autoComplete="off"
+                />
+            ),
+        },
+        {
+            key: "tags",
+            label: "Tags",
+            filter: (
+                <TextField
+                    label="Tags"
+                    labelHidden
+                    placeholder="e.g. Winter, Premium, Sale"
+                    value={selectedTags.join(", ")}
+                    onChange={(value) => {
+                        // ✅ FIXED: Allow user to type freely, parse tags on the fly
+                        const tags = value
+                            .split(",")
+                            .map((t) => t.trim())
+                            .filter((t) => t.length > 0);
+                        setSelectedTags(tags);
+                    }}
+                    autoComplete="off"
+                    helpText="Separate multiple tags with commas"
                 />
             ),
         },
@@ -591,14 +623,8 @@ export default function SkuPreviewTable({
                             borderRadius: "12px",
                         }}
                     >
-                        {/* HEADER — SAME STYLE AS FIRST MODAL */}
-                        <Box
-                            padding="400"
-                            // background="bg-surface-brand"
-                            // borderBlockEndWidth="1"
-                            // borderColor="border-brand"
-                            // borderRadius="300"
-                        >
+                        {/* HEADER */}
+                        <Box padding="400">
                             <InlineStack
                                 align="space-between"
                                 blockAlign="center"
@@ -699,7 +725,7 @@ export default function SkuPreviewTable({
                             </InlineStack>
                         </Box>
 
-                        {/* BODY — ONLY MIGRATIONS (Same style as Barcode migration block) */}
+                        {/* BODY */}
                         <Box padding="500">
                             <BlockStack gap="500">
                                 {/* SKU Migration */}

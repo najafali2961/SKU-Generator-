@@ -63,6 +63,15 @@ class SkuController extends Controller
         if ($request->filled('collections') && is_array($request->collections) && count($request->collections)) {
             $query->whereHas('product.collections', fn($q) => $q->whereIn('collection_id', $request->collections));
         }
+        if ($request->filled('tags') && is_array($request->tags) && count($request->tags)) {
+            $tagList = $request->tags;
+
+            $query->whereHas('product', function ($q) use ($tagList) {
+                foreach ($tagList as $tag) {
+                    $q->where('tags', 'LIKE', '%' . trim($tag) . '%');
+                }
+            });
+        }
 
         $allVariants = $query->get();
 
@@ -115,7 +124,7 @@ class SkuController extends Controller
             // Filter by tab
             if ($tab === 'duplicates' && !$isDuplicate) continue;
             if ($tab === 'missing' && !$isMissing) continue;
-            // if ($tab === 'all' && ($isDuplicate || $isMissing)) continue; 
+            // if ($tab === 'all' && ($isDuplicate || $isMissing)) continue;
 
             // Calculate counter based on category
             if ($isMissing) {

@@ -36,11 +36,11 @@ export default function SkuGenerator({ initialCollections = [] }) {
     const [applying, setApplying] = useState(false);
     const [progress, setProgress] = useState(0);
     const [queryValue, setQueryValue] = useState("");
-
     // Filters
     const [selectedCollectionIds, setSelectedCollectionIds] = useState([]);
     const [selectedVendors, setSelectedVendors] = useState([]);
     const [selectedTypes, setSelectedTypes] = useState([]);
+    const [selectedTags, setSelectedTags] = useState([]);
 
     const debounceRef = useRef(null);
 
@@ -65,6 +65,7 @@ export default function SkuGenerator({ initialCollections = [] }) {
                 collections: selectedCollectionIds,
                 vendor: selectedVendors[0] || null,
                 type: selectedTypes[0] || null,
+                tags: selectedTags,
             });
 
             setPreview(res.data.preview || []);
@@ -86,6 +87,7 @@ export default function SkuGenerator({ initialCollections = [] }) {
         selectedCollectionIds,
         selectedVendors,
         selectedTypes,
+        selectedTags, // ✅ FIXED: Added selectedTags to dependencies
     ]);
 
     // Debounced preview update for form changes, search, filters
@@ -109,6 +111,7 @@ export default function SkuGenerator({ initialCollections = [] }) {
         selectedCollectionIds,
         selectedVendors,
         selectedTypes,
+        selectedTags,
     ]);
 
     // Fetch when page changes or when debounce completes
@@ -136,6 +139,7 @@ export default function SkuGenerator({ initialCollections = [] }) {
                     collections: selectedCollectionIds,
                     vendor: selectedVendors[0] || null,
                     type: selectedTypes[0] || null,
+                    tags: selectedTags,
                     get_all_ids: true,
                 });
 
@@ -152,6 +156,7 @@ export default function SkuGenerator({ initialCollections = [] }) {
             collections: selectedCollectionIds,
             vendor: selectedVendors[0] || null,
             type: selectedTypes[0] || null,
+            tags: selectedTags,
             apply_scope: scope,
             selected_variant_ids: ids,
         });
@@ -166,6 +171,7 @@ export default function SkuGenerator({ initialCollections = [] }) {
         setDuplicatePage(1);
         setSelected(new Set());
     };
+
     const handleExport = () => {
         if (preview.length === 0) {
             alert("No SKUs to export yet!");
@@ -212,6 +218,7 @@ export default function SkuGenerator({ initialCollections = [] }) {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
     };
+
     const mediaUrl = (item) => item.image || null;
 
     return (
@@ -254,6 +261,8 @@ export default function SkuGenerator({ initialCollections = [] }) {
                             setSelectedVendors={setSelectedVendors}
                             selectedTypes={selectedTypes}
                             setSelectedTypes={setSelectedTypes}
+                            selectedTags={selectedTags}
+                            setSelectedTags={setSelectedTags}
                         />
                     </div>
                 </div>
