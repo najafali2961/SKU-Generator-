@@ -67,7 +67,6 @@ export default function PrinterVariantTable({
         setSelected(new Set());
     };
 
-    // ✅ HANDLE ADDING TAGS - SUPPORTS BOTH BUTTON AND COMMA-SEPARATED
     const handleAddTag = () => {
         if (!tagsInput.trim()) return;
 
@@ -241,9 +240,17 @@ export default function PrinterVariantTable({
         });
     };
 
+    const handleSelectVisible = () => {
+        const visibleIds = variants.map((v) => v.id);
+        setSelected(new Set(visibleIds));
+    };
+
+    const handleClearSelection = () => {
+        setSelected(new Set());
+    };
+
     const totalLabels = selected.size * config.quantity_per_variant;
 
-    // Realistic QR Code Preview Component
     const QRCodePreview = ({ size, value = "SAMPLE-QR-CODE" }) => {
         const moduleSize = 3;
         const modules = Math.floor(size / moduleSize);
@@ -746,26 +753,28 @@ export default function PrinterVariantTable({
                     {!loading && variants.length > 0 && (
                         <>
                             <Divider />
-                            <Box padding="400" background="bg-surface-brand">
+                            <Box
+                                padding="400"
+                                background="bg-surface-secondary"
+                            >
                                 <InlineStack
                                     align="space-between"
                                     blockAlign="center"
                                 >
-                                    <InlineStack gap="300">
-                                        <Text
-                                            tone="text-inverse"
-                                            fontWeight="semibold"
+                                    <ButtonGroup>
+                                        <Button
+                                            onClick={handleClearSelection}
+                                            disabled={selected.size === 0}
                                         >
-                                            Total: {totalLabels} labels
-                                        </Text>
-                                        <Text
-                                            tone="text-inverse"
-                                            variant="bodySm"
+                                            Clear Selection
+                                        </Button>
+                                        <Button
+                                            onClick={handleSelectVisible}
+                                            disabled={variants.length === 0}
                                         >
-                                            ({selected.size} variants ×{" "}
-                                            {config.quantity_per_variant})
-                                        </Text>
-                                    </InlineStack>
+                                            Select Visible ({variants.length})
+                                        </Button>
+                                    </ButtonGroup>
 
                                     <InlineStack gap="200">
                                         {!showPreview && (
