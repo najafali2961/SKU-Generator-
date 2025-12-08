@@ -587,7 +587,7 @@ export default function BarcodePreviewTable({
                             )}
 
                         {activeTab !== "duplicates" &&
-                            Math.ceil(total / 25) > 1 && (
+                            Math.ceil(total / 8) > 1 && (
                                 <>
                                     <Divider />
                                     <Box padding="400">
@@ -597,11 +597,11 @@ export default function BarcodePreviewTable({
                                                 setPage((p) => p - 1)
                                             }
                                             hasNext={
-                                                page < Math.ceil(total / 25)
+                                                page < Math.ceil(total / 8)
                                             }
                                             onNext={() => setPage((p) => p + 1)}
                                             label={`${page} of ${Math.ceil(
-                                                total / 25
+                                                total / 8
                                             )}`}
                                         />
                                     </Box>
