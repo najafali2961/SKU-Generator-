@@ -453,11 +453,24 @@ export default function PrinterSidebar({
             <Card>
                 <Box padding="300">
                     <BlockStack gap="300">
-                        <InlineStack align="space-between" blockAlign="center">
-                            <SectionHeader
-                                title="📋 Templates"
-                                section="templates"
-                            />
+                        <InlineStack
+                            align="space-between"
+                            blockAlign="center"
+                            gap="none"
+                            style={{ width: "100%", display: "flex" }}
+                        >
+                            <div
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                }}
+                            >
+                                <SectionHeader
+                                    title="📋 Templates"
+                                    section="templates"
+                                />
+                            </div>
+
                             <Button
                                 size="slim"
                                 icon={SaveIcon}
