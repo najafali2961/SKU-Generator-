@@ -13,6 +13,7 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
     const [form, setForm] = useState({
         format: "UPC",
         prefix: "",
+        suffix: "",
         length: 12,
         checksum: true,
         enforce_length: true,
@@ -20,28 +21,27 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
         auto_fill: true,
         validate_standard: true,
         allow_qr_text: false,
-        isbn_group: "",
+        qr_text: "",
+        isbn_group: "978",
         ean_country: "",
         search: "",
         vendor: "",
         type: "",
-        start_number: "000000000001",
+        start_number: "1",
     });
 
     const [barcodes, setBarcodes] = useState([]);
     const [total, setTotal] = useState(0);
     const [overallTotal, setOverallTotal] = useState(0);
     const [duplicateGroups, setDuplicateGroups] = useState({});
-    const [stats, setStats] = useState({ missing: 0, duplicates: 0 });
+    const [stats, setStats] = useState({ missing: 0, duplicates: 0, total: 0 });
     const [selected, setSelected] = useState(new Set());
     const [page, setPage] = useState(1);
     const [duplicatePage, setDuplicatePage] = useState(1);
     const [activeTab, setActiveTab] = useState("all");
     const [loading, setLoading] = useState(false);
     const [applying, setApplying] = useState(false);
-    const [progress, setProgress] = useState(0);
 
-    // ✅ ADD FILTERS STATE
     const [selectedCollectionIds, setSelectedCollectionIds] = useState([]);
     const [selectedVendors, setSelectedVendors] = useState([]);
     const [selectedTypes, setSelectedTypes] = useState([]);
@@ -56,22 +56,31 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
     const fetchPreview = async () => {
         setLoading(true);
         try {
+            console.log("📤 Sending preview request with:", {
+                format: form.format,
+                allow_qr_text: form.allow_qr_text,
+                qr_text: form.qr_text,
+                prefix: form.prefix,
+                start_number: form.start_number,
+            });
+
             const res = await axios.post("/barcode-generator/preview", {
                 ...form,
                 page: activeTab === "duplicates" ? duplicatePage : page,
                 tab: activeTab,
-                // ✅ ADD FILTERS TO REQUEST
                 collections: selectedCollectionIds,
                 vendor: selectedVendors[0] || null,
                 type: selectedTypes[0] || null,
                 tags: selectedTags,
             });
 
+            console.log("📥 Preview response sample:", res.data.data?.[0]);
+
             setBarcodes(res.data.data || []);
             setTotal(res.data.total || 0);
             setOverallTotal(res.data.overall_total || 0);
             setDuplicateGroups(res.data.duplicateGroups || {});
-            setStats(res.data.stats || { missing: 0, duplicates: 0 });
+            setStats(res.data.stats || { missing: 0, duplicates: 0, total: 0 });
         } catch (err) {
             console.error("Preview error:", err);
         } finally {
@@ -79,12 +88,10 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
         }
     };
 
-    // ✅ FIXED DEBOUNCE EFFECT WITH ALL DEPENDENCIES
     useEffect(() => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
 
         debounceRef.current = setTimeout(() => {
-            // Reset to page 1 when filters/search change
             if (activeTab === "duplicates") {
                 setDuplicatePage(1);
             } else {
@@ -99,15 +106,13 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
         selectedCollectionIds,
         selectedVendors,
         selectedTypes,
-        selectedTags, // ✅ ADDED
+        selectedTags,
     ]);
 
-    // ✅ FETCH WHEN PAGE CHANGES OR DEBOUNCE COMPLETES
     useEffect(() => {
         fetchPreview();
-    }, [page, duplicatePage]); // fetchPreview will be called when these change
+    }, [page, duplicatePage]);
 
-    // ✅ SEPARATE EFFECT TO TRIGGER fetchPreview AFTER DEBOUNCE
     useEffect(() => {
         const timer = setTimeout(() => {
             fetchPreview();
@@ -123,48 +128,40 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
         selectedTags,
     ]);
 
-    useEffect(() => {
-        if (!applying) return;
-
-        const interval = setInterval(async () => {
-            try {
-                const { data } = await axios.get("/barcode-generator/progress");
-                setProgress(data.progress || 0);
-                if (data.progress >= 100) {
-                    setApplying(false);
-                    setProgress(0);
-                    fetchPreview();
-                }
-            } catch (err) {
-                console.error(err);
-            }
-        }, 1200);
-
-        return () => clearInterval(interval);
-    }, [applying]);
-
     const applyBarcodes = (scope = "selected") => {
         const ids = scope === "selected" ? Array.from(selected) : [];
 
+        console.log("🚀 Applying barcodes with settings:", {
+            scope,
+            format: form.format,
+            allow_qr_text: form.allow_qr_text,
+            qr_text: form.qr_text,
+            prefix: form.prefix,
+            start_number: form.start_number,
+            selected_count: ids.length,
+        });
+
         setApplying(true);
-        setProgress(0);
 
         router.post(
             "/barcode-generator/apply",
             {
-                ...form,
+                ...form, // ✅ SEND ALL CURRENT FORM STATE
                 apply_scope: scope,
                 selected_variant_ids: ids.length > 0 ? ids : undefined,
-                // ✅ ADD FILTERS TO APPLY REQUEST
                 collections: selectedCollectionIds,
                 vendor: selectedVendors[0] || null,
                 type: selectedTypes[0] || null,
                 tags: selectedTags,
             },
             {
-                onFinish: () => setSelected(new Set()),
+                onFinish: () => {
+                    setSelected(new Set());
+                    setApplying(false);
+                },
                 onError: (err) => {
                     setApplying(false);
+                    console.error("Apply failed:", err);
                     alert("Apply failed: " + JSON.stringify(err));
                 },
             }
@@ -255,7 +252,6 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
                             applyBarcodes={applyBarcodes}
                             form={form}
                             handleChange={handleChange}
-                            // ✅ PASS FILTERS TO PREVIEW TABLE
                             initialCollections={initialCollections}
                             selectedCollectionIds={selectedCollectionIds}
                             setSelectedCollectionIds={setSelectedCollectionIds}

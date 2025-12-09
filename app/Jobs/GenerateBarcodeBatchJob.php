@@ -43,6 +43,16 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         $shop = \App\Models\User::find($this->shopId);
         if (!$shop) return;
 
+        // ✅ LOG JOB SETTINGS
+        Log::info('[BARCODE-JOB] Starting batch', [
+            'format' => $this->settings['format'] ?? 'UNKNOWN',
+            'allow_qr_text' => $this->settings['allow_qr_text'] ?? false,
+            'qr_text' => $this->settings['qr_text'] ?? '',
+            'prefix' => $this->settings['prefix'] ?? '',
+            'start_number' => $this->settings['start_number'] ?? 1,
+            'variant_count' => count($this->variantIds),
+        ]);
+
         $shopify = new ShopifyService($shop);
 
         $variants = Variant::with('product')->whereIn('id', $this->variantIds)->get();
@@ -52,12 +62,20 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         $failed = 0;
         $counter = $this->getStartingCounter();
 
-        // Group by product for bulk update
         $productsToSync = [];
 
         foreach ($variants as $variant) {
             try {
                 $newBarcode = $this->generateBarcode($variant, $this->settings, $counter);
+
+                // ✅ LOG FIRST 3 GENERATED BARCODES
+                if ($processed < 3) {
+                    Log::info('[BARCODE-JOB] Generated', [
+                        'variant_id' => $variant->id,
+                        'new_barcode' => $newBarcode,
+                        'counter' => $counter,
+                    ]);
+                }
 
                 // Save to local DB
                 $variant->barcode = $newBarcode;
@@ -82,16 +100,12 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         // BULK SYNC TO SHOPIFY
         foreach ($productsToSync as $productId => $barcodeMap) {
             try {
-
-
                 $success = $shopify->updateVariantBarcodes((int)$productId, $barcodeMap);
 
                 if ($success) {
                     $jobLog->info("Synced to Shopify", "Product ID {$productId} – " . count($barcodeMap) . " variants");
                 } else {
-                    Log::warning("[BARCODE-BATCH] Shopify sync returned false", [
-                        'product_id' => $productId,
-                    ]);
+                    Log::warning("[BARCODE-BATCH] Shopify sync returned false", ['product_id' => $productId]);
                     $jobLog->warning("Shopify Sync Failed", "Product ID {$productId}");
                     $failed += count($barcodeMap);
                 }
@@ -138,31 +152,78 @@ class GenerateBarcodeBatchJob implements ShouldQueue
     private function generateBarcode($variant, $rules, $counter)
     {
         $format = $rules['format'] ?? 'UPC';
-        $prefix = strtoupper(trim($rules['prefix'] ?? ''));
+        $prefix = trim($rules['prefix'] ?? '');
+        $suffix = trim($rules['suffix'] ?? '');
         $checksum = $rules['checksum'] ?? true;
         $numeric_only = $rules['numeric_only'] ?? true;
         $auto_fill = $rules['auto_fill'] ?? true;
+        $enforce_length = $rules['enforce_length'] ?? true;
 
-        if ($format === 'QR') {
-            return ($rules['allow_qr_text'] ?? false)
-                ? ($variant->sku ?: "https://{$this->shop->myshopify_domain}/products/{$variant->product->handle}")
-                : 'QR-' . strtoupper(Str::random(12));
+        // QR CODE / DATA MATRIX / PDF417
+        if (in_array($format, ['QR', 'DATAMATRIX', 'PDF417'])) {
+            if ($rules['allow_qr_text'] ?? false) {
+                $text = trim($rules['qr_text'] ?? '');
+
+                // If no custom text, use SKU or product URL
+                if (empty($text)) {
+                    return $variant->sku ?: "https://shop.com/products/{$variant->product->handle}";
+                }
+
+                // Replace ALL template variables (with and without spaces)
+                $replacements = [
+                    '{{title}}' => $variant->product->title ?? '',
+                    '{{ title }}' => $variant->product->title ?? '',
+                    '{{handle}}' => $variant->product->handle ?? '',
+                    '{{ handle }}' => $variant->product->handle ?? '',
+                    '{{id}}' => (string)$variant->id,
+                    '{{ id }}' => (string)$variant->id,
+                    '{{sku}}' => $variant->sku ?? '',
+                    '{{ sku }}' => $variant->sku ?? '',
+                    '{{product_id}}' => (string)$variant->product_id,
+                    '{{ product_id }}' => (string)$variant->product_id,
+                    '{{variant_id}}' => (string)$variant->id,
+                    '{{ variant_id }}' => (string)$variant->id,
+                ];
+
+                return str_replace(
+                    array_keys($replacements),
+                    array_values($replacements),
+                    $text
+                );
+            }
+            return 'QR-' . strtoupper(Str::random(12));
         }
 
-        if ($format === 'CODE128') {
-            return $prefix . ($variant->sku ?: "V{$variant->id}");
+        // CODE128 / CODE39 - Allow alphanumeric
+        if (in_array($format, ['CODE128', 'CODE128A', 'CODE128B', 'CODE128C', 'CODE39'])) {
+            $base = $prefix . ($variant->sku ?: "V{$variant->id}") . $suffix;
+            return $numeric_only ? preg_replace('/\D/', '', $base) : $base;
         }
 
-        $targetLength = in_array($format, ['UPC', 'UPCA']) ? 12 : 13;
-        $base = $prefix . ($variant->sku ? preg_replace('/\D/', '', $variant->sku) : $counter);
+        // UPC / EAN / ISBN
+        $targetLength = match ($format) {
+            'UPC', 'UPCA' => 12,
+            'UPCE' => 8,
+            'EAN8' => 8,
+            'ITF14' => 14,
+            default => 13, // EAN13, ISBN, etc.
+        };
+
+        // Build base from prefix + counter
+        $base = $prefix . str_pad($counter, 6, '0', STR_PAD_LEFT) . $suffix;
 
         if ($numeric_only) {
             $base = preg_replace('/\D/', '', $base);
         }
 
+        // Truncate or pad
         $code = substr($base, 0, $targetLength - ($checksum ? 1 : 0));
 
         if ($auto_fill) {
+            $code = str_pad($code, $targetLength - ($checksum ? 1 : 0), '0', STR_PAD_LEFT);
+        }
+
+        if ($enforce_length && strlen($code) != ($targetLength - ($checksum ? 1 : 0))) {
             $code = str_pad($code, $targetLength - ($checksum ? 1 : 0), '0', STR_PAD_LEFT);
         }
 

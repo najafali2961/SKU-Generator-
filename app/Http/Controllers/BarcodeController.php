@@ -9,10 +9,7 @@ use App\Jobs\ImportBarcodesJob;
 use App\Models\JobLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Collection as LaravelCollection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class BarcodeController extends Controller
@@ -21,55 +18,81 @@ class BarcodeController extends Controller
     {
         $shop = Auth::user();
 
-        // ✅ GET COLLECTIONS FROM DATABASE (NOT SHOPIFY API)
         $collections = Collection::where('user_id', $shop->id)
             ->orderBy('title')
             ->get(['id', 'title'])
             ->map(fn($c) => ['id' => $c->id, 'title' => $c->title])
             ->toArray();
 
-        $variants = Variant::with(['product'])
-            ->whereHas('product', fn($q) => $q->where('user_id', $shop->id))
-            ->latest()
-            ->take(20)
-            ->get();
-
         return inertia('BarcodeGenerator', [
-            'initialVariants' => $variants->map(fn($v) => [
-                'id' => $v->id,
-                'title' => $v->product->title ?? 'Unknown',
-                'variant_title' => $v->title,
-                'sku' => $v->sku,
-                'barcode' => $v->barcode,
-                'image_url' => $v->image ?? ($v->product->images[0]['src'] ?? null),
-            ]),
             'initialCollections' => $collections,
         ]);
     }
 
+    /**
+     * ✅ EXACT MATCH WITH JOB - Use same function
+     */
     private function generateBarcode($variant, $rules, $counter)
     {
         $format = $rules['format'] ?? 'UPC';
-        $prefix = strtoupper(trim($rules['prefix'] ?? ''));
+        $prefix = trim($rules['prefix'] ?? '');
+        $suffix = trim($rules['suffix'] ?? '');
         $checksum = $rules['checksum'] ?? true;
         $numeric_only = $rules['numeric_only'] ?? true;
         $auto_fill = $rules['auto_fill'] ?? true;
-        $allow_qr_text = $rules['allow_qr_text'] ?? false;
+        $enforce_length = $rules['enforce_length'] ?? true;
 
-        if ($format === 'QR') {
-            return $allow_qr_text
-                ? ($variant->sku ?: "https://yourstore.com/products/{$variant->product->handle}")
-                : 'QR-' . strtoupper(Str::random(12));
+        // QR CODE / DATA MATRIX / PDF417
+        if (in_array($format, ['QR', 'DATAMATRIX', 'PDF417'])) {
+            if ($rules['allow_qr_text'] ?? false) {
+                $text = trim($rules['qr_text'] ?? '');
+
+                // If no custom text, use SKU or product URL
+                if (empty($text)) {
+                    return $variant->sku ?: "https://shop.com/products/{$variant->product->handle}";
+                }
+
+                // Replace ALL template variables (with and without spaces)
+                $replacements = [
+                    '{{title}}' => $variant->product->title ?? '',
+                    '{{ title }}' => $variant->product->title ?? '',
+                    '{{handle}}' => $variant->product->handle ?? '',
+                    '{{ handle }}' => $variant->product->handle ?? '',
+                    '{{id}}' => (string)$variant->id,
+                    '{{ id }}' => (string)$variant->id,
+                    '{{sku}}' => $variant->sku ?? '',
+                    '{{ sku }}' => $variant->sku ?? '',
+                    '{{product_id}}' => (string)$variant->product_id,
+                    '{{ product_id }}' => (string)$variant->product_id,
+                    '{{variant_id}}' => (string)$variant->id,
+                    '{{ variant_id }}' => (string)$variant->id,
+                ];
+
+                return str_replace(
+                    array_keys($replacements),
+                    array_values($replacements),
+                    $text
+                );
+            }
+            return 'QR-' . strtoupper(Str::random(12));
         }
 
-        if ($format === 'CODE128') {
-            $code = $prefix . ($variant->sku ?: "V{$variant->id}");
-            return $numeric_only ? preg_replace('/\D/', '', $code) : $code;
+        // CODE128 / CODE39
+        if (in_array($format, ['CODE128', 'CODE128A', 'CODE128B', 'CODE128C', 'CODE39'])) {
+            $base = $prefix . ($variant->sku ?: "V{$variant->id}") . $suffix;
+            return $numeric_only ? preg_replace('/\D/', '', $base) : $base;
         }
 
         // UPC / EAN / ISBN
-        $targetLength = $format === 'UPC' ? 12 : 13;
-        $base = $prefix . ($variant->sku ? preg_replace('/\D/', '', $variant->sku) : $variant->id . $counter);
+        $targetLength = match ($format) {
+            'UPC', 'UPCA' => 12,
+            'UPCE' => 8,
+            'EAN8' => 8,
+            'ITF14' => 14,
+            default => 13,
+        };
+
+        $base = $prefix . str_pad($counter, 6, '0', STR_PAD_LEFT) . $suffix;
 
         if ($numeric_only) {
             $base = preg_replace('/\D/', '', $base);
@@ -78,6 +101,10 @@ class BarcodeController extends Controller
         $code = substr($base, 0, $targetLength - ($checksum ? 1 : 0));
 
         if ($auto_fill) {
+            $code = str_pad($code, $targetLength - ($checksum ? 1 : 0), '0', STR_PAD_LEFT);
+        }
+
+        if ($enforce_length && strlen($code) != ($targetLength - ($checksum ? 1 : 0))) {
             $code = str_pad($code, $targetLength - ($checksum ? 1 : 0), '0', STR_PAD_LEFT);
         }
 
@@ -99,51 +126,24 @@ class BarcodeController extends Controller
             $sum += $number[$i] * $weight;
         }
 
-        $check = (10 - ($sum % 10)) % 10;
-        return $check;
+        return (10 - ($sum % 10)) % 10;
     }
 
-    public function apply(Request $request)
-    {
-        $shop = Auth::user();
-
-        $jobLog = JobLog::create([
-            'user_id' => $shop->id,
-            'type' => 'barcode_generation',
-            'title' => 'Barcode Generation',
-            'description' => 'Generating barcodes for ' . ($request->apply_scope === 'selected' ? 'selected' : 'all') . ' variants...',
-            'payload' => $request->all(),
-            'status' => 'pending',
-        ]);
-        $jobLog->markAsStarted();
-
-        GenerateBarcodeJob::dispatch($shop->id, $request->all(), $jobLog->id);
-
-        return redirect()->route('jobs.show', $jobLog->id)
-            ->with('success', 'Barcode generation started! You\'ll be redirected to the progress page...');
-    }
-
-    /**
-     * ✅ BUILD FILTERED QUERY WITH ALL FILTERS APPLIED
-     */
     private function buildFilteredQuery(Request $request, $shop)
     {
         $query = Variant::with(['product'])
             ->whereHas('product', fn($q) => $q->where('user_id', $shop->id));
 
-        // Apply vendor filter
         if ($request->filled('vendor')) {
             $vendor = trim($request->vendor);
             $query->whereHas('product', fn($q) => $q->where('vendor', 'like', '%' . $vendor . '%'));
         }
 
-        // Apply product type filter
         if ($request->filled('type')) {
             $type = trim($request->type);
             $query->whereHas('product', fn($q) => $q->where('product_type', 'like', '%' . $type . '%'));
         }
 
-        // Apply collections filter (FROM DATABASE)
         if ($request->filled('collections') && is_array($request->collections) && count($request->collections)) {
             $collectionIds = array_filter($request->collections);
             if (count($collectionIds) > 0) {
@@ -151,19 +151,11 @@ class BarcodeController extends Controller
             }
         }
 
-        // Apply tags filter (supports comma-separated AND individual tags)
         if ($request->filled('tags')) {
             $tags = $request->tags;
-
-            // If it's a string (comma-separated), split it
             if (is_string($tags)) {
-                $tags = array_map(
-                    fn($t) => trim($t),
-                    explode(',', $tags)
-                );
+                $tags = array_map(fn($t) => trim($t), explode(',', $tags));
             }
-
-            // Filter out empty strings
             $tags = array_filter($tags, fn($t) => strlen($t) > 0);
 
             if (count($tags) > 0) {
@@ -181,23 +173,27 @@ class BarcodeController extends Controller
     public function preview(Request $request)
     {
         $shop = Auth::user();
-        $page    = max(1, (int)$request->input('page', 1));
+        $page = max(1, (int)$request->input('page', 1));
         $perPage = 8;
-        $tab     = $request->input('tab', 'all');
+        $tab = $request->input('tab', 'all');
 
-        // ✅ BUILD BASE QUERY WITH ALL FILTERS
+        // ✅ LOG INCOMING SETTINGS FOR DEBUG
+        \Log::info('[BARCODE-PREVIEW] Received settings', [
+            'format' => $request->input('format'),
+            'allow_qr_text' => $request->input('allow_qr_text'),
+            'qr_text' => $request->input('qr_text'),
+            'prefix' => $request->input('prefix'),
+            'start_number' => $request->input('start_number'),
+        ]);
+
         $baseQuery = $this->buildFilteredQuery($request, $shop);
-
-        // ✅ GET ALL FILTERED VARIANTS FOR STATS
         $allVariants = $baseQuery->get();
         $totalVariants = $allVariants->count();
 
-        // ✅ CALCULATE STATS ON FILTERED DATA
         $isMissing = fn($v) => empty(trim($v->barcode ?? '')) || trim($v->barcode) === '-';
         $missingVariants = $allVariants->filter($isMissing);
         $missingCount = $missingVariants->count();
 
-        // Find duplicates (only count variants with actual barcodes)
         $barcodeCounts = $allVariants
             ->filter(fn($v) => !$isMissing($v))
             ->pluck('barcode')
@@ -212,41 +208,50 @@ class BarcodeController extends Controller
         $duplicateVariants = $allVariants->filter(fn($v) => !$isMissing($v) && in_array(trim($v->barcode), $dupBarcodeList, true));
         $duplicateCount = $duplicateVariants->count();
 
-        // ✅ BUILD PREVIEW WITH NEW BARCODES
-        $format  = $request->input('format', 'UPC');
+        $format = $request->input('format', 'UPC');
         $counter = (int)($request->input('start_number', 1));
         $preview = [];
 
         foreach ($allVariants as $variant) {
-            $rawBarcode   = $variant->barcode;
+            $rawBarcode = $variant->barcode;
             $cleanBarcode = (!empty(trim($rawBarcode)) && trim($rawBarcode) !== '-') ? trim($rawBarcode) : null;
+
+            // ✅ USE request->all() TO PASS ALL SETTINGS
             $newBarcode = $this->generateBarcode($variant, $request->all(), $counter);
 
             $preview[] = [
-                'id'                    => $variant->id,
-                'product_id'            => $variant->product_id,
-                'shopify_variant_id'    => $variant->shopify_variant_id,
-                'title'                 => $variant->product->title ?? 'Unknown Product',
-                'variant_title'         => $variant->title ?? 'Default Variant',
-                'vendor'                => $variant->product->vendor ?? '',
-                'sku'                   => $variant->sku ?? '',
-                'image_url'             => $variant->image ?? ($variant->product->images[0]['src'] ?? null),
-                'old_barcode'           => $cleanBarcode,
-                'new_barcode'           => $newBarcode,
-                'format'                => $format,
-                'option1'               => $variant->option1,
-                'option2'               => $variant->option2,
-                'option3'               => $variant->option3,
-                'price'                 => $variant->price,
-                'inventory_quantity'    => $variant->inventory_quantity,
-                'created_at'            => $variant->created_at,
-                'updated_at'            => $variant->updated_at,
+                'id' => $variant->id,
+                'product_id' => $variant->product_id,
+                'shopify_variant_id' => $variant->shopify_variant_id,
+                'title' => $variant->product->title ?? 'Unknown Product',
+                'variant_title' => $variant->title ?? 'Default Variant',
+                'vendor' => $variant->product->vendor ?? '',
+                'sku' => $variant->sku ?? '',
+                'image_url' => $variant->image ?? ($variant->product->images[0]['src'] ?? null),
+                'old_barcode' => $cleanBarcode,
+                'new_barcode' => $newBarcode,
+                'format' => $format,
+                'option1' => $variant->option1,
+                'option2' => $variant->option2,
+                'option3' => $variant->option3,
+                'price' => $variant->price,
+                'inventory_quantity' => $variant->inventory_quantity,
+                'created_at' => $variant->created_at,
+                'updated_at' => $variant->updated_at,
             ];
 
             $counter++;
         }
 
-        // ✅ FILTER BY TAB - ON PREVIEW DATA
+        // ✅ LOG FIRST GENERATED BARCODE FOR DEBUG
+        if (count($preview) > 0) {
+            \Log::info('[BARCODE-PREVIEW] First generated barcode', [
+                'variant_id' => $preview[0]['id'],
+                'new_barcode' => $preview[0]['new_barcode'],
+                'format' => $preview[0]['format'],
+            ]);
+        }
+
         $filtered = $preview;
         if ($tab === 'missing') {
             $filtered = array_filter($filtered, fn($i) => $i['old_barcode'] === null);
@@ -255,7 +260,6 @@ class BarcodeController extends Controller
             $filtered = array_filter($filtered, fn($i) => in_array($i['id'], $duplicateVariantIds, true));
         }
 
-        // ✅ APPLY SEARCH FILTER - DYNAMIC ON ALL FIELDS
         if ($request->filled('search')) {
             $q = strtolower(trim($request->search));
             $filtered = array_filter(
@@ -273,10 +277,9 @@ class BarcodeController extends Controller
             );
         }
 
-        $tableTotal    = count($filtered);
+        $tableTotal = count($filtered);
         $paginatedData = array_slice($filtered, ($page - 1) * $perPage, $perPage);
 
-        // ✅ BUILD DUPLICATE GROUPS FOR DUPLICATES TAB
         $duplicateGroups = [];
         if ($tab === 'duplicates') {
             $grouped = collect($preview)
@@ -292,16 +295,47 @@ class BarcodeController extends Controller
         }
 
         return response()->json([
-            'data'            => array_values($paginatedData),
-            'total'           => $tableTotal,
+            'data' => array_values($paginatedData),
+            'total' => $tableTotal,
             'duplicateGroups' => $duplicateGroups,
-            'stats'           => [
-                'missing'     => $missingCount,
-                'duplicates'  => $duplicateCount,
-                'total'       => $totalVariants,
+            'stats' => [
+                'missing' => $missingCount,
+                'duplicates' => $duplicateCount,
+                'total' => $totalVariants,
             ],
-            'overall_total'   => $totalVariants,
+            'overall_total' => $totalVariants,
         ]);
+    }
+
+    public function apply(Request $request)
+    {
+        $shop = Auth::user();
+
+        // ✅ LOG INCOMING APPLY SETTINGS
+        \Log::info('[BARCODE-APPLY] Received settings', [
+            'format' => $request->input('format'),
+            'allow_qr_text' => $request->input('allow_qr_text'),
+            'qr_text' => $request->input('qr_text'),
+            'prefix' => $request->input('prefix'),
+            'start_number' => $request->input('start_number'),
+            'apply_scope' => $request->input('apply_scope'),
+        ]);
+
+        $jobLog = JobLog::create([
+            'user_id' => $shop->id,
+            'type' => 'barcode_generation',
+            'title' => 'Barcode Generation',
+            'description' => 'Generating barcodes for ' . ($request->apply_scope === 'selected' ? 'selected' : 'all') . ' variants...',
+            'payload' => $request->all(), // ✅ STORE ALL SETTINGS
+            'status' => 'pending',
+        ]);
+        $jobLog->markAsStarted();
+
+        // ✅ PASS ALL SETTINGS TO JOB
+        GenerateBarcodeJob::dispatch($shop->id, $request->all(), $jobLog->id);
+
+        return redirect()->route('jobs.show', $jobLog->id)
+            ->with('success', 'Barcode generation started!');
     }
 
     public function importPage()
@@ -409,6 +443,6 @@ class BarcodeController extends Controller
         );
 
         return redirect()->route('jobs.show', $jobLog->id)
-            ->with('success', 'Barcode import started! Syncing with Shopify...');
+            ->with('success', 'Barcode import started!');
     }
 }
