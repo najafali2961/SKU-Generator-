@@ -265,21 +265,6 @@ export default function BarcodeSidebar({ form, handleChange }) {
                     </BlockStack>
                 </BlockStack>
             </Card>
-
-            {/* PREVIEW INFO */}
-            <Card sectioned>
-                <BlockStack gap="300">
-                    <Text variant="headingMd">Live Preview</Text>
-                    <Text tone="subdued">
-                        {isNumericFormat && "Numeric barcode with checksum"}
-                        {isCodeFormat && "Alphanumeric code"}
-                        {isQRFormat &&
-                            form.allow_qr_text &&
-                            "Custom QR with product data"}
-                        {isQRFormat && !form.allow_qr_text && "Random QR code"}
-                    </Text>
-                </BlockStack>
-            </Card>
         </BlockStack>
     );
 }
