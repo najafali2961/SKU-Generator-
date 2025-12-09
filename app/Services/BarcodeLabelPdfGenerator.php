@@ -376,6 +376,65 @@ class BarcodeLabelPdfGenerator
             ->stream('barcode-labels.pdf', ['Attachment' => false]);
     }
 
+    protected function calculateEffectiveDimensions()
+    {
+        $orientation = strtolower($this->setting->paper_orientation ?? 'portrait');
+        $paperWidth = floatval($this->setting->paper_width ?? 210);
+        $paperHeight = floatval($this->setting->paper_height ?? 297);
+
+        if ($orientation === 'landscape') {
+            return [
+                'width' => $paperHeight,
+                'height' => $paperWidth,
+            ];
+        }
+
+        return [
+            'width' => $paperWidth,
+            'height' => $paperHeight,
+        ];
+    }
+
+    protected function calculateMaxGrid()
+    {
+        $effective = $this->calculateEffectiveDimensions();
+        $effectiveWidth = $effective['width'];
+        $effectiveHeight = $effective['height'];
+
+        $marginLeft = floatval($this->setting->page_margin_left ?? 0);
+        $marginRight = floatval($this->setting->page_margin_right ?? 0);
+        $marginTop = floatval($this->setting->page_margin_top ?? 0);
+        $marginBottom = floatval($this->setting->page_margin_bottom ?? 0);
+
+        $labelWidth = floatval($this->setting->label_width ?? 80);
+        $labelHeight = floatval($this->setting->label_height ?? 40);
+
+        $hGap = floatval($this->setting->label_spacing_horizontal ?? 0);
+        $vGap = floatval($this->setting->label_spacing_vertical ?? 0);
+
+        $availableWidth = $effectiveWidth - $marginLeft - $marginRight;
+        $availableHeight = $effectiveHeight - $marginTop - $marginBottom;
+
+        $maxCols = 0;
+        do {
+            $maxCols++;
+            $requiredWidth = ($labelWidth * $maxCols) + ($hGap * ($maxCols - 1));
+        } while ($requiredWidth <= $availableWidth);
+        $maxCols = max(1, $maxCols - 1);
+
+        $maxRows = 0;
+        do {
+            $maxRows++;
+            $requiredHeight = ($labelHeight * $maxRows) + ($vGap * ($maxRows - 1));
+        } while ($requiredHeight <= $availableHeight);
+        $maxRows = max(1, $maxRows - 1);
+
+        return [
+            'max_cols' => $maxCols,
+            'max_rows' => $maxRows,
+        ];
+    }
+
     protected function buildHtml($labels)
     {
         $s = $this->setting;
@@ -397,8 +456,30 @@ class BarcodeLabelPdfGenerator
         // For QR codes, use the smaller dimension
         $qrSize = min($barcodeWidth, $barcodeHeight);
 
-        $cols = max(1, (int)($s->labels_per_row ?? 2));
-        $rows = max(1, (int)($s->labels_per_column ?? 7));
+        // Calculate max grid and clamp user inputs
+        $grid = $this->calculateMaxGrid();
+        $maxCols = $grid['max_cols'];
+        $maxRows = $grid['max_rows'];
+
+        $userCols = (int)($s->labels_per_row ?? $maxCols);
+        $userRows = (int)($s->labels_per_column ?? $maxRows);
+
+        $cols = min($userCols, $maxCols);
+        $rows = min($userRows, $maxRows);
+
+        $cols = max(1, $cols);
+        $rows = max(1, $rows);
+
+        if ($userCols > $maxCols || $userRows > $maxRows) {
+            Log::warning('Label grid clamped to fit page', [
+                'requested' => "{$userCols}x{$userRows}",
+                'clamped' => "{$cols}x{$rows}",
+                'paper_size' => "{$s->paper_width}x{$s->paper_height} mm",
+                'orientation' => $s->paper_orientation,
+                'label_size' => "{$s->label_width}x{$s->label_height} mm",
+            ]);
+        }
+
         $labelsPerPage = $cols * $rows;
 
         $fontSize = max(6, (int)($s->font_size ?? 10));
@@ -586,6 +667,12 @@ HTML;
 
             foreach ($pageLabels as $label) {
                 $html .= $this->buildLabelHtml($label);
+            }
+
+            // Fill remaining slots with empty labels if needed (for sheet alignment)
+            $remaining = $labelsPerPage - count($pageLabels);
+            for ($i = 0; $i < $remaining; $i++) {
+                $html .= "<div class='label' style='border: none;'></div>";
             }
 
             $html .= "</div></div>";
