@@ -11,7 +11,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
@@ -43,11 +43,8 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         $shop = \App\Models\User::find($this->shopId);
         if (!$shop) return;
 
-        // ✅ LOG JOB SETTINGS
         Log::info('[BARCODE-JOB] Starting batch', [
             'format' => $this->settings['format'] ?? 'UNKNOWN',
-            'allow_qr_text' => $this->settings['allow_qr_text'] ?? false,
-            'qr_text' => $this->settings['qr_text'] ?? '',
             'prefix' => $this->settings['prefix'] ?? '',
             'start_number' => $this->settings['start_number'] ?? 1,
             'variant_count' => count($this->variantIds),
@@ -60,44 +57,63 @@ class GenerateBarcodeBatchJob implements ShouldQueue
 
         $processed = 0;
         $failed = 0;
-        $counter = $this->getStartingCounter();
-
         $productsToSync = [];
 
-        foreach ($variants as $variant) {
-            try {
-                $newBarcode = $this->generateBarcode($variant, $this->settings, $counter);
+        // ✅ WRAP EVERYTHING IN A TRANSACTION
+        DB::beginTransaction();
 
-                // ✅ LOG FIRST 3 GENERATED BARCODES
-                if ($processed < 3) {
-                    Log::info('[BARCODE-JOB] Generated', [
+        try {
+            foreach ($variants as $variant) {
+                try {
+                    // ✅ GET ATOMIC COUNTER FROM DATABASE (NOT CACHE)
+                    $counter = $this->getNextBarcodeCounter();
+
+                    $newBarcode = $this->generateBarcode($variant, $this->settings, $counter);
+
+                    if ($processed < 3) {
+                        Log::info('[BARCODE-JOB] Generated', [
+                            'variant_id' => $variant->id,
+                            'new_barcode' => $newBarcode,
+                            'counter' => $counter,
+                        ]);
+                    }
+
+                    // ✅ SAVE TO LOCAL DB WITHIN TRANSACTION
+                    $variant->barcode = $newBarcode;
+                    $variant->save();
+
+                    // Collect for bulk Shopify sync
+                    $productsToSync[$variant->product_id][$variant->id] = $newBarcode;
+
+                    $jobLog->success(
+                        "Barcode Generated",
+                        "{$variant->product->title} – {$variant->title} → {$newBarcode}"
+                    );
+
+                    $processed++;
+                } catch (\Exception $e) {
+                    Log::error('[BARCODE-JOB] Generation failed', [
                         'variant_id' => $variant->id,
-                        'new_barcode' => $newBarcode,
-                        'counter' => $counter,
+                        'error' => $e->getMessage(),
                     ]);
+                    $jobLog->error("Generation Failed", "Variant #{$variant->id}: " . $e->getMessage());
+                    $failed++;
+                    throw $e; // Rollback entire batch if any fails
                 }
-
-                // Save to local DB
-                $variant->barcode = $newBarcode;
-                $variant->save();
-
-                // Collect for bulk Shopify sync
-                $productsToSync[$variant->product_id][$variant->id] = $newBarcode;
-
-                $jobLog->success(
-                    "Barcode Generated",
-                    "{$variant->product->title} – {$variant->title} → {$newBarcode}"
-                );
-
-                $processed++;
-                $counter++;
-            } catch (\Exception $e) {
-                $jobLog->error("Generation Failed", "Variant #{$variant->id}: " . $e->getMessage());
-                $failed++;
             }
+
+            // ✅ COMMIT BEFORE SHOPIFY SYNC
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('[BARCODE-JOB] Batch transaction failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
         }
 
-        // BULK SYNC TO SHOPIFY
+        // ✅ SYNC TO SHOPIFY AFTER LOCAL DB SUCCESS
         foreach ($productsToSync as $productId => $barcodeMap) {
             try {
                 $success = $shopify->updateVariantBarcodes((int)$productId, $barcodeMap);
@@ -107,16 +123,13 @@ class GenerateBarcodeBatchJob implements ShouldQueue
                 } else {
                     Log::warning("[BARCODE-BATCH] Shopify sync returned false", ['product_id' => $productId]);
                     $jobLog->warning("Shopify Sync Failed", "Product ID {$productId}");
-                    $failed += count($barcodeMap);
                 }
             } catch (\Exception $e) {
                 Log::error("[BARCODE-BATCH] Shopify sync exception", [
                     'product_id' => $productId,
                     'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
                 ]);
                 $jobLog->error("Shopify Sync Error", "Product ID {$productId}: " . $e->getMessage());
-                $failed += count($barcodeMap);
             }
         }
 
@@ -139,16 +152,44 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         }
     }
 
-    private function getStartingCounter(): int
+    /**
+     * ✅ ATOMIC DATABASE COUNTER (SAME AS SKU SYSTEM)
+     */
+    private function getNextBarcodeCounter(): int
     {
-        $start = (int)($this->settings['start_number'] ?? 1);
-        $cacheKey = "barcode_counter_{$this->shopId}";
-        $current = Cache::get($cacheKey, $start - 1);
-        $next = $current + 1;
-        Cache::put($cacheKey, $next, 3600);
-        return $next;
+        return DB::transaction(function () {
+            $format = $this->settings['format'] ?? 'UPC';
+            $startNumber = (int)($this->settings['start_number'] ?? 1);
+
+            $row = DB::table('barcode_counters')
+                ->lockForUpdate()
+                ->where('shop_id', $this->shopId)
+                ->where('format', $format)
+                ->first();
+
+            if (!$row) {
+                DB::table('barcode_counters')->insert([
+                    'shop_id' => $this->shopId,
+                    'format' => $format,
+                    'counter' => $startNumber,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                return $startNumber;
+            }
+
+            $next = $row->counter + 1;
+            DB::table('barcode_counters')
+                ->where('id', $row->id)
+                ->update(['counter' => $next, 'updated_at' => now()]);
+
+            return $next;
+        });
     }
 
+    /**
+     * ✅ FIXED BARCODE GENERATION (MATCHES CONTROLLER)
+     */
     private function generateBarcode($variant, $rules, $counter)
     {
         $format = $rules['format'] ?? 'UPC';
@@ -164,12 +205,10 @@ class GenerateBarcodeBatchJob implements ShouldQueue
             if ($rules['allow_qr_text'] ?? false) {
                 $text = trim($rules['qr_text'] ?? '');
 
-                // If no custom text, use SKU or product URL
                 if (empty($text)) {
                     return $variant->sku ?: "https://shop.com/products/{$variant->product->handle}";
                 }
 
-                // Replace ALL template variables (with and without spaces)
                 $replacements = [
                     '{{title}}' => $variant->product->title ?? '',
                     '{{ title }}' => $variant->product->title ?? '',
@@ -194,7 +233,7 @@ class GenerateBarcodeBatchJob implements ShouldQueue
             return 'QR-' . strtoupper(Str::random(12));
         }
 
-        // CODE128 / CODE39 - Allow alphanumeric
+        // CODE128 / CODE39
         if (in_array($format, ['CODE128', 'CODE128A', 'CODE128B', 'CODE128C', 'CODE39'])) {
             $base = $prefix . ($variant->sku ?: "V{$variant->id}") . $suffix;
             return $numeric_only ? preg_replace('/\D/', '', $base) : $base;
@@ -206,17 +245,15 @@ class GenerateBarcodeBatchJob implements ShouldQueue
             'UPCE' => 8,
             'EAN8' => 8,
             'ITF14' => 14,
-            default => 13, // EAN13, ISBN, etc.
+            default => 13,
         };
 
-        // Build base from prefix + counter
         $base = $prefix . str_pad($counter, 6, '0', STR_PAD_LEFT) . $suffix;
 
         if ($numeric_only) {
             $base = preg_replace('/\D/', '', $base);
         }
 
-        // Truncate or pad
         $code = substr($base, 0, $targetLength - ($checksum ? 1 : 0));
 
         if ($auto_fill) {

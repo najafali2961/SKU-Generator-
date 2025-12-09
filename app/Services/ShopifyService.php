@@ -186,33 +186,32 @@ GRAPHQL;
 
         $bulkVariants = [];
         foreach ($variants as $variant) {
-            if (empty($variant->shopify_variant_id)) continue;
+            if (empty($variant->shopify_variant_id)) {
+                Log::warning("[BARCODE-SYNC] Missing Shopify ID", ['variant_id' => $variant->id]);
+                continue;
+            }
 
             $newBarcode = $barcodeMap[$variant->id] ?? null;
             if ($newBarcode === null) continue;
 
             $bulkVariants[] = [
                 'id' => $this->toGid($variant->shopify_variant_id, 'ProductVariant'),
-                'inventoryItem' => [
-                    'barcode' => $newBarcode
-                ]
+                'barcode' => (string)$newBarcode, // ✅ ENSURE STRING TYPE
             ];
-
-            // Update local DB
-            $variant->barcode = $newBarcode;
-            $variant->saveQuietly();
         }
 
-        if (empty($bulkVariants)) return true;
+        if (empty($bulkVariants)) {
+            Log::warning("[BARCODE-SYNC] No valid variants to sync", ['product_id' => $localProductId]);
+            return true;
+        }
 
+        // ✅ FIXED MUTATION - USE CORRECT FIELD STRUCTURE
         $mutation = <<<'GRAPHQL'
 mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
   productVariantsBulkUpdate(productId: $productId, variants: $variants) {
     productVariants {
       id
-      inventoryItem {
-        barcode
-      }
+      barcode
     }
     userErrors {
       field
@@ -227,23 +226,45 @@ GRAPHQL;
             'variants' => $bulkVariants,
         ];
 
-        $response = $this->graph($mutation, $variables);
+        Log::info("[BARCODE-SYNC] Sending to Shopify", [
+            'product_id' => $localProductId,
+            'shopify_product_gid' => $variables['productId'],
+            'variant_count' => count($bulkVariants),
+            'sample_variant' => $bulkVariants[0] ?? null,
+        ]);
 
-        $errors = $response['data']['productVariantsBulkUpdate']['userErrors'] ?? [];
-        if (!empty($errors)) {
-            Log::error("[BARCODE-SYNC] Failed", [
+        try {
+            $response = $this->graph($mutation, $variables);
+
+            $errors = $response['data']['productVariantsBulkUpdate']['userErrors'] ?? [];
+
+            if (!empty($errors)) {
+                Log::error("[BARCODE-SYNC] Shopify errors", [
+                    'product_id' => $localProductId,
+                    'errors' => $errors,
+                    'response' => $response,
+                ]);
+                return false;
+            }
+
+            $returnedVariants = $response['data']['productVariantsBulkUpdate']['productVariants'] ?? [];
+
+            Log::info("[BARCODE-SYNC] SUCCESS", [
                 'product_id' => $localProductId,
-                'errors' => $errors
+                'sent_count' => count($bulkVariants),
+                'returned_count' => count($returnedVariants),
+                'sample_response' => $returnedVariants[0] ?? null,
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error("[BARCODE-SYNC] Exception", [
+                'product_id' => $localProductId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
             return false;
         }
-
-        Log::info("[BARCODE-SYNC] SUCCESS", [
-            'product_id' => $localProductId,
-            'count' => count($bulkVariants)
-        ]);
-
-        return true;
     }
 
     /**
