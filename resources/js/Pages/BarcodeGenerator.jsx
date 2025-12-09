@@ -56,14 +56,6 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
     const fetchPreview = async () => {
         setLoading(true);
         try {
-            console.log("📤 Sending preview request with:", {
-                format: form.format,
-                allow_qr_text: form.allow_qr_text,
-                qr_text: form.qr_text,
-                prefix: form.prefix,
-                start_number: form.start_number,
-            });
-
             const res = await axios.post("/barcode-generator/preview", {
                 ...form,
                 page: activeTab === "duplicates" ? duplicatePage : page,
@@ -73,9 +65,6 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
                 type: selectedTypes[0] || null,
                 tags: selectedTags,
             });
-
-            console.log("📥 Preview response sample:", res.data.data?.[0]);
-
             setBarcodes(res.data.data || []);
             setTotal(res.data.total || 0);
             setOverallTotal(res.data.overall_total || 0);
