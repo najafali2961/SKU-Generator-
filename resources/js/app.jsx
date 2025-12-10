@@ -172,6 +172,21 @@ createInertiaApp({
                     >
                         History
                     </a>
+                    <a
+                        href="/pricing"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            router.visit("/pricing");
+                        }}
+                        style={{
+                            fontWeight:
+                                window.location.pathname === "/pricing"
+                                    ? "bold"
+                                    : "normal",
+                        }}
+                    >
+                        Pricing Plan
+                    </a>
                 </NavMenu>
 
                 <App {...props} />

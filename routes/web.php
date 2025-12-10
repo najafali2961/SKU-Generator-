@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\ProductApiController;
 use App\Http\Controllers\BarcodeController;
+use App\Http\Controllers\PricingController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SkuController;
 use Illuminate\Support\Facades\Route;
@@ -61,6 +62,15 @@ Route::middleware(['verify.shopify', 'billable'])->group(function () {
         // PDF Generation
         Route::post('/generate-pdf', [PrinterController::class, 'generatePdf'])->name('generate-pdf');
     });
+
+
+
+    // ==================== PRICING ROUTES ====================
+    Route::get('/pricing', [PricingController::class, 'index'])->name('pricing');
+    Route::post('/pricing/select/{planId}', [PricingController::class, 'selectPlan'])->name('pricing.select');
+    Route::post('/pricing/cancel', [PricingController::class, 'cancel'])->name('pricing.cancel');
+    // ========================================================
+
 });
 
 Route::middleware(['auth.webhook'])->group(function () {
