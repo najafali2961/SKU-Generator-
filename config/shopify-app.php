@@ -296,7 +296,7 @@ return [
     |
     */
 
-    'billing_enabled' => (bool) env('SHOPIFY_BILLING_ENABLED', false),
+    'billing_enabled' => (bool) env('SHOPIFY_BILLING_ENABLED', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -308,7 +308,7 @@ return [
     |
     */
 
-    'billing_freemium_enabled' => (bool) env('SHOPIFY_BILLING_FREEMIUM_ENABLED', false),
+    'billing_freemium_enabled' => (bool) env('SHOPIFY_BILLING_FREEMIUM_ENABLED', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -354,7 +354,7 @@ return [
 
     'listen' => [
         \Osiset\ShopifyApp\Messaging\Events\AppInstalledEvent::class => [
-            // \App\Listeners\MyListener::class,
+            \App\Listeners\AssignDefaultPlanOnInstall::class,
         ],
         \Osiset\ShopifyApp\Messaging\Events\ShopAuthenticatedEvent::class => [
             // \App\Listeners\MyListener::class,
@@ -366,7 +366,7 @@ return [
             // \App\Listeners\MyListener::class,
         ],
         \Osiset\ShopifyApp\Messaging\Events\PlanActivatedEvent::class => [
-            // \App\Listeners\MyListener::class,
+            \App\Listeners\PlanActivatedListener::class,
         ],
     ],
 

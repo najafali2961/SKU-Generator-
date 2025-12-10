@@ -13,7 +13,7 @@ use App\Http\Controllers\PrinterController;
 use App\Http\Controllers\ShopifyWebhookController;
 use App\Http\Controllers\WebhookController;
 
-Route::middleware(['verify.shopify'])->group(function () {
+Route::middleware(['verify.shopify', 'billable'])->group(function () {
 
     Route::get('/', [HomeController::class, 'index'])->name('home');
 
