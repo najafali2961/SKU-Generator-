@@ -64,29 +64,37 @@ export default function Pricing({ plans = [], currentPlan = {}, user = {} }) {
             subtitle="Select the perfect plan for your business needs"
         >
             <Layout>
-                {/* Current Status Banner */}
+                {/* Support CTA */}
                 <Layout.Section>
-                    {isFreemium ? (
-                        <Banner title="You're on the Free Plan" tone="info">
-                            <p>
-                                Upgrade to unlock unlimited SKU & barcode
-                                generation, advanced features, and priority
-                                support.
-                            </p>
-                        </Banner>
-                    ) : (
-                        <Banner
-                            title={`Active Plan: ${currentPlan.name}`}
-                            tone="success"
+                    <Box
+                        background="bg-surface-secondary"
+                        padding="400"
+                        borderRadius="300"
+                    >
+                        <InlineStack
+                            align="space-between"
+                            blockAlign="center"
+                            gap="400"
+                            wrap={false}
                         >
-                            <p>
-                                You're currently on the {currentPlan.name} plan.
-                                You can upgrade or change your plan anytime.
-                            </p>
-                        </Banner>
-                    )}
+                            <BlockStack gap="200">
+                                <Text variant="headingMd" fontWeight="semibold">
+                                    Need help choosing?
+                                </Text>
+                                <Text tone="subdued">
+                                    Our support team is here to help you find
+                                    the perfect plan for your business
+                                </Text>
+                            </BlockStack>
+                            <Button
+                                url="/support"
+                                icon={<Icon source={StarFilledIcon} />}
+                            >
+                                Contact Support
+                            </Button>
+                        </InlineStack>
+                    </Box>
                 </Layout.Section>
-
                 {/* Pricing Cards */}
                 <Layout.Section>
                     <InlineGrid columns={{ xs: 1, sm: 2, lg: 3 }} gap="400">
@@ -242,208 +250,27 @@ export default function Pricing({ plans = [], currentPlan = {}, user = {} }) {
                         })}
                     </InlineGrid>
                 </Layout.Section>
-
-                {/* Features Comparison */}
+                {/* Current Status Banner */}
                 <Layout.Section>
-                    <Card>
-                        <BlockStack gap="400">
-                            <Text variant="headingLg" fontWeight="semibold">
-                                Compare Plans
-                            </Text>
-
-                            <BlockStack gap="300">
-                                <InlineGrid columns={4} gap="300">
-                                    <Text fontWeight="semibold">Feature</Text>
-                                    <Text
-                                        fontWeight="semibold"
-                                        alignment="center"
-                                    >
-                                        Basic
-                                    </Text>
-                                    <Text
-                                        fontWeight="semibold"
-                                        alignment="center"
-                                    >
-                                        Pro
-                                    </Text>
-                                    <Text
-                                        fontWeight="semibold"
-                                        alignment="center"
-                                    >
-                                        Pro Annual
-                                    </Text>
-                                </InlineGrid>
-
-                                <Divider />
-
-                                <InlineGrid columns={4} gap="300">
-                                    <Text>SKU Generation</Text>
-                                    <Text alignment="center">Unlimited</Text>
-                                    <Text alignment="center">Unlimited</Text>
-                                    <Text alignment="center">Unlimited</Text>
-                                </InlineGrid>
-
-                                <Divider />
-
-                                <InlineGrid columns={4} gap="300">
-                                    <Text>Barcode Generation</Text>
-                                    <Text alignment="center">Unlimited</Text>
-                                    <Text alignment="center">Unlimited</Text>
-                                    <Text alignment="center">Unlimited</Text>
-                                </InlineGrid>
-
-                                <Divider />
-
-                                <InlineGrid columns={4} gap="300">
-                                    <Text>Label Printing</Text>
-                                    <Text alignment="center">✓</Text>
-                                    <Text alignment="center">✓</Text>
-                                    <Text alignment="center">✓</Text>
-                                </InlineGrid>
-
-                                <Divider />
-
-                                <InlineGrid columns={4} gap="300">
-                                    <Text>Priority Support</Text>
-                                    <Text alignment="center">-</Text>
-                                    <Text alignment="center">✓</Text>
-                                    <Text alignment="center">✓</Text>
-                                </InlineGrid>
-
-                                <Divider />
-
-                                <InlineGrid columns={4} gap="300">
-                                    <Text>Advanced Features</Text>
-                                    <Text alignment="center">-</Text>
-                                    <Text alignment="center">✓</Text>
-                                    <Text alignment="center">✓</Text>
-                                </InlineGrid>
-
-                                <Divider />
-
-                                <InlineGrid columns={4} gap="300">
-                                    <Text>Annual Discount</Text>
-                                    <Text alignment="center">-</Text>
-                                    <Text alignment="center">-</Text>
-                                    <Text alignment="center">17% OFF</Text>
-                                </InlineGrid>
-                            </BlockStack>
-                        </BlockStack>
-                    </Card>
-                </Layout.Section>
-
-                {/* FAQ Section */}
-                <Layout.Section>
-                    <Card>
-                        <BlockStack gap="400">
-                            <Text variant="headingLg" fontWeight="semibold">
-                                Frequently Asked Questions
-                            </Text>
-
-                            <BlockStack gap="400">
-                                <BlockStack gap="200">
-                                    <Text
-                                        variant="headingMd"
-                                        fontWeight="semibold"
-                                    >
-                                        Can I change my plan later?
-                                    </Text>
-                                    <Text tone="subdued">
-                                        Yes! You can upgrade or downgrade your
-                                        plan at any time. Changes will be
-                                        reflected in your next billing cycle,
-                                        and you'll be charged or credited
-                                        accordingly.
-                                    </Text>
-                                </BlockStack>
-
-                                <Divider />
-
-                                <BlockStack gap="200">
-                                    <Text
-                                        variant="headingMd"
-                                        fontWeight="semibold"
-                                    >
-                                        What happens during the free trial?
-                                    </Text>
-                                    <Text tone="subdued">
-                                        During your free trial, you'll have full
-                                        access to all features of your selected
-                                        plan. You won't be charged until the
-                                        trial period ends. Cancel anytime during
-                                        the trial at no cost.
-                                    </Text>
-                                </BlockStack>
-
-                                <Divider />
-
-                                <BlockStack gap="200">
-                                    <Text
-                                        variant="headingMd"
-                                        fontWeight="semibold"
-                                    >
-                                        How does billing work?
-                                    </Text>
-                                    <Text tone="subdued">
-                                        All charges are processed through
-                                        Shopify and will appear on your Shopify
-                                        invoice. Monthly plans renew every 30
-                                        days, and annual plans renew once per
-                                        year.
-                                    </Text>
-                                </BlockStack>
-
-                                <Divider />
-
-                                <BlockStack gap="200">
-                                    <Text
-                                        variant="headingMd"
-                                        fontWeight="semibold"
-                                    >
-                                        Can I cancel anytime?
-                                    </Text>
-                                    <Text tone="subdued">
-                                        Yes, you can cancel your subscription at
-                                        any time through your Shopify admin.
-                                        Your access will continue until the end
-                                        of your current billing period.
-                                    </Text>
-                                </BlockStack>
-                            </BlockStack>
-                        </BlockStack>
-                    </Card>
-                </Layout.Section>
-
-                {/* Support CTA */}
-                <Layout.Section>
-                    <Box
-                        background="bg-surface-secondary"
-                        padding="400"
-                        borderRadius="300"
-                    >
-                        <InlineStack
-                            align="space-between"
-                            blockAlign="center"
-                            gap="400"
-                            wrap={false}
+                    {isFreemium ? (
+                        <Banner title="You're on the Free Plan" tone="info">
+                            <p>
+                                Upgrade to unlock unlimited SKU & barcode
+                                generation, advanced features, and priority
+                                support.
+                            </p>
+                        </Banner>
+                    ) : (
+                        <Banner
+                            title={`Active Plan: ${currentPlan.name}`}
+                            tone="success"
                         >
-                            <BlockStack gap="200">
-                                <Text variant="headingMd" fontWeight="semibold">
-                                    Need help choosing?
-                                </Text>
-                                <Text tone="subdued">
-                                    Our support team is here to help you find
-                                    the perfect plan for your business
-                                </Text>
-                            </BlockStack>
-                            <Button
-                                url="/support"
-                                icon={<Icon source={StarFilledIcon} />}
-                            >
-                                Contact Support
-                            </Button>
-                        </InlineStack>
-                    </Box>
+                            <p>
+                                You're currently on the {currentPlan.name} plan.
+                                You can upgrade or change your plan anytime.
+                            </p>
+                        </Banner>
+                    )}
                 </Layout.Section>
             </Layout>
         </Page>
