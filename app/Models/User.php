@@ -2,6 +2,7 @@
 
 namespace  App\Models;
 
+use App\Traits\HasCredits;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Osiset\ShopifyApp\Contracts\ShopModel as IShopModel;
@@ -11,6 +12,7 @@ class User extends Authenticatable implements IShopModel
 {
     use Notifiable;
     use ShopModel;
+    use HasCredits;
 
     /**
      * The attributes that are mass assignable.
@@ -53,5 +55,22 @@ class User extends Authenticatable implements IShopModel
     public function defaultLabelTemplate()
     {
         return $this->hasOne(LabelTemplate::class)->where('is_default', true);
+    }
+
+
+    /**
+     * Check if user is on freemium plan
+     */
+    public function isFreemium(): bool
+    {
+        return $this->shopify_freemium == 1 || $this->plan_id === null;
+    }
+
+    /**
+     * Check if user has active paid plan
+     */
+    public function hasPaidPlan(): bool
+    {
+        return !$this->isFreemium() && $this->plan_id !== null;
     }
 }
