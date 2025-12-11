@@ -27,7 +27,6 @@ trait HasCredits
      */
     public function hasUnlimitedCredits(): bool
     {
-        // Get the plan using the existing plan() method from ShopModel trait
         $plan = $this->plan;
 
         if (!$plan) {
@@ -42,17 +41,14 @@ trait HasCredits
      */
     public function hasCredits(string $feature, int $quantity = 1): bool
     {
-        // Unlimited credits
         if ($this->hasUnlimitedCredits()) {
             return true;
         }
 
-        // Get credit cost for feature
         $costs = $this->getCreditCosts();
         $costPerUnit = $costs[$feature] ?? 1;
         $totalCost = $costPerUnit * $quantity;
 
-        // Check available credits
         return $this->credits >= $totalCost;
     }
 
@@ -65,7 +61,61 @@ trait HasCredits
             return PHP_INT_MAX;
         }
 
-        return max(0, $this->credits);
+        $plan = $this->plan;
+        if (!$plan) {
+            return max(0, $this->credits);
+        }
+
+        // Available = allocated credits - used credits
+        return max(0, $plan->monthly_credits - $this->credits_used);
+    }
+
+    /**
+     * Calculate max allowed items based on available credits
+     */
+    public function getMaxAllowedItems(string $feature): int
+    {
+        if ($this->hasUnlimitedCredits()) {
+            return PHP_INT_MAX;
+        }
+
+        $costs = $this->getCreditCosts();
+        $costPerUnit = $costs[$feature] ?? 1;
+
+        return (int) floor($this->credits / $costPerUnit);
+    }
+
+    /**
+     * Validate if operation can proceed with available credits
+     */
+    public function validateCreditsForOperation(string $feature, int $quantity): array
+    {
+        if ($this->hasUnlimitedCredits()) {
+            return [
+                'success' => true,
+                'can_proceed' => true,
+                'required' => 0,
+                'available' => PHP_INT_MAX,
+                'max_allowed' => PHP_INT_MAX,
+            ];
+        }
+
+        $required = $this->getCreditCost($feature, $quantity);
+        $available = $this->getAvailableCredits();
+        $maxAllowed = $this->getMaxAllowedItems($feature);
+
+        $canProceed = $available >= $required;
+
+        return [
+            'success' => $canProceed,
+            'can_proceed' => $canProceed,
+            'required' => $required,
+            'available' => $available,
+            'max_allowed' => $maxAllowed,
+            'message' => $canProceed
+                ? "You have enough credits for this operation."
+                : "Insufficient credits. You need {$required} credits but only have {$available} available. Maximum items you can process: {$maxAllowed}",
+        ];
     }
 
     /**
@@ -79,7 +129,6 @@ trait HasCredits
             return true;
         }
 
-        // Get credit cost
         $costs = $this->getCreditCosts();
         $costPerUnit = $costs[$feature] ?? 1;
         $totalCost = $costPerUnit * $quantity;
@@ -131,11 +180,10 @@ trait HasCredits
             'new_balance' => $this->credits
         ]);
 
-        // Log as credit addition
         CreditUsageLog::create([
             'user_id' => $this->id,
             'feature' => 'credit_addition',
-            'credits_used' => -$amount, // Negative to show addition
+            'credits_used' => -$amount,
             'credits_before' => $creditsBefore,
             'credits_after' => $this->credits,
             'description' => $reason ?? 'Credits added',
@@ -169,7 +217,6 @@ trait HasCredits
             'new_credits' => $newCredits
         ]);
 
-        // Log the reset
         CreditUsageLog::create([
             'user_id' => $this->id,
             'feature' => 'monthly_reset',
@@ -190,10 +237,9 @@ trait HasCredits
     public function shouldResetCredits(): bool
     {
         if (!$this->plan || !$this->credits_reset_at) {
-            return true; // First time setup
+            return true;
         }
 
-        // Reset if it's been more than 30 days
         return Carbon::now()->diffInDays($this->credits_reset_at) >= 30;
     }
 
@@ -261,5 +307,17 @@ trait HasCredits
     public function creditUsageLogs()
     {
         return $this->hasMany(CreditUsageLog::class);
+    }
+
+    /**
+     * Check if user has zero credits (for redirect logic)
+     */
+    public function hasZeroCredits(): bool
+    {
+        if ($this->hasUnlimitedCredits()) {
+            return false;
+        }
+
+        return $this->credits <= 0;
     }
 }

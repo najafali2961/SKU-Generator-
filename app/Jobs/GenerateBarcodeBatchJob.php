@@ -43,13 +43,6 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         $shop = \App\Models\User::find($this->shopId);
         if (!$shop) return;
 
-        Log::info('[BARCODE-JOB] Starting batch', [
-            'format' => $this->settings['format'] ?? 'UNKNOWN',
-            'prefix' => $this->settings['prefix'] ?? '',
-            'start_number' => $this->settings['start_number'] ?? 1,
-            'variant_count' => count($this->variantIds),
-        ]);
-
         $shopify = new ShopifyService($shop);
 
         $variants = Variant::with('product')->whereIn('id', $this->variantIds)->get();
@@ -59,26 +52,18 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         $failed = 0;
         $productsToSync = [];
 
-        // ✅ WRAP EVERYTHING IN A TRANSACTION
+        // Wrap everything in a transaction
         DB::beginTransaction();
 
         try {
             foreach ($variants as $variant) {
                 try {
-                    // ✅ GET ATOMIC COUNTER FROM DATABASE (NOT CACHE)
+                    // Get atomic counter from database
                     $counter = $this->getNextBarcodeCounter();
 
                     $newBarcode = $this->generateBarcode($variant, $this->settings, $counter);
 
-                    if ($processed < 3) {
-                        Log::info('[BARCODE-JOB] Generated', [
-                            'variant_id' => $variant->id,
-                            'new_barcode' => $newBarcode,
-                            'counter' => $counter,
-                        ]);
-                    }
-
-                    // ✅ SAVE TO LOCAL DB WITHIN TRANSACTION
+                    // Save to local DB within transaction
                     $variant->barcode = $newBarcode;
                     $variant->save();
 
@@ -92,7 +77,7 @@ class GenerateBarcodeBatchJob implements ShouldQueue
 
                     $processed++;
                 } catch (\Exception $e) {
-                    Log::error('[BARCODE-JOB] Generation failed', [
+                    Log::error('[BARCODE-BATCH] Generation failed', [
                         'variant_id' => $variant->id,
                         'error' => $e->getMessage(),
                     ]);
@@ -102,18 +87,17 @@ class GenerateBarcodeBatchJob implements ShouldQueue
                 }
             }
 
-            // ✅ COMMIT BEFORE SHOPIFY SYNC
+            // Commit before Shopify sync
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('[BARCODE-JOB] Batch transaction failed', [
+            Log::error('[BARCODE-BATCH] Batch transaction failed', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
         }
 
-        // ✅ SYNC TO SHOPIFY AFTER LOCAL DB SUCCESS
+        // Sync to Shopify after local DB success
         foreach ($productsToSync as $productId => $barcodeMap) {
             try {
                 $success = $shopify->updateVariantBarcodes((int)$productId, $barcodeMap);
@@ -145,16 +129,12 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         if ($jobLog) {
             Log::error("[BARCODE-BATCH] Job failed", [
                 'error' => $exception->getMessage(),
-                'trace' => $exception->getTraceAsString(),
             ]);
             $jobLog->error('Batch Failed', $exception->getMessage());
             $jobLog->markAsFailed("Batch failed: " . $exception->getMessage());
         }
     }
 
-    /**
-     * ✅ ATOMIC DATABASE COUNTER (SAME AS SKU SYSTEM)
-     */
     private function getNextBarcodeCounter(): int
     {
         return DB::transaction(function () {
@@ -187,9 +167,6 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         });
     }
 
-    /**
-     * ✅ FIXED BARCODE GENERATION (MATCHES CONTROLLER)
-     */
     private function generateBarcode($variant, $rules, $counter)
     {
         $format = $rules['format'] ?? 'UPC';
@@ -200,7 +177,6 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         $auto_fill = $rules['auto_fill'] ?? true;
         $enforce_length = $rules['enforce_length'] ?? true;
 
-        // QR CODE / DATA MATRIX / PDF417
         if (in_array($format, ['QR', 'DATAMATRIX', 'PDF417'])) {
             if ($rules['allow_qr_text'] ?? false) {
                 $text = trim($rules['qr_text'] ?? '');
@@ -233,13 +209,11 @@ class GenerateBarcodeBatchJob implements ShouldQueue
             return 'QR-' . strtoupper(Str::random(12));
         }
 
-        // CODE128 / CODE39
         if (in_array($format, ['CODE128', 'CODE128A', 'CODE128B', 'CODE128C', 'CODE39'])) {
             $base = $prefix . ($variant->sku ?: "V{$variant->id}") . $suffix;
             return $numeric_only ? preg_replace('/\D/', '', $base) : $base;
         }
 
-        // UPC / EAN / ISBN
         $targetLength = match ($format) {
             'UPC', 'UPCA' => 12,
             'UPCE' => 8,

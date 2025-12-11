@@ -16,6 +16,7 @@ class SkuController extends Controller
 {
     public function index()
     {
+        /** @var \App\Models\User $shop */
         $shop = Auth::user();
 
         // ✅ GET COLLECTIONS FROM DATABASE (NOT SHOPIFY API)
@@ -32,6 +33,7 @@ class SkuController extends Controller
 
     public function apply(Request $request)
     {
+        /** @var \App\Models\User $shop */
         $shop = Auth::user();
 
         $jobLog = JobLog::create([

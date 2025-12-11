@@ -12,17 +12,24 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+
+        // Web middleware stack
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
-
         ]);
+
+        // Middleware alias registration (IMPORTANT: must be outside web())
+        $middleware->alias([
+            'check.credits' => \App\Http\Middleware\CheckCredits::class,
+        ]);
+
+        // CSRF disabled for all routes (your previous config)
         $middleware->validateCsrfTokens(except: [
             '*',
         ]);
-
-        //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
-    })->create();
+    })
+    ->create();

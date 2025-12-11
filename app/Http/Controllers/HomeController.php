@@ -13,6 +13,7 @@ class HomeController extends Controller
 {
     public function index(Request $request)
     {
+        /** @var \App\Models\User $shop */
         $shop = Auth::user();
 
         // Base query – only variants that belong to this shop’s products

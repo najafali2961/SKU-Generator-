@@ -15,6 +15,7 @@ class ProductController extends Controller
 {
     public function index(Request $request)
     {
+        /** @var \App\Models\User $shop */
         $shop = Auth::user();
 
         $productsPaginated = Product::where('user_id', $shop->id)
@@ -46,6 +47,7 @@ class ProductController extends Controller
 
     public function show($id)
     {
+        /** @var \App\Models\User $shop */
         $shop = Auth::user();
 
         $product = Product::where('user_id', $shop->id)
@@ -59,6 +61,7 @@ class ProductController extends Controller
 
     public function bulkEdit(Request $request)
     {
+        /** @var \App\Models\User $shop */
         $shop = Auth::user();
 
         $page = $request->get('page', 1); // get ?page= from URL, default to 1
@@ -90,12 +93,14 @@ class ProductController extends Controller
 
     public function allIds()
     {
+        /** @var \App\Models\User $shop */
         $shop = Auth::user();
         $ids = Product::where('user_id', $shop->id)->pluck('id');
         return response()->json(['ids' => $ids]);
     }
     public function bulkEditApply(Request $request)
     {
+        /** @var \App\Models\User $shop */
         $shop = Auth::user();
 
         $request->validate([

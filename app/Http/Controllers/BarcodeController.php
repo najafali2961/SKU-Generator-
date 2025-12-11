@@ -14,8 +14,10 @@ use Illuminate\Support\Str;
 
 class BarcodeController extends Controller
 {
+
     public function index()
     {
+        /** @var \App\Models\User $shop */
         $shop = Auth::user();
 
         $collections = Collection::where('user_id', $shop->id)
@@ -26,12 +28,12 @@ class BarcodeController extends Controller
 
         return inertia('BarcodeGenerator', [
             'initialCollections' => $collections,
+            'availableCredits' => $shop->getAvailableCredits(),
+            'hasUnlimitedCredits' => $shop->hasUnlimitedCredits(),
+            'creditCostPerBarcode' => $shop->getCreditCost('barcode_generation', 1),
         ]);
     }
 
-    /**
-     * ✅ EXACT MATCH WITH JOB - Use same function
-     */
     private function generateBarcode($variant, $rules, $counter)
     {
         $format = $rules['format'] ?? 'UPC';
@@ -47,12 +49,10 @@ class BarcodeController extends Controller
             if ($rules['allow_qr_text'] ?? false) {
                 $text = trim($rules['qr_text'] ?? '');
 
-                // If no custom text, use SKU or product URL
                 if (empty($text)) {
                     return $variant->sku ?: "https://shop.com/products/{$variant->product->handle}";
                 }
 
-                // Replace ALL template variables (with and without spaces)
                 $replacements = [
                     '{{title}}' => $variant->product->title ?? '',
                     '{{ title }}' => $variant->product->title ?? '',
@@ -172,19 +172,11 @@ class BarcodeController extends Controller
 
     public function preview(Request $request)
     {
+        /** @var \App\Models\User $shop */
         $shop = Auth::user();
         $page = max(1, (int)$request->input('page', 1));
         $perPage = 8;
         $tab = $request->input('tab', 'all');
-
-        // ✅ LOG INCOMING SETTINGS FOR DEBUG
-        \Log::info('[BARCODE-PREVIEW] Received settings', [
-            'format' => $request->input('format'),
-            'allow_qr_text' => $request->input('allow_qr_text'),
-            'qr_text' => $request->input('qr_text'),
-            'prefix' => $request->input('prefix'),
-            'start_number' => $request->input('start_number'),
-        ]);
 
         $baseQuery = $this->buildFilteredQuery($request, $shop);
         $allVariants = $baseQuery->get();
@@ -216,7 +208,6 @@ class BarcodeController extends Controller
             $rawBarcode = $variant->barcode;
             $cleanBarcode = (!empty(trim($rawBarcode)) && trim($rawBarcode) !== '-') ? trim($rawBarcode) : null;
 
-            // ✅ USE request->all() TO PASS ALL SETTINGS
             $newBarcode = $this->generateBarcode($variant, $request->all(), $counter);
 
             $preview[] = [
@@ -241,15 +232,6 @@ class BarcodeController extends Controller
             ];
 
             $counter++;
-        }
-
-        // ✅ LOG FIRST GENERATED BARCODE FOR DEBUG
-        if (count($preview) > 0) {
-            \Log::info('[BARCODE-PREVIEW] First generated barcode', [
-                'variant_id' => $preview[0]['id'],
-                'new_barcode' => $preview[0]['new_barcode'],
-                'format' => $preview[0]['format'],
-            ]);
         }
 
         $filtered = $preview;
@@ -294,6 +276,9 @@ class BarcodeController extends Controller
             }
         }
 
+        // Calculate credit info
+        $creditValidation = $shop->validateCreditsForOperation('barcode_generation', $totalVariants);
+
         return response()->json([
             'data' => array_values($paginatedData),
             'total' => $tableTotal,
@@ -304,34 +289,52 @@ class BarcodeController extends Controller
                 'total' => $totalVariants,
             ],
             'overall_total' => $totalVariants,
+            'credit_info' => [
+                'available' => $shop->getAvailableCredits(),
+                'cost_per_barcode' => $shop->getCreditCost('barcode_generation', 1),
+                'has_unlimited' => $shop->hasUnlimitedCredits(),
+                'max_allowed' => $shop->getMaxAllowedItems('barcode_generation'),
+                'can_process_all' => $creditValidation['can_proceed'],
+            ],
         ]);
     }
 
     public function apply(Request $request)
     {
+        /** @var \App\Models\User $shop */
         $shop = Auth::user();
 
-        // ✅ LOG INCOMING APPLY SETTINGS
-        \Log::info('[BARCODE-APPLY] Received settings', [
-            'format' => $request->input('format'),
-            'allow_qr_text' => $request->input('allow_qr_text'),
-            'qr_text' => $request->input('qr_text'),
-            'prefix' => $request->input('prefix'),
-            'start_number' => $request->input('start_number'),
-            'apply_scope' => $request->input('apply_scope'),
-        ]);
+        $applyScope = $request->input('apply_scope', 'selected');
+
+        if ($applyScope === 'selected') {
+            $selectedIds = $request->input('selected_variant_ids', []);
+            $itemCount = count($selectedIds);
+        } else {
+            $baseQuery = $this->buildFilteredQuery($request, $shop);
+            $itemCount = $baseQuery->count();
+        }
+
+        // Validate credits BEFORE creating job
+        $validation = $shop->validateCreditsForOperation('barcode_generation', $itemCount);
+
+        if (!$validation['can_proceed']) {
+            return back()->withErrors([
+                'credits' => $validation['message']
+            ])->with('error', 'Insufficient credits to generate barcodes.');
+        }
 
         $jobLog = JobLog::create([
             'user_id' => $shop->id,
             'type' => 'barcode_generation',
             'title' => 'Barcode Generation',
-            'description' => 'Generating barcodes for ' . ($request->apply_scope === 'selected' ? 'selected' : 'all') . ' variants...',
-            'payload' => $request->all(), // ✅ STORE ALL SETTINGS
+            'description' => "Generating barcodes for {$itemCount} variant(s)...",
+            'payload' => $request->all(),
             'status' => 'pending',
+            'total_items' => $itemCount,
         ]);
+
         $jobLog->markAsStarted();
 
-        // ✅ PASS ALL SETTINGS TO JOB
         GenerateBarcodeJob::dispatch($shop->id, $request->all(), $jobLog->id);
 
         return redirect()->route('jobs.show', $jobLog->id)
@@ -340,11 +343,19 @@ class BarcodeController extends Controller
 
     public function importPage()
     {
-        return inertia('BarcodeImport');
+        /** @var \App\Models\User $shop */
+        $shop = Auth::user();
+
+        return inertia('BarcodeImport', [
+            'availableCredits' => $shop->getAvailableCredits(),
+            'hasUnlimitedCredits' => $shop->hasUnlimitedCredits(),
+            'creditCostPerBarcode' => $shop->getCreditCost('barcode_import', 1),
+        ]);
     }
 
     public function importPreview(Request $request)
     {
+        /** @var \App\Models\User $shop */
         $shop = Auth::user();
         $shopifyVariantIds = array_map('strval', $request->input('variant_ids', []));
 
@@ -371,6 +382,7 @@ class BarcodeController extends Controller
 
     public function import(Request $request)
     {
+        /** @var \App\Models\User $shop */
         $shop = Auth::user();
 
         $validated = $request->validate([
@@ -416,6 +428,7 @@ class BarcodeController extends Controller
 
     public function importApply(Request $request)
     {
+        /** @var \App\Models\User $shop */
         $shop = Auth::user();
 
         $validated = $request->validate([
@@ -424,14 +437,25 @@ class BarcodeController extends Controller
             'custom_barcodes.*.barcode' => 'required|string|min:8|max:255',
         ]);
 
+        $itemCount = count($validated['custom_barcodes']);
+
+        // Validate credits
+        $validation = $shop->validateCreditsForOperation('barcode_import', $itemCount);
+
+        if (!$validation['can_proceed']) {
+            return back()->withErrors([
+                'credits' => $validation['message']
+            ])->with('error', 'Insufficient credits to import barcodes.');
+        }
+
         $jobLog = JobLog::create([
             'user_id' => $shop->id,
             'type' => 'barcode_import',
             'title' => 'Barcode CSV Import',
-            'description' => 'Importing ' . count($validated['custom_barcodes']) . ' barcodes from CSV...',
+            'description' => "Importing {$itemCount} barcode(s) from CSV...",
             'payload' => $validated,
             'status' => 'pending',
-            'total_items' => count($validated['custom_barcodes']),
+            'total_items' => $itemCount,
         ]);
 
         $jobLog->markAsStarted();
