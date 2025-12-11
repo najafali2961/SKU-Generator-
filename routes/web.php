@@ -73,6 +73,8 @@ Route::middleware(['verify.shopify', 'billable'])->group(function () {
     Route::post('/billing/{planId}/create', [PricingController::class, 'createCharge'])->name('billing.create');
     Route::get('/billing/process', [PricingController::class, 'processBilling'])->name('billing.process');
     Route::post('/upgrade-plan', [PricingController::class, 'upgradePlan']);
+
+    Route::get('/credit-stats', [PricingController::class, 'creditStats'])->name('pricing.credit-stats');
 });
 
 Route::middleware(['auth.webhook'])->group(function () {

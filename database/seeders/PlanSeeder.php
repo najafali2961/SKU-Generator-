@@ -13,8 +13,9 @@ class PlanSeeder extends Seeder
      */
     public function run(): void
     {
-        // Clear existing plans
-        DB::table('plans')->truncate();
+        // Fix: Cannot TRUNCATE because charges.plan_id has FK to plans.id
+        // So use delete() instead — safe and does not break FK constraints
+        DB::table('plans')->delete();
 
         $plans = [
             [
@@ -57,7 +58,7 @@ class PlanSeeder extends Seeder
                 'trial_days' => 7,
                 'test' => false,
                 'on_install' => false,
-                'monthly_credits' => 6000, // 500 per month equivalent
+                'monthly_credits' => 6000,
                 'unlimited_credits' => false,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -72,7 +73,7 @@ class PlanSeeder extends Seeder
                 'trial_days' => 7,
                 'test' => false,
                 'on_install' => false,
-                'monthly_credits' => 0, // Not used for unlimited
+                'monthly_credits' => 0,
                 'unlimited_credits' => true,
                 'created_at' => now(),
                 'updated_at' => now(),

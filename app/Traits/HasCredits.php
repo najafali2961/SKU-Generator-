@@ -27,11 +27,14 @@ trait HasCredits
      */
     public function hasUnlimitedCredits(): bool
     {
-        if (!$this->plan) {
+        // Get the plan using the existing plan() method from ShopModel trait
+        $plan = $this->plan;
+
+        if (!$plan) {
             return false;
         }
 
-        return $this->plan->unlimited_credits === true || $this->plan->unlimited_credits === 1;
+        return $plan->unlimited_credits === true || $plan->unlimited_credits === 1;
     }
 
     /**
@@ -145,12 +148,14 @@ trait HasCredits
      */
     public function resetMonthlyCredits(): void
     {
-        if (!$this->plan) {
+        $plan = $this->plan;
+
+        if (!$plan) {
             return;
         }
 
         $oldCredits = $this->credits;
-        $newCredits = $this->plan->monthly_credits;
+        $newCredits = $plan->monthly_credits;
 
         $this->credits = $newCredits;
         $this->credits_used = 0;
@@ -159,7 +164,7 @@ trait HasCredits
 
         Log::info('Monthly credits reset', [
             'user_id' => $this->id,
-            'plan' => $this->plan->name,
+            'plan' => $plan->name,
             'old_credits' => $oldCredits,
             'new_credits' => $newCredits
         ]);
@@ -173,8 +178,8 @@ trait HasCredits
             'credits_after' => $newCredits,
             'description' => 'Monthly credit reset',
             'metadata' => [
-                'plan_id' => $this->plan->id,
-                'plan_name' => $this->plan->name
+                'plan_id' => $plan->id,
+                'plan_name' => $plan->name
             ]
         ]);
     }
@@ -251,15 +256,7 @@ trait HasCredits
     }
 
     /**
-     * Get plan relationship
-     */
-    public function plan()
-    {
-        return $this->belongsTo(\Osiset\ShopifyApp\Storage\Models\Plan::class, 'plan_id');
-    }
-
-    /**
-     * Get credit usage logs
+     * Get credit usage logs relationship
      */
     public function creditUsageLogs()
     {

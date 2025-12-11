@@ -13,6 +13,7 @@ import {
     Icon,
     Divider,
     Banner,
+    ProgressBar,
 } from "@shopify/polaris";
 import {
     CheckIcon,
@@ -22,8 +23,15 @@ import {
 import { router } from "@inertiajs/react";
 import axios from "axios";
 
-export default function Pricing({ plans = [], currentPlan = {}, user = {} }) {
+export default function Pricing({
+    plans = [],
+    currentPlan = {},
+    user = {},
+    creditStats = {},
+    creditCosts = {},
+}) {
     const [loading, setLoading] = useState(null);
+    const [billingInterval, setBillingInterval] = useState("monthly");
 
     const handleSelectPlan = async (planId) => {
         setLoading(planId);
@@ -52,8 +60,11 @@ export default function Pricing({ plans = [], currentPlan = {}, user = {} }) {
     const isFreemium = user.shopify_freemium === 1;
 
     const getPlanBadge = (plan) => {
-        if (plan.name === "Pro Annual") {
+        if (plan.name === "Pro Annual" || plan.interval === "ANNUAL") {
             return <Badge tone="success">Save 17%</Badge>;
+        }
+        if (plan.unlimited_credits) {
+            return <Badge tone="magic">Best Value</Badge>;
         }
         return null;
     };
@@ -68,48 +79,110 @@ export default function Pricing({ plans = [], currentPlan = {}, user = {} }) {
         return "Select Plan";
     };
 
+    const getCreditProgress = () => {
+        if (creditStats.unlimited) {
+            return 100;
+        }
+        const total = currentPlan.monthly_credits || 10;
+        const used = creditStats.used || 0;
+        return Math.min((used / total) * 100, 100);
+    };
+
+    // Filter plans based on billing interval
+    const filteredPlans = plans.filter((plan) => {
+        if (billingInterval === "monthly") {
+            return plan.interval === "EVERY_30_DAYS";
+        } else {
+            return plan.interval === "ANNUAL";
+        }
+    });
+
+    // Custom toggle button component
+    const BillingToggle = () => (
+        <Box padding="100" background="bg-surface-secondary" borderRadius="400">
+            <InlineStack gap="0">
+                <button
+                    onClick={() => setBillingInterval("monthly")}
+                    style={{
+                        padding: "12px 32px",
+                        border: "none",
+                        borderRadius: "12px",
+                        background:
+                            billingInterval === "monthly"
+                                ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+                                : "transparent",
+                        color:
+                            billingInterval === "monthly"
+                                ? "white"
+                                : "var(--p-color-text)",
+                        fontWeight:
+                            billingInterval === "monthly" ? "600" : "500",
+                        fontSize: "15px",
+                        cursor: "pointer",
+                        transition: "all 0.3s ease",
+                        boxShadow:
+                            billingInterval === "monthly"
+                                ? "0 4px 12px rgba(102, 126, 234, 0.4)"
+                                : "none",
+                    }}
+                >
+                    Monthly
+                </button>
+                <button
+                    onClick={() => setBillingInterval("annual")}
+                    style={{
+                        padding: "12px 32px",
+                        border: "none",
+                        borderRadius: "12px",
+                        background:
+                            billingInterval === "annual"
+                                ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+                                : "transparent",
+                        color:
+                            billingInterval === "annual"
+                                ? "white"
+                                : "var(--p-color-text)",
+                        fontWeight:
+                            billingInterval === "annual" ? "600" : "500",
+                        fontSize: "15px",
+                        cursor: "pointer",
+                        transition: "all 0.3s ease",
+                        boxShadow:
+                            billingInterval === "annual"
+                                ? "0 4px 12px rgba(102, 126, 234, 0.4)"
+                                : "none",
+                    }}
+                >
+                    <InlineStack gap="200" blockAlign="center">
+                        <span>Annual</span>
+                        <Badge tone="success" size="small">
+                            Save 17%
+                        </Badge>
+                    </InlineStack>
+                </button>
+            </InlineStack>
+        </Box>
+    );
+
     return (
-        <Page
-            title="Choose Your Plan"
-            subtitle="Select the perfect plan for your business needs"
-        >
+        <Page>
             <Layout>
-                {/* Support CTA */}
+                {/* Billing Toggle */}
                 <Layout.Section>
-                    <Box
-                        background="bg-surface-secondary"
-                        padding="400"
-                        borderRadius="300"
-                    >
-                        <InlineStack
-                            align="space-between"
-                            blockAlign="center"
-                            gap="400"
-                            wrap={false}
-                        >
-                            <BlockStack gap="200">
-                                <Text variant="headingMd" fontWeight="semibold">
-                                    Need help choosing?
-                                </Text>
-                                <Text tone="subdued">
-                                    Our support team is here to help you find
-                                    the perfect plan for your business
-                                </Text>
-                            </BlockStack>
-                            <Button
-                                url="/support"
-                                icon={<Icon source={StarFilledIcon} />}
-                            >
-                                Contact Support
-                            </Button>
+                    <Box paddingBlockStart="400" paddingBlockEnd="400">
+                        <InlineStack align="center" blockAlign="center">
+                            <BillingToggle />
                         </InlineStack>
                     </Box>
                 </Layout.Section>
 
                 {/* Pricing Cards */}
                 <Layout.Section>
-                    <InlineGrid columns={{ xs: 1, sm: 2, lg: 3 }} gap="400">
-                        {plans.map((plan) => {
+                    <InlineGrid
+                        columns={{ xs: 1, sm: 2, lg: filteredPlans.length }}
+                        gap="400"
+                    >
+                        {filteredPlans.map((plan) => {
                             const isPopular = plan.name === "Pro";
                             const isCurrent = isCurrentPlan(plan.id);
 
@@ -123,6 +196,7 @@ export default function Pricing({ plans = [], currentPlan = {}, user = {} }) {
                                             style={{
                                                 transform:
                                                     "translate(-50%, -50%)",
+                                                zIndex: 10,
                                             }}
                                         >
                                             <Badge
@@ -176,6 +250,51 @@ export default function Pricing({ plans = [], currentPlan = {}, user = {} }) {
                                                     </Text>
                                                 </InlineStack>
 
+                                                {/* Credits Display */}
+                                                <Box
+                                                    background="bg-surface-secondary"
+                                                    padding="300"
+                                                    borderRadius="200"
+                                                >
+                                                    <InlineStack
+                                                        gap="200"
+                                                        blockAlign="center"
+                                                    >
+                                                        {plan.unlimited_credits ? (
+                                                            <>
+                                                                <Text
+                                                                    variant="headingMd"
+                                                                    fontWeight="bold"
+                                                                >
+                                                                    ∞
+                                                                </Text>
+                                                                <Text>
+                                                                    Unlimited
+                                                                    Credits
+                                                                </Text>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Text
+                                                                    variant="headingMd"
+                                                                    fontWeight="bold"
+                                                                >
+                                                                    {
+                                                                        plan.monthly_credits
+                                                                    }
+                                                                </Text>
+                                                                <Text>
+                                                                    credits/
+                                                                    {plan.interval ===
+                                                                    "EVERY_30_DAYS"
+                                                                        ? "month"
+                                                                        : "year"}
+                                                                </Text>
+                                                            </>
+                                                        )}
+                                                    </InlineStack>
+                                                </Box>
+
                                                 {plan.trial_days > 0 &&
                                                     !isCurrent && (
                                                         <Badge tone="info">
@@ -183,15 +302,6 @@ export default function Pricing({ plans = [], currentPlan = {}, user = {} }) {
                                                             day free trial
                                                         </Badge>
                                                     )}
-
-                                                {plan.capped_amount && (
-                                                    <Text
-                                                        tone="subdued"
-                                                        variant="bodySm"
-                                                    >
-                                                        {plan.terms}
-                                                    </Text>
-                                                )}
                                             </BlockStack>
 
                                             <Divider />
@@ -262,27 +372,36 @@ export default function Pricing({ plans = [], currentPlan = {}, user = {} }) {
                     </InlineGrid>
                 </Layout.Section>
 
-                {/* Current Status Banner */}
+                {/* Support CTA */}
                 <Layout.Section>
-                    {isFreemium ? (
-                        <Banner title="You're on the Free Plan" tone="info">
-                            <p>
-                                Upgrade to unlock unlimited SKU & barcode
-                                generation, advanced features, and priority
-                                support.
-                            </p>
-                        </Banner>
-                    ) : (
-                        <Banner
-                            title={`Active Plan: ${currentPlan.name}`}
-                            tone="success"
+                    <Box
+                        background="bg-surface-secondary"
+                        padding="400"
+                        borderRadius="300"
+                    >
+                        <InlineStack
+                            align="space-between"
+                            blockAlign="center"
+                            gap="400"
+                            wrap={false}
                         >
-                            <p>
-                                You're currently on the {currentPlan.name} plan.
-                                You can upgrade or change your plan anytime.
-                            </p>
-                        </Banner>
-                    )}
+                            <BlockStack gap="200">
+                                <Text variant="headingMd" fontWeight="semibold">
+                                    Need help choosing?
+                                </Text>
+                                <Text tone="subdued">
+                                    Our support team is here to help you find
+                                    the perfect plan for your business
+                                </Text>
+                            </BlockStack>
+                            <Button
+                                url="/support"
+                                icon={<Icon source={StarFilledIcon} />}
+                            >
+                                Contact Support
+                            </Button>
+                        </InlineStack>
+                    </Box>
                 </Layout.Section>
             </Layout>
         </Page>

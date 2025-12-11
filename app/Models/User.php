@@ -1,6 +1,6 @@
 <?php
 
-namespace  App\Models;
+namespace App\Models;
 
 use App\Traits\HasCredits;
 use Illuminate\Notifications\Notifiable;
@@ -23,6 +23,9 @@ class User extends Authenticatable implements IShopModel
         'name',
         'email',
         'password',
+        'credits',
+        'credits_used',
+        'credits_reset_at',
     ];
 
     /**
@@ -35,28 +38,48 @@ class User extends Authenticatable implements IShopModel
         'remember_token',
     ];
 
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array
+     */
+    protected $casts = [
+        'credits' => 'integer',
+        'credits_used' => 'integer',
+        'credits_reset_at' => 'datetime',
+    ];
 
+    /**
+     * Get barcode printer settings
+     */
     public function barcodePrinterSettings()
     {
-        return $this->hasMany(\App\Models\BarcodePrinterSetting::class);
+        return $this->hasMany(BarcodePrinterSetting::class);
     }
 
+    /**
+     * Get label templates
+     */
     public function labelTemplates()
     {
-        return $this->hasMany(\App\Models\LabelTemplate::class);
+        return $this->hasMany(LabelTemplate::class);
     }
 
+    /**
+     * Get products
+     */
     public function products()
     {
-        return $this->hasMany(\App\Models\Product::class);
+        return $this->hasMany(Product::class);
     }
 
-
+    /**
+     * Get default label template
+     */
     public function defaultLabelTemplate()
     {
         return $this->hasOne(LabelTemplate::class)->where('is_default', true);
     }
-
 
     /**
      * Check if user is on freemium plan
