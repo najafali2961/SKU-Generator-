@@ -52,10 +52,23 @@ class HomeController extends Controller
             // Change this to whatever makes sense for your app
             'active_stores'          => \App\Models\User::count(),
         ];
+
+        $plan = $shop->plan;
+        $planName = $plan ? $plan->name : ($shop->isFreemium() ? 'Freemium' : 'None');
+        $monthlyCredits = $plan ? $plan->monthly_credits : 0; // Adjust as needed for freemium via config if >0
+
+        $credits = [
+            'plan_name' => $planName,
+            'available' => $shop->getAvailableCredits(),
+            'used' => $shop->credits_used,
+            'total' => $monthlyCredits,
+            'unlimited' => $shop->hasUnlimitedCredits(),
+        ];
+
         return Inertia::render('Home', [
             'stats' => $stats,
+            'credits' => $credits,
             'recentJobs' => JobLog::where('user_id', $shop->id)->latest()->limit(10)->get()
-
         ]);
     }
 }

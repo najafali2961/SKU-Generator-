@@ -23,6 +23,8 @@ class User extends Authenticatable implements IShopModel
         'name',
         'email',
         'password',
+        'plan_id',
+        'shopify_freemium',
         'credits',
         'credits_used',
         'credits_reset_at',
@@ -47,6 +49,7 @@ class User extends Authenticatable implements IShopModel
         'credits' => 'integer',
         'credits_used' => 'integer',
         'credits_reset_at' => 'datetime',
+        'shopify_freemium' => 'boolean',
     ];
 
     /**

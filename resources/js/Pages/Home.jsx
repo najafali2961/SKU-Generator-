@@ -11,6 +11,7 @@ import {
     Button,
     Badge,
     Icon,
+    ProgressBar,
 } from "@shopify/polaris";
 import {
     BarcodeIcon,
@@ -20,11 +21,12 @@ import {
     ProductIcon,
     MagicIcon,
     PhoneIcon,
+    CreditCardIcon,
 } from "@shopify/polaris-icons";
 import { Link } from "@inertiajs/react";
 import RecentJobsTable from "./RecentJobsTable";
 
-export default function Home({ stats = {}, recentJobs = [] }) {
+export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
     const data = {
         total_variants: stats.total_variants || 0,
         variants_missing_sku: stats.variants_missing_sku || 0,
@@ -65,6 +67,27 @@ export default function Home({ stats = {}, recentJobs = [] }) {
             children: "Fix required",
         };
     };
+
+    const creditsData = {
+        plan_name: credits.plan_name || "Freemium",
+        available: credits.available || 0,
+        used: credits.used || 0,
+        total: credits.total || 0,
+        unlimited: credits.unlimited || false,
+    };
+
+    const creditsUsedPercent =
+        creditsData.unlimited || creditsData.total === 0
+            ? 0
+            : Math.round((creditsData.used / creditsData.total) * 100);
+
+    const getProgressTone = (percent) => {
+        if (percent >= 90) return "critical";
+        if (percent >= 70) return "warning";
+        return "success";
+    };
+
+    const showUpgrade = !creditsData.unlimited && creditsData.available <= 0;
 
     return (
         <Page>
@@ -123,6 +146,76 @@ export default function Home({ stats = {}, recentJobs = [] }) {
                             </InlineStack>
                         </InlineStack>
                     </Box>
+                </Layout.Section>
+
+                {/* Credits Card */}
+                <Layout.Section>
+                    <Card>
+                        <BlockStack gap="300">
+                            <InlineStack gap="300">
+                                <Box
+                                    background="bg-surface-success-subdued"
+                                    padding="300"
+                                    borderRadius="200"
+                                >
+                                    <Icon
+                                        source={CreditCardIcon}
+                                        tone="success"
+                                    />
+                                </Box>
+                                <BlockStack gap="100">
+                                    <InlineStack gap="200" blockAlign="center">
+                                        <Text
+                                            variant="headingMd"
+                                            fontWeight="semibold"
+                                        >
+                                            {creditsData.plan_name} Plan
+                                        </Text>
+                                        {creditsData.unlimited && (
+                                            <Badge tone="success">
+                                                Unlimited Credits
+                                            </Badge>
+                                        )}
+                                    </InlineStack>
+                                    {!creditsData.unlimited && (
+                                        <Text tone="subdued">
+                                            {creditsData.available.toLocaleString()}{" "}
+                                            credits remaining
+                                        </Text>
+                                    )}
+                                </BlockStack>
+                            </InlineStack>
+                            {!creditsData.unlimited && (
+                                <>
+                                    <ProgressBar
+                                        progress={creditsUsedPercent}
+                                        tone={getProgressTone(
+                                            creditsUsedPercent
+                                        )}
+                                        animated={true}
+                                        size="small"
+                                    />
+                                    <InlineStack align="space-between">
+                                        <Text variant="bodySm" tone="subdued">
+                                            {creditsData.used.toLocaleString()}{" "}
+                                            /{" "}
+                                            {creditsData.total.toLocaleString()}{" "}
+                                            used
+                                        </Text>
+                                        {showUpgrade && (
+                                            <Button
+                                                variant="primary"
+                                                size="slim"
+                                                url="/billing" // Adjust to your billing/upgrade route
+                                            >
+                                                Upgrade Plan
+                                            </Button>
+                                        )}
+                                    </InlineStack>
+                                </>
+                            )}
+                        </BlockStack>
+                    </Card>
                 </Layout.Section>
 
                 {/* Stats Grid */}
