@@ -20,19 +20,29 @@ import {
     CreditCardIcon,
 } from "@shopify/polaris-icons";
 import { router } from "@inertiajs/react";
+import axios from "axios";
 
 export default function Pricing({ plans = [], currentPlan = {}, user = {} }) {
     const [loading, setLoading] = useState(null);
 
-    const handleSelectPlan = (planId) => {
+    const handleSelectPlan = async (planId) => {
         setLoading(planId);
-        router.post(
-            `/pricing/select/${planId}`,
-            {},
-            {
-                onFinish: () => setLoading(null),
+
+        try {
+            const response = await axios.post(`/pricing/select/${planId}`, {
+                plan_id: planId,
+            });
+
+            if (response.data.success && response.data.redirectUrl) {
+                window.open(response.data.redirectUrl, "_blank");
+            } else {
+                console.error("No redirect URL received");
+                setLoading(null);
             }
-        );
+        } catch (error) {
+            console.error("Error selecting plan:", error);
+            setLoading(null);
+        }
     };
 
     const isCurrentPlan = (planId) => {
@@ -95,6 +105,7 @@ export default function Pricing({ plans = [], currentPlan = {}, user = {} }) {
                         </InlineStack>
                     </Box>
                 </Layout.Section>
+
                 {/* Pricing Cards */}
                 <Layout.Section>
                     <InlineGrid columns={{ xs: 1, sm: 2, lg: 3 }} gap="400">
@@ -250,6 +261,7 @@ export default function Pricing({ plans = [], currentPlan = {}, user = {} }) {
                         })}
                     </InlineGrid>
                 </Layout.Section>
+
                 {/* Current Status Banner */}
                 <Layout.Section>
                     {isFreemium ? (

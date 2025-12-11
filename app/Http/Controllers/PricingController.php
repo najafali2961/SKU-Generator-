@@ -14,8 +14,7 @@ class PricingController extends Controller
     {
         $user = Auth::user();
 
-        $plans = Plan::where('test', 0)
-            ->orderBy('price', 'asc')
+        $plans = Plan::orderBy('price', 'asc')
             ->get()
             ->map(fn($plan) => [
                 'id' => $plan->id,
@@ -43,90 +42,66 @@ class PricingController extends Controller
 
     public function selectPlan(Request $request, $planId)
     {
-        $user = Auth::user();
-        $plan = Plan::findOrFail($planId);
+        $token = null;
+        $shop = auth()->user()->name;
 
-        if ($user->plan_id == $planId) {
-            return redirect()->route('pricing')->with('info', 'You are already on this plan.');
+        $authHeader = $request->header('Authorization');
+        if ($authHeader && str_starts_with($authHeader, 'Bearer ')) {
+            $token = substr($authHeader, 7);
         }
 
-        try {
-            $chargeData = [
-                'name' => $plan->name,
-                'price' => (float) $plan->price,
-                'return_url' => route('billing.process'),
-                'test' => false,
-            ];
+        $request->validate([
+            'plan_id' => 'sometimes|integer',
+        ]);
 
-            if ($plan->trial_days > 0) {
-                $chargeData['trial_days'] = (int) $plan->trial_days;
-            }
+        $plan = Plan::find($planId);
 
-            if ($plan->capped_amount > 0) {
-                $chargeData['capped_amount'] = (float) $plan->capped_amount;
-                $chargeData['terms'] = $plan->terms ?? "Up to $plan->capped_amount usage";
-            }
-
-            Log::info('Creating Shopify charge', ['data' => $chargeData]);
-
-            $response = $user->api()->rest('POST', '/admin/api/2024-10/recurring_application_charges.json', [
-                'recurring_application_charge' => $chargeData
-            ]);
-
-            // THIS IS THE BULLETPROOF FIX
-            $body = $response['body'] ?? null;
-
-            // Handle case where body is string (error response, HTML, etc.)
-            if (is_string($body)) {
-                Log::error('Shopify returned string body', ['body' => substr($body, 0, 500)]);
-                throw new \Exception('Invalid response from Shopify');
-            }
-
-            // Safely extract charge from both possible structures
-            $charge = null;
-            if (isset($body['recurring_application_charge'])) {
-                $charge = $body['recurring_application_charge'];
-            } elseif (isset($body['container']['recurring_application_charge'])) {
-                $charge = $body['container']['recurring_application_charge'];
-            }
-
-            // Safe logging — no more array_keys() crash
-            Log::info('Shopify charge response', [
-                'status' => $response['status'] ?? 'unknown',
-                'errors' => $response['errors'] ?? true,
-                'body_type' => gettype($body),
-                'body_keys' => is_array($body) ? array_keys($body) : 'not_array',
-                'charge_found' => $charge ? 'YES' : 'NO',
-                'confirmation_url' => $charge['confirmation_url'] ?? 'missing',
-            ]);
-
-            if (
-                $response['errors'] === false &&
-                ($response['status'] ?? 0) === 201 &&
-                $charge &&
-                !empty($charge['confirmation_url'])
-            ) {
-
-                session([
-                    'pending_charge_id' => $charge['id'],
-                    'pending_plan_id' => $planId,
-                ]);
-
-                return redirect()->away($charge['confirmation_url']);
-            }
-
-            throw new \Exception('No confirmation URL received from Shopify');
-        } catch (\Exception $e) {
-            Log::error('Plan selection failed', [
-                'error' => $e->getMessage(),
-                'user_id' => $user->id,
-                'plan_id' => $planId,
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            return redirect()->route('pricing')
-                ->with('error', 'Could not start billing. Please refresh and try again.');
+        if (!$plan) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Plan not found'
+            ], 404);
         }
+
+        $handle = env('SHOPIFY_APP_HANDLE', '');
+        $redirectUrl = "https://{$shop}/admin/apps/{$handle}/billing/{$plan->id}?token={$token}";
+
+        return response()->json([
+            'success' => true,
+            'redirectUrl' => $redirectUrl,
+            'message' => 'Plan created successfully'
+        ]);
+    }
+
+    public function upgradePlan(Request $request)
+    {
+        $token = null;
+        $shop = auth()->user()->name;
+
+        $authHeader = $request->header('Authorization');
+        if ($authHeader && str_starts_with($authHeader, 'Bearer ')) {
+            $token = substr($authHeader, 7);
+        }
+
+        $request->validate(['plan_id' => 'required|integer']);
+
+        $plan = Plan::find($request->plan_id);
+
+        if (!$plan) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Plan not found'
+            ], 404);
+        }
+
+        $handle = config('services.app_handle', '');
+        $redirectUrl = "https://{$shop}/admin/apps/{$handle}/billing/{$plan->id}?token={$token}";
+
+        return response()->json([
+            'success' => true,
+            'redirectUrl' => $redirectUrl,
+            'message' => 'Redirecting to billing...'
+        ]);
     }
 
     public function processBilling(Request $request)
@@ -135,7 +110,7 @@ class PricingController extends Controller
         $chargeId = $request->input('charge_id');
 
         if (!$chargeId) {
-            return redirect()->route('pricing')->with('error', 'No charge ID.');
+            return redirect()->route('pricing')->with('error', 'No charge ID provided.');
         }
 
         try {
@@ -158,25 +133,29 @@ class PricingController extends Controller
             if ($charge['status'] === 'accepted') {
                 $user->api()->rest('POST', "/admin/api/2024-10/recurring_application_charges/{$chargeId}/activate.json");
                 session()->forget(['pending_charge_id', 'pending_plan_id']);
-                return redirect()->route('home')->with('success', 'Plan activated!');
+                return redirect()->route('home')->with('success', 'Plan activated successfully!');
             }
 
             if ($charge['status'] === 'declined') {
                 session()->forget(['pending_charge_id', 'pending_plan_id']);
-                return redirect()->route('pricing')->with('error', 'Payment declined.');
+                return redirect()->route('pricing')->with('error', 'Payment was declined.');
             }
         } catch (\Exception $e) {
-            Log::error('Billing failed', ['error' => $e->getMessage()]);
+            Log::error('Billing processing failed', [
+                'error' => $e->getMessage(),
+                'charge_id' => $chargeId
+            ]);
         }
 
-        return redirect()->route('pricing')->with('error', 'Billing failed.');
+        return redirect()->route('pricing')->with('error', 'Billing processing failed.');
     }
+
     public function cancel(Request $request)
     {
         $user = Auth::user();
 
         if (!$user->plan_id) {
-            return redirect()->route('pricing')->with('info', 'No active plan.');
+            return redirect()->route('pricing')->with('info', 'No active plan to cancel.');
         }
 
         try {
@@ -195,51 +174,59 @@ class PricingController extends Controller
             $user->save();
 
             return redirect()->route('home')
-                ->with('success', 'Subscription cancelled.');
+                ->with('success', 'Subscription cancelled successfully.');
         } catch (\Exception $e) {
-            Log::error('Cancel failed', ['error' => $e->getMessage()]);
-            return redirect()->route('pricing')->with('error', 'Could not cancel.');
+            Log::error('Cancellation failed', [
+                'error' => $e->getMessage(),
+                'user_id' => $user->id
+            ]);
+            return redirect()->route('pricing')->with('error', 'Could not cancel subscription.');
         }
+    }
+
+    public function subscribeFreePlan()
+    {
+        $shop = auth()->user();
+
+        if ($shop->plan_id == null || !in_array($shop->plan_id, [1, 2, 3, 4])) {
+            $shop->update([
+                'shopify_freemium' => 1
+            ]);
+        } else {
+            // You'll need to implement cancelSubscription method or handle differently
+            // For now, just setting freemium flag
+            $shop->update([
+                'shopify_freemium' => 1,
+                'plan_id' => null
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Switched to free plan successfully.');
     }
 
     private function getPlanFeatures($planName)
     {
         $features = [
-            'Basic' => ['Unlimited SKU', 'Unlimited barcode', 'Label printing', 'Email support'],
-            'Pro' => ['Everything in Basic', 'Advanced features', 'Priority support', 'Multi-store'],
-            'Pro Annual' => ['Everything in Pro', 'Save 17%', 'Dedicated support'],
+            'Basic' => [
+                'Unlimited SKU generation',
+                'Unlimited barcode generation',
+                'Label printing',
+                'Email support'
+            ],
+            'Pro' => [
+                'Everything in Basic',
+                'Advanced features',
+                'Priority support',
+                'Multi-store support'
+            ],
+            'Pro Annual' => [
+                'Everything in Pro',
+                'Save 17% annually',
+                'Dedicated support',
+                'Early access to features'
+            ],
         ];
 
         return $features[$planName] ?? ['Basic features'];
-    }
-
-    // Your working upgradePlan method from other project
-    public function upgradePlan(Request $request)
-    {
-        $token = null;
-        $shop = auth()->user()->name;
-
-        $authHeader = $request->header('Authorization');
-        if ($authHeader && str_starts_with($authHeader, 'Bearer ')) {
-            $token = substr($authHeader, 7);
-        }
-
-        $request->validate(['plan_id' => 'required|integer']);
-
-        $plan = Plan::find($request->plan_id);
-
-        if (!$plan) {
-            return response()->json(['success' => false, 'message' => 'Plan not found'], 404);
-        }
-
-        $handle = config('services.app_handle', 'bulkapp-4');
-
-        $redirectUrl = "https://{$shop}/admin/apps/{$handle}/billing/{$plan->id}?token={$token}";
-
-        return response()->json([
-            'success' => true,
-            'redirectUrl' => $redirectUrl,
-            'message' => 'Redirecting to billing...'
-        ]);
     }
 }
