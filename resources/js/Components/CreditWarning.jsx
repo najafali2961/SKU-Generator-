@@ -1,3 +1,4 @@
+///js/coomponents/CreditWarning.jsx
 import React from "react";
 import { Banner, Text, InlineStack } from "@shopify/polaris";
 
