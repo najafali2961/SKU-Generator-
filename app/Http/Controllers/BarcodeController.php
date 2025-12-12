@@ -301,7 +301,6 @@ class BarcodeController extends Controller
     {
         /** @var \App\Models\User $shop */
         $shop = Auth::user();
-
         $applyScope = $request->input('apply_scope', 'selected');
 
         if ($applyScope === 'selected') {
@@ -314,14 +313,13 @@ class BarcodeController extends Controller
 
         // Validate credits BEFORE creating job
         $validation = $shop->validateCreditsForOperation('barcode_generation', $itemCount);
-
         if (!$validation['can_proceed']) {
             return back()->withErrors([
                 'credits' => $validation['message']
             ])->with('error', 'Insufficient credits to generate barcodes.');
         }
 
-        // ✅ DEDUCT CREDITS HERE - BEFORE JOB DISPATCH
+        // ✅ DEDUCT CREDITS HERE - BEFORE JOB DISPATCH (like import does)
         $creditDeducted = $shop->useCredits(
             'barcode_generation',
             $itemCount,
@@ -350,7 +348,29 @@ class BarcodeController extends Controller
 
         $jobLog->markAsStarted();
 
-        GenerateBarcodeJob::dispatch($shop->id, $request->all(), $jobLog->id);
+        // Dispatch with ONLY safe data (no closures)
+        GenerateBarcodeJob::dispatch(
+            $shop->id,
+            [
+                'format' => $request->input('format', 'UPC'),
+                'prefix' => $request->input('prefix', ''),
+                'suffix' => $request->input('suffix', ''),
+                'checksum' => $request->boolean('checksum', true),
+                'numeric_only' => $request->boolean('numeric_only', true),
+                'auto_fill' => $request->boolean('auto_fill', true),
+                'enforce_length' => $request->boolean('enforce_length', true),
+                'allow_qr_text' => $request->boolean('allow_qr_text', false),
+                'qr_text' => $request->input('qr_text', ''),
+                'start_number' => (int)$request->input('start_number', 1),
+                'vendor' => $request->input('vendor', ''),
+                'type' => $request->input('type', ''),
+                'collections' => $request->input('collections', []),
+                'tags' => $request->input('tags', ''),
+                'apply_scope' => $applyScope,
+                'selected_variant_ids' => $applyScope === 'selected' ? $selectedIds : [],
+            ],
+            $jobLog->id
+        );
 
         return redirect()->route('jobs.show', $jobLog->id)
             ->with('success', "Barcode generation started! {$itemCount} credits deducted.");
