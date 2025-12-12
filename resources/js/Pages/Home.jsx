@@ -25,6 +25,7 @@ import {
 } from "@shopify/polaris-icons";
 import { Link } from "@inertiajs/react";
 import RecentJobsTable from "./RecentJobsTable";
+import CreditsSpeedometerCard from "./CreditsSpeedometerCard";
 
 export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
     const data = {
@@ -147,77 +148,9 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                         </InlineStack>
                     </Box>
                 </Layout.Section>
-
-                {/* Credits Card */}
                 <Layout.Section>
-                    <Card>
-                        <BlockStack gap="300">
-                            <InlineStack gap="300">
-                                <Box
-                                    background="bg-surface-success-subdued"
-                                    padding="300"
-                                    borderRadius="200"
-                                >
-                                    <Icon
-                                        source={CreditCardIcon}
-                                        tone="success"
-                                    />
-                                </Box>
-                                <BlockStack gap="100">
-                                    <InlineStack gap="200" blockAlign="center">
-                                        <Text
-                                            variant="headingMd"
-                                            fontWeight="semibold"
-                                        >
-                                            {creditsData.plan_name} Plan
-                                        </Text>
-                                        {creditsData.unlimited && (
-                                            <Badge tone="success">
-                                                Unlimited Credits
-                                            </Badge>
-                                        )}
-                                    </InlineStack>
-                                    {!creditsData.unlimited && (
-                                        <Text tone="subdued">
-                                            {creditsData.available.toLocaleString()}{" "}
-                                            credits remaining
-                                        </Text>
-                                    )}
-                                </BlockStack>
-                            </InlineStack>
-                            {!creditsData.unlimited && (
-                                <>
-                                    <ProgressBar
-                                        progress={creditsUsedPercent}
-                                        tone={getProgressTone(
-                                            creditsUsedPercent
-                                        )}
-                                        animated={true}
-                                        size="small"
-                                    />
-                                    <InlineStack align="space-between">
-                                        <Text variant="bodySm" tone="subdued">
-                                            {creditsData.used.toLocaleString()}{" "}
-                                            /{" "}
-                                            {creditsData.total.toLocaleString()}{" "}
-                                            used
-                                        </Text>
-                                        {showUpgrade && (
-                                            <Button
-                                                variant="primary"
-                                                size="slim"
-                                                url="/billing" // Adjust to your billing/upgrade route
-                                            >
-                                                Upgrade Plan
-                                            </Button>
-                                        )}
-                                    </InlineStack>
-                                </>
-                            )}
-                        </BlockStack>
-                    </Card>
+                    <CreditsSpeedometerCard credits={credits} />
                 </Layout.Section>
-
                 {/* Stats Grid */}
                 <Layout.Section>
                     <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">

@@ -189,69 +189,6 @@ export default function NoCreditPage({
                                 </InlineStack>
                             </BlockStack>
                         </Card>
-
-                        {/* Credit Info Grid */}
-                        <Card>
-                            <BlockStack gap="400">
-                                <Text variant="headingMd" as="h2">
-                                    💡 How Credits Work
-                                </Text>
-
-                                <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
-                                    {creditInfo.map((item, index) => (
-                                        <Card
-                                            key={index}
-                                            background="bg-surface-secondary-subdued"
-                                        >
-                                            <BlockStack gap="300">
-                                                <Box textAlign="center">
-                                                    <Text variant="heading2xl">
-                                                        {item.icon}
-                                                    </Text>
-                                                </Box>
-                                                <BlockStack
-                                                    gap="200"
-                                                    align="center"
-                                                >
-                                                    <Text
-                                                        variant="headingSm"
-                                                        alignment="center"
-                                                    >
-                                                        {item.title}
-                                                    </Text>
-                                                    <Text
-                                                        tone="success"
-                                                        variant="bodyMd"
-                                                        alignment="center"
-                                                        as="strong"
-                                                    >
-                                                        {item.cost}
-                                                    </Text>
-                                                </BlockStack>
-                                            </BlockStack>
-                                        </Card>
-                                    ))}
-                                </Grid>
-
-                                <Text tone="subdued" variant="bodySm">
-                                    ✓ Credits reset monthly based on your plan
-                                    <br />
-                                    ✓ Upgrade anytime for more credits
-                                    <br />✓ No hidden fees or cancellation costs
-                                </Text>
-                            </BlockStack>
-                        </Card>
-
-                        {/* FAQ Banner */}
-                        <Banner tone="info" title="Need Help?">
-                            <Text variant="bodySm">
-                                Visit our{" "}
-                                <a href="/pricing" style={{ fontWeight: 600 }}>
-                                    pricing page
-                                </a>{" "}
-                                to see all available plans and features.
-                            </Text>
-                        </Banner>
                     </BlockStack>
                 </Layout.Section>
             </Layout>
