@@ -27,7 +27,7 @@ class PlanSeeder extends Seeder
                 'terms' => null,
                 'trial_days' => 7,
                 'test' => false,
-                'on_install' => false,
+                'on_install' => true,
                 'monthly_credits' => 100,
                 'unlimited_credits' => false,
                 'created_at' => now(),

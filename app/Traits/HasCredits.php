@@ -121,36 +121,42 @@ trait HasCredits
     /**
      * Use credits for a feature
      */
-    public function useCredits(string $feature, int $quantity = 1, ?string $description = null, ?array $metadata = null): bool
-    {
-        // If unlimited, just log it but don't deduct
+    public function useCredits(
+        string $feature,
+        int $quantity = 1,
+        ?string $description = null,
+        ?array $metadata = null
+    ): bool {
+        // If unlimited, just log usage but do not increment credits_used
         if ($this->hasUnlimitedCredits()) {
             $this->logCreditUsage($feature, 0, $description, $metadata);
             return true;
         }
 
+        // Get cost per unit for the feature
         $costs = $this->getCreditCosts();
         $costPerUnit = $costs[$feature] ?? 1;
         $totalCost = $costPerUnit * $quantity;
 
-        // Check if user has enough credits
-        if ($this->credits < $totalCost) {
+        // Calculate remaining credits
+        $remaining = $this->credits - $this->credits_used;
+
+        if ($remaining < $totalCost) {
             Log::warning('Insufficient credits', [
                 'user_id' => $this->id,
                 'feature' => $feature,
                 'required' => $totalCost,
-                'available' => $this->credits
+                'available' => $remaining
             ]);
             return false;
         }
 
-        // Deduct credits
-        $creditsBefore = $this->credits;
-        $this->credits -= $totalCost;
+        // Increment credits_used
+        $creditsBefore = $this->credits_used;
         $this->credits_used += $totalCost;
         $this->save();
 
-        // Log usage
+        // Log the usage
         $this->logCreditUsage($feature, $totalCost, $description, $metadata, $creditsBefore);
 
         Log::info('Credits used', [
@@ -158,11 +164,12 @@ trait HasCredits
             'feature' => $feature,
             'quantity' => $quantity,
             'cost' => $totalCost,
-            'remaining' => $this->credits
+            'remaining' => $this->credits - $this->credits_used
         ]);
 
         return true;
     }
+
 
     /**
      * Add credits to user account
