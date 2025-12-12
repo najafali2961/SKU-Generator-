@@ -16,19 +16,19 @@ import {
     Thumbnail,
     SkeletonBodyText,
     EmptyState,
-    Link,
 } from "@shopify/polaris";
-import {
-    UploadIcon,
-    FolderDownIcon,
-    ArrowLeftIcon,
-} from "@shopify/polaris-icons";
+import { UploadIcon, FolderDownIcon } from "@shopify/polaris-icons";
 import Papa from "papaparse";
 import { router } from "@inertiajs/react";
+import CreditWarning from "./components/CreditWarning";
 
 const ITEMS_PER_PAGE = 25;
 
-export default function BarcodeImport() {
+export default function BarcodeImport({
+    availableCredits = 0,
+    hasUnlimitedCredits = false,
+    creditCostPerBarcode = 1,
+}) {
     const [file, setFile] = useState(null);
     const [dragActive, setDragActive] = useState(false);
     const [parsing, setParsing] = useState(false);
@@ -242,6 +242,22 @@ export default function BarcodeImport() {
     const handleImport = () => {
         if (!validation?.importData?.length) return;
 
+        // Validate credits
+        const requiredCredits =
+            validation.importData.length * creditCostPerBarcode;
+        if (!hasUnlimitedCredits && availableCredits < requiredCredits) {
+            alert(
+                `Insufficient credits!\n\n` +
+                    `Items to import: ${validation.importData.length}\n` +
+                    `Credits required: ${requiredCredits}\n` +
+                    `Credits available: ${availableCredits}\n\n` +
+                    `Maximum items you can import: ${Math.floor(
+                        availableCredits / creditCostPerBarcode
+                    )}`
+            );
+            return;
+        }
+
         setUploading(true);
 
         router.post(
@@ -253,12 +269,15 @@ export default function BarcodeImport() {
                 onFinish: () => {
                     setUploading(false);
                 },
-                onError: () => {
+                onError: (errors) => {
                     setUploading(false);
+                    if (errors.credits) {
+                        alert(`Credit Error: ${errors.credits}`);
+                    }
                     setValidation((prev) => ({
                         ...prev,
                         status: "error",
-                        message: "Failed to start import job",
+                        message: errors.credits || "Failed to start import job",
                     }));
                 },
             }
@@ -280,6 +299,32 @@ export default function BarcodeImport() {
         (validation?.preview?.length || 0) / ITEMS_PER_PAGE
     );
 
+    // Check if should show credit warning
+    const shouldShowCreditWarning = () => {
+        if (hasUnlimitedCredits) return false;
+        if (!validation?.importData?.length) return false;
+
+        const requiredCredits =
+            validation.importData.length * creditCostPerBarcode;
+        return availableCredits < requiredCredits;
+    };
+
+    const canStartImport = () => {
+        if (
+            !validation ||
+            validation.status === "error" ||
+            !validation?.preview?.length
+        ) {
+            return false;
+        }
+
+        if (hasUnlimitedCredits) return true;
+
+        const requiredCredits =
+            validation.importData.length * creditCostPerBarcode;
+        return availableCredits >= requiredCredits;
+    };
+
     return (
         <Page
             title="Import Barcodes"
@@ -291,10 +336,7 @@ export default function BarcodeImport() {
             primaryAction={{
                 content: uploading ? "Processing..." : "Start Import",
                 loading: uploading,
-                disabled:
-                    !validation ||
-                    validation.status === "error" ||
-                    !validation?.preview?.length,
+                disabled: !canStartImport(),
                 onAction: handleImport,
             }}
             secondaryActions={[
@@ -306,6 +348,23 @@ export default function BarcodeImport() {
             ]}
         >
             <Layout>
+                {/* Credit Warning - Only show when insufficient */}
+                {shouldShowCreditWarning() && (
+                    <Layout.Section>
+                        <CreditWarning
+                            selectedCount={0}
+                            totalCount={validation.importData.length}
+                            availableCredits={availableCredits}
+                            costPerItem={creditCostPerBarcode}
+                            hasUnlimited={hasUnlimitedCredits}
+                            scope="all"
+                            maxAllowed={Math.floor(
+                                availableCredits / creditCostPerBarcode
+                            )}
+                        />
+                    </Layout.Section>
+                )}
+
                 {/* Upload Section */}
                 <Layout.Section>
                     <Card>

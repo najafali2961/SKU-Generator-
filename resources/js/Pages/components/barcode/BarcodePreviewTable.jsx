@@ -21,15 +21,16 @@ import {
     TextField,
     Checkbox,
     Tag,
+    Tooltip,
 } from "@shopify/polaris";
 import { HashtagIcon, ArrowRightIcon } from "@shopify/polaris-icons";
 
 export default function BarcodePreviewTable({
     barcodes = [],
     total = 0,
-    overall_total = 0, // ← filtered total from backend
+    overall_total = 0,
     duplicateGroups = {},
-    stats = { missing: 0, duplicates: 0, total: 0 }, // ← comes from backend (ACCURATE)
+    stats = { missing: 0, duplicates: 0, total: 0 },
     page,
     setPage,
     duplicatePage,
@@ -52,11 +53,12 @@ export default function BarcodePreviewTable({
     setSelectedTypes,
     selectedTags = [],
     setSelectedTags,
+    isApplyDisabled,
+    hasUnlimitedCredits,
 }) {
     const [selectedVariant, setSelectedVariant] = React.useState(null);
     const [tagsInput, setTagsInput] = React.useState("");
 
-    // Convert duplicateGroups to list ONLY for display (pagination on THIS page)
     const duplicateGroupList = React.useMemo(() => {
         if (!duplicateGroups || typeof duplicateGroups !== "object") return [];
         return Object.entries(duplicateGroups).map(([barcode, variants]) => ({
@@ -75,7 +77,6 @@ export default function BarcodePreviewTable({
         duplicatePage * DUPLICATES_PER_PAGE
     );
 
-    // ✅ PERFECT TAB COUNTS - USE STATS FROM BACKEND (ALWAYS ACCURATE)
     const tabs = [
         { id: "all", content: `All Variants (${stats.total})` },
         {
@@ -93,16 +94,14 @@ export default function BarcodePreviewTable({
         setSelected(new Set());
     };
 
-    // ✅ HANDLE ADDING TAGS - SUPPORTS BOTH BUTTON AND COMMA-SEPARATED
     const handleAddTag = () => {
         if (!tagsInput.trim()) return;
 
-        // Split by comma if multiple tags are provided
         const newTags = tagsInput
             .split(",")
             .map((t) => t.trim())
             .filter((t) => t.length > 0)
-            .filter((t) => !selectedTags.includes(t)); // Avoid duplicates
+            .filter((t) => !selectedTags.includes(t));
 
         if (newTags.length > 0) {
             setSelectedTags([...selectedTags, ...newTags]);
@@ -547,13 +546,14 @@ export default function BarcodePreviewTable({
                         {
                             content: `Apply to Selected (${selected.size})`,
                             onAction: () => applyBarcodes("selected"),
-                            disabled: selected.size === 0,
+                            disabled: isApplyDisabled("selected"),
                         },
                     ]}
                     promotedBulkActions={[
                         {
                             content: "Apply to Visible",
                             onAction: () => applyBarcodes("visible"),
+                            disabled: isApplyDisabled("visible"),
                         },
                     ]}
                     loading={loading}
@@ -619,7 +619,7 @@ export default function BarcodePreviewTable({
                                     </Button>
                                     <Button
                                         onClick={() => applyBarcodes("visible")}
-                                        disabled={barcodes.length === 0}
+                                        disabled={isApplyDisabled("visible")}
                                     >
                                         Apply to Visible ({barcodes.length})
                                     </Button>
@@ -628,6 +628,7 @@ export default function BarcodePreviewTable({
                                 <ButtonGroup>
                                     <Button
                                         onClick={() => applyBarcodes("all")}
+                                        disabled={isApplyDisabled("all")}
                                     >
                                         {activeTab === "duplicates"
                                             ? `Fix All Duplicates (${stats.duplicates})`
@@ -638,7 +639,7 @@ export default function BarcodePreviewTable({
                                     <Button
                                         variant="primary"
                                         loading={applying}
-                                        disabled={selected.size === 0}
+                                        disabled={isApplyDisabled("selected")}
                                         onClick={() =>
                                             applyBarcodes("selected")
                                         }
@@ -678,14 +679,12 @@ export default function BarcodePreviewTable({
                             borderRadius: "12px",
                         }}
                     >
-                        {/* HEADER – FULL VARIANT DETAILS */}
                         <Box padding="500">
                             <InlineStack
                                 align="space-between"
                                 blockAlign="center"
                             >
                                 <InlineStack gap="400" blockAlign="center">
-                                    {/* Image */}
                                     <Thumbnail
                                         source={
                                             selectedVariant.image ||
@@ -699,22 +698,16 @@ export default function BarcodePreviewTable({
                                         }
                                     />
 
-                                    {/* Variant Details */}
                                     <BlockStack gap="200">
                                         <Text
                                             variant="headingLg"
                                             fontWeight="bold"
-                                            color="text-inverse"
                                         >
                                             {selectedVariant.title ||
                                                 selectedVariant.variant_title}
                                         </Text>
 
-                                        <Text
-                                            variant="bodyMd"
-                                            tone="subdued"
-                                            color="text-inverse"
-                                        >
+                                        <Text variant="bodyMd" tone="subdued">
                                             {selectedVariant.vendor ||
                                                 "No vendor"}
                                         </Text>
@@ -722,7 +715,6 @@ export default function BarcodePreviewTable({
                                         <Text
                                             variant="headingLg"
                                             fontWeight="bold"
-                                            color="text-inverse"
                                         >
                                             $
                                             {Number(
@@ -734,14 +726,12 @@ export default function BarcodePreviewTable({
                                             gap="300"
                                             paddingBlockStart="200"
                                         >
-                                            {/* SKU */}
                                             <Badge tone="info">
                                                 SKU:{" "}
                                                 {selectedVariant.sku || "—"}
                                             </Badge>
                                         </InlineStack>
 
-                                        {/* Options */}
                                         {(selectedVariant.option1 ||
                                             selectedVariant.option2 ||
                                             selectedVariant.option3) && (
@@ -773,12 +763,7 @@ export default function BarcodePreviewTable({
                                             </InlineStack>
                                         )}
 
-                                        {/* Shopify ID */}
-                                        <Text
-                                            variant="bodySm"
-                                            tone="subdued"
-                                            color="text-inverse"
-                                        >
+                                        <Text variant="bodySm" tone="subdued">
                                             Variant ID:{" "}
                                             {selectedVariant.shopify_variant_id ||
                                                 "—"}
@@ -788,10 +773,8 @@ export default function BarcodePreviewTable({
                             </InlineStack>
                         </Box>
 
-                        {/* BODY – ONLY MIGRATIONS */}
                         <Box padding="500">
                             <BlockStack gap="500">
-                                {/* BARCODE Migration */}
                                 <Box
                                     background="bg-surface-secondary"
                                     padding="400"
@@ -849,7 +832,6 @@ export default function BarcodePreviewTable({
                             </BlockStack>
                         </Box>
 
-                        {/* Footer */}
                         <Box
                             padding="400"
                             background="bg-surface-secondary"

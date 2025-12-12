@@ -14,7 +14,6 @@ use Illuminate\Support\Str;
 
 class BarcodeController extends Controller
 {
-
     public function index()
     {
         /** @var \App\Models\User $shop */
@@ -276,7 +275,6 @@ class BarcodeController extends Controller
             }
         }
 
-        // Calculate credit info
         $creditValidation = $shop->validateCreditsForOperation('barcode_generation', $totalVariants);
 
         return response()->json([
@@ -323,6 +321,23 @@ class BarcodeController extends Controller
             ])->with('error', 'Insufficient credits to generate barcodes.');
         }
 
+        // ✅ DEDUCT CREDITS HERE - BEFORE JOB DISPATCH
+        $creditDeducted = $shop->useCredits(
+            'barcode_generation',
+            $itemCount,
+            "Barcode generation for {$itemCount} variant(s)",
+            [
+                'apply_scope' => $applyScope,
+                'format' => $request->input('format', 'UPC'),
+            ]
+        );
+
+        if (!$creditDeducted) {
+            return back()->withErrors([
+                'credits' => 'Failed to deduct credits. Please try again.'
+            ])->with('error', 'Credit deduction failed.');
+        }
+
         $jobLog = JobLog::create([
             'user_id' => $shop->id,
             'type' => 'barcode_generation',
@@ -338,7 +353,7 @@ class BarcodeController extends Controller
         GenerateBarcodeJob::dispatch($shop->id, $request->all(), $jobLog->id);
 
         return redirect()->route('jobs.show', $jobLog->id)
-            ->with('success', 'Barcode generation started!');
+            ->with('success', "Barcode generation started! {$itemCount} credits deducted.");
     }
 
     public function importPage()
@@ -380,52 +395,6 @@ class BarcodeController extends Controller
         return response()->json(['variants' => $variants]);
     }
 
-    public function import(Request $request)
-    {
-        /** @var \App\Models\User $shop */
-        $shop = Auth::user();
-
-        $validated = $request->validate([
-            'barcodes' => 'required|array|min:1',
-            'barcodes.*.shopify_variant_id' => 'required',
-            'barcodes.*.barcode' => 'required|string|min:8|max:255',
-        ]);
-
-        $imported = 0;
-        $failed = 0;
-        $errors = [];
-
-        DB::beginTransaction();
-
-        foreach ($validated['barcodes'] as $index => $item) {
-            $shopifyId = strval($item['shopify_variant_id']);
-            $newBarcode = trim($item['barcode']);
-
-            $variant = Variant::where('shopify_variant_id', $shopifyId)
-                ->whereHas('product', fn($q) => $q->where('user_id', $shop->id))
-                ->first();
-
-            if (!$variant) {
-                $errors[] = "Row " . ($index + 2) . ": Variant not found (Shopify ID: $shopifyId)";
-                $failed++;
-                continue;
-            }
-
-            $variant->update(['barcode' => $newBarcode]);
-            $imported++;
-        }
-
-        DB::commit();
-
-        return response()->json([
-            'success' => true,
-            'message' => "Successfully updated $imported variant(s)",
-            'imported' => $imported,
-            'failed' => $failed,
-            'errors' => $errors,
-        ]);
-    }
-
     public function importApply(Request $request)
     {
         /** @var \App\Models\User $shop */
@@ -448,6 +417,22 @@ class BarcodeController extends Controller
             ])->with('error', 'Insufficient credits to import barcodes.');
         }
 
+        // ✅ DEDUCT CREDITS HERE - BEFORE JOB DISPATCH
+        $creditDeducted = $shop->useCredits(
+            'barcode_import',
+            $itemCount,
+            "Barcode import for {$itemCount} variant(s)",
+            [
+                'source' => 'csv_import',
+            ]
+        );
+
+        if (!$creditDeducted) {
+            return back()->withErrors([
+                'credits' => 'Failed to deduct credits. Please try again.'
+            ])->with('error', 'Credit deduction failed.');
+        }
+
         $jobLog = JobLog::create([
             'user_id' => $shop->id,
             'type' => 'barcode_import',
@@ -467,6 +452,6 @@ class BarcodeController extends Controller
         );
 
         return redirect()->route('jobs.show', $jobLog->id)
-            ->with('success', 'Barcode import started!');
+            ->with('success', "Barcode import started! {$itemCount} credits deducted.");
     }
 }

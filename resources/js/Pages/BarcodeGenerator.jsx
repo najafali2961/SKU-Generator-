@@ -6,10 +6,16 @@ import BarcodeHeader from "./components/barcode/Header";
 import BarcodeSidebar from "./components/barcode/BarcodeSidebar";
 import BarcodePreviewTable from "./components/barcode/BarcodePreviewTable";
 import BarcodeImportModal from "./components/barcode/BarcodeImportModal";
+import CreditWarning from "./components/CreditWarning";
 
 const DEBOUNCE_MS = 500;
 
-export default function BarcodeGenerator({ initialCollections = [] }) {
+export default function BarcodeGenerator({
+    initialCollections = [],
+    availableCredits = 0,
+    hasUnlimitedCredits = false,
+    creditCostPerBarcode = 1,
+}) {
     const [form, setForm] = useState({
         format: "UPC",
         prefix: "",
@@ -47,6 +53,15 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
     const [selectedTypes, setSelectedTypes] = useState([]);
     const [selectedTags, setSelectedTags] = useState([]);
 
+    const [creditInfo, setCreditInfo] = useState({
+        available: availableCredits,
+        cost_per_barcode: creditCostPerBarcode,
+        has_unlimited: hasUnlimitedCredits,
+        max_allowed: hasUnlimitedCredits
+            ? Number.MAX_SAFE_INTEGER
+            : Math.floor(availableCredits / creditCostPerBarcode),
+    });
+
     const debounceRef = useRef(null);
 
     const handleChange = (key, value) => {
@@ -70,6 +85,10 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
             setOverallTotal(res.data.overall_total || 0);
             setDuplicateGroups(res.data.duplicateGroups || {});
             setStats(res.data.stats || { missing: 0, duplicates: 0, total: 0 });
+
+            if (res.data.credit_info) {
+                setCreditInfo(res.data.credit_info);
+            }
         } catch (err) {
             console.error("Preview error:", err);
         } finally {
@@ -117,7 +136,62 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
         selectedTags,
     ]);
 
+    // Calculate credit requirements
+    const getCreditRequirements = (scope) => {
+        let itemCount = 0;
+
+        if (scope === "selected") {
+            itemCount = selected.size;
+        } else if (scope === "visible") {
+            itemCount = barcodes.length;
+        } else if (scope === "all") {
+            if (activeTab === "missing") {
+                itemCount = stats.missing;
+            } else if (activeTab === "duplicates") {
+                itemCount = stats.duplicates;
+            } else {
+                itemCount = stats.total;
+            }
+        }
+
+        const requiredCredits = itemCount * creditInfo.cost_per_barcode;
+        const hasEnough =
+            hasUnlimitedCredits || creditInfo.available >= requiredCredits;
+
+        return {
+            itemCount,
+            requiredCredits,
+            hasEnough,
+            available: creditInfo.available,
+            maxAllowed: creditInfo.max_allowed,
+        };
+    };
+
+    // Check if apply should be disabled
+    const isApplyDisabled = (scope) => {
+        const requirements = getCreditRequirements(scope);
+
+        if (requirements.itemCount === 0) return true;
+        if (hasUnlimitedCredits) return false;
+
+        return !requirements.hasEnough;
+    };
+
     const applyBarcodes = (scope = "selected") => {
+        const requirements = getCreditRequirements(scope);
+
+        // Validate credits before proceeding
+        if (!hasUnlimitedCredits && !requirements.hasEnough) {
+            alert(
+                `Insufficient credits!\n\n` +
+                    `Items to process: ${requirements.itemCount}\n` +
+                    `Credits required: ${requirements.requiredCredits}\n` +
+                    `Credits available: ${requirements.available}\n\n` +
+                    `Maximum items you can process: ${requirements.maxAllowed}`
+            );
+            return;
+        }
+
         const ids = scope === "selected" ? Array.from(selected) : [];
 
         console.log("🚀 Applying barcodes with settings:", {
@@ -135,7 +209,7 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
         router.post(
             "/barcode-generator/apply",
             {
-                ...form, // ✅ SEND ALL CURRENT FORM STATE
+                ...form,
                 apply_scope: scope,
                 selected_variant_ids: ids.length > 0 ? ids : undefined,
                 collections: selectedCollectionIds,
@@ -151,9 +225,27 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
                 onError: (err) => {
                     setApplying(false);
                     console.error("Apply failed:", err);
-                    alert("Apply failed: " + JSON.stringify(err));
+                    if (err.credits) {
+                        alert(`Credit Error: ${err.credits}`);
+                    } else {
+                        alert("Apply failed: " + JSON.stringify(err));
+                    }
                 },
             }
+        );
+    };
+
+    // Determine if we should show credit warning
+    const shouldShowCreditWarning = () => {
+        if (hasUnlimitedCredits) return false;
+
+        const selectedReq = getCreditRequirements("selected");
+        const allReq = getCreditRequirements("all");
+
+        // Show warning if user has selected more than they can afford
+        // OR if the total available is less than what they're trying to process
+        return (
+            (selected.size > 0 && !selectedReq.hasEnough) || !allReq.hasEnough
         );
     };
 
@@ -222,6 +314,25 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
                     </div>
 
                     <div className="space-y-6 lg:col-span-8">
+                        {/* Only show credit warning when there's an issue */}
+                        {shouldShowCreditWarning() && (
+                            <CreditWarning
+                                selectedCount={selected.size}
+                                totalCount={
+                                    activeTab === "missing"
+                                        ? stats.missing
+                                        : activeTab === "duplicates"
+                                        ? stats.duplicates
+                                        : stats.total
+                                }
+                                availableCredits={creditInfo.available}
+                                costPerItem={creditInfo.cost_per_barcode}
+                                hasUnlimited={hasUnlimitedCredits}
+                                scope={selected.size > 0 ? "selected" : "all"}
+                                maxAllowed={creditInfo.max_allowed}
+                            />
+                        )}
+
                         <BarcodePreviewTable
                             barcodes={barcodes}
                             total={total}
@@ -250,12 +361,17 @@ export default function BarcodeGenerator({ initialCollections = [] }) {
                             setSelectedTypes={setSelectedTypes}
                             selectedTags={selectedTags}
                             setSelectedTags={setSelectedTags}
+                            isApplyDisabled={isApplyDisabled}
+                            hasUnlimitedCredits={hasUnlimitedCredits}
                         />
                     </div>
-                    <BarcodeImportModal
-                        isOpen={importModalOpen}
-                        onClose={() => setImportModalOpen(false)}
-                    />
+
+                    {importModalOpen && (
+                        <BarcodeImportModal
+                            isOpen={importModalOpen}
+                            onClose={() => setImportModalOpen(false)}
+                        />
+                    )}
                 </div>
             </div>
         </div>
