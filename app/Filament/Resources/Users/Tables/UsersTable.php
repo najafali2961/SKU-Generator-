@@ -4,7 +4,9 @@ namespace App\Filament\Resources\Users\Tables;
 
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\SelectColumn;
 use Filament\Tables\Table;
+use Osiset\ShopifyApp\Storage\Models\Plan;
 
 class UsersTable
 {
@@ -22,10 +24,13 @@ class UsersTable
                     ->searchable()
                     ->sortable(),
 
-                TextColumn::make('plan.name')
-                    ->badge()
-                    ->color('success')
-                    ->default('Free')
+                SelectColumn::make('plan_id')
+                    ->label('Plan')
+                    ->options(function () {
+                        $plans = Plan::pluck('name', 'id')->toArray();
+                        return ['' => 'No Plan'] + $plans;
+                    })
+                    ->placeholder('No Plan')
                     ->sortable(),
 
                 IconColumn::make('shopify_freemium')
