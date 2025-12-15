@@ -15,7 +15,7 @@ export default function CreditsSpeedometerCard({ credits = {} }) {
         plan_name: credits.plan_name || "Freemium",
         available: credits.available || 0,
         used: credits.used || 0,
-        total: credits.total || 100,
+        total: credits.total || 0,
         unlimited: credits.unlimited || false,
     };
 
