@@ -6,6 +6,7 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\SelectColumn;
 use Filament\Tables\Table;
+use Livewire\Attributes\Title;
 use Osiset\ShopifyApp\Storage\Models\Plan;
 
 class UsersTable
@@ -14,6 +15,11 @@ class UsersTable
     {
         return $table
             ->columns([
+                TextColumn::make('id')
+                    ->searchable()
+                    ->sortable()
+                    ->label('ID'),
+
                 TextColumn::make('name')
                     ->label('Shop Domain')
                     ->searchable()
