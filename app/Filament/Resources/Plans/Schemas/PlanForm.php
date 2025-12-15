@@ -34,6 +34,24 @@ class PlanForm
                             ->placeholder('Plan description shown on pricing page')
                             ->helperText('Optional description'),
                     ]),
+                // Features Section
+                Section::make('Features')
+                    ->description('Select which features are included in this plan')
+                    ->schema([
+                        CheckboxList::make('features')
+                            ->relationship('features', 'name')
+                            ->options(
+                                Feature::where('is_active', true)
+                                    ->orderBy('category')
+                                    ->orderBy('sort_order')
+                                    ->pluck('name', 'id')
+                            )
+                            ->columns(2)
+                            ->searchable()
+                            ->bulkToggleable()
+                            ->columnSpanFull()
+                            ->helperText('Check the features available in this plan'),
+                    ]),
 
                 // Pricing Section
                 Section::make('Pricing & Credits')
@@ -94,24 +112,6 @@ class PlanForm
                             ->helperText('Number of free trial days (0 = no trial)'),
                     ]),
 
-                // Features Section
-                Section::make('Features')
-                    ->description('Select which features are included in this plan')
-                    ->schema([
-                        CheckboxList::make('features')
-                            ->relationship('features', 'name')
-                            ->options(
-                                Feature::where('is_active', true)
-                                    ->orderBy('category')
-                                    ->orderBy('sort_order')
-                                    ->pluck('name', 'id')
-                            )
-                            ->columns(2)
-                            ->searchable()
-                            ->bulkToggleable()
-                            ->columnSpanFull()
-                            ->helperText('Check the features available in this plan'),
-                    ]),
 
                 // Advanced Settings Section
                 Section::make('Advanced Settings')
