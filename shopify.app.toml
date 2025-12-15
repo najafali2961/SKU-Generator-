@@ -1,14 +1,14 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "807095145857452f21cb4442a45a651b"
+client_id = "7d4945412c07915efc0b23fd85ee1d69"
 application_url = "https://bulkapp.omni-sync.com"
 embedded = true
-name = "Sku & Barcode Generator"
-handle = "bulkapp-4"
+name = "Airo SKU & Barcode Generator"
+handle = "airo-sku-barcode-generator-1"
 
 [build]
 automatically_update_urls_on_dev = false
-dev_store_url = "wixpa-task.myshopify.com"
+dev_store_url = "teststore-10010101001010716.myshopify.com"
 
 [webhooks]
 api_version = "2025-07"

@@ -199,7 +199,7 @@ export default function Pricing({
 
                     {/* Pricing Cards Section */}
                     <div className="relative my-5">
-                        <div className="flex justify-center gap-4">
+                        <div className="flex items-start justify-center gap-4">
                             {visiblePlans.map((plan, idx) => {
                                 const isPopular =
                                     visiblePlans.length === 3 && idx === 1;
@@ -215,7 +215,6 @@ export default function Pricing({
                                             maxWidth: "350px",
                                         }}
                                     >
-                                        {/* Most Popular Badge - Top Center */}
                                         {isPopular && (
                                             <div
                                                 className="absolute z-20 transform -translate-x-1/2 left-1/2"
@@ -230,7 +229,6 @@ export default function Pricing({
                                             </div>
                                         )}
 
-                                        {/* Current Plan Badge - Top Center */}
                                         {isCurrent && (
                                             <div
                                                 className="absolute z-20 transform -translate-x-1/2 left-1/2"
@@ -246,204 +244,191 @@ export default function Pricing({
                                         )}
 
                                         <div
-                                            className={`relative h-full rounded-lg overflow-hidden ${
+                                            className={`${
                                                 isPopular
-                                                    ? "border-2 border-green-600 shadow-lg shadow-green-500/25"
-                                                    : "border border-gray-200"
+                                                    ? "border-2 border-green-600 shadow-lg shadow-green-500/25 rounded-2xl"
+                                                    : ""
                                             }`}
                                         >
                                             <Card>
                                                 <Box padding="300">
-                                                    <div className="flex flex-col h-full min-h-[500px]">
-                                                        <BlockStack gap="300">
-                                                            {/* Plan Header */}
-                                                            <BlockStack
-                                                                gap="200"
-                                                                inlineAlign="center"
+                                                    <BlockStack gap="300">
+                                                        {/* Plan Header */}
+                                                        <BlockStack
+                                                            gap="200"
+                                                            inlineAlign="center"
+                                                        >
+                                                            <Text
+                                                                variant="headingLg"
+                                                                as="h3"
+                                                                alignment="center"
                                                             >
+                                                                {plan.name}
+                                                            </Text>
+                                                            {plan.description && (
                                                                 <Text
-                                                                    variant="headingLg"
-                                                                    as="h3"
+                                                                    variant="bodySm"
+                                                                    tone="subdued"
                                                                     alignment="center"
                                                                 >
-                                                                    {plan.name}
+                                                                    {
+                                                                        plan.description
+                                                                    }
                                                                 </Text>
-                                                                {plan.description && (
-                                                                    <Text
-                                                                        variant="bodySm"
-                                                                        tone="subdued"
-                                                                        alignment="center"
-                                                                    >
-                                                                        {
-                                                                            plan.description
-                                                                        }
-                                                                    </Text>
-                                                                )}
-                                                            </BlockStack>
+                                                            )}
+                                                        </BlockStack>
 
-                                                            {/* Price and Credits */}
-                                                            <BlockStack
+                                                        {/* Price and Credits */}
+                                                        <BlockStack
+                                                            gap="100"
+                                                            inlineAlign="center"
+                                                        >
+                                                            <InlineStack
                                                                 gap="100"
-                                                                inlineAlign="center"
+                                                                blockAlign="baseline"
+                                                                align="center"
+                                                            >
+                                                                <Text
+                                                                    variant="heading2xl"
+                                                                    as="span"
+                                                                >
+                                                                    $
+                                                                    {plan.price}
+                                                                </Text>
+                                                                <Text
+                                                                    variant="bodyLg"
+                                                                    tone="subdued"
+                                                                >
+                                                                    /
+                                                                    {getIntervalLabel(
+                                                                        plan.interval
+                                                                    )}
+                                                                </Text>
+                                                            </InlineStack>
+
+                                                            {billingInterval ===
+                                                                "annual" && (
+                                                                <Text
+                                                                    variant="bodySm"
+                                                                    tone="subdued"
+                                                                >
+                                                                    (Billed
+                                                                    annually)
+                                                                </Text>
+                                                            )}
+
+                                                            {/* Credits Badge */}
+                                                            <Box
+                                                                background="bg-surface-secondary"
+                                                                padding="200"
+                                                                borderRadius="100"
                                                             >
                                                                 <InlineStack
-                                                                    gap="100"
-                                                                    blockAlign="baseline"
+                                                                    gap="200"
+                                                                    blockAlign="center"
                                                                     align="center"
                                                                 >
                                                                     <Text
-                                                                        variant="heading2xl"
-                                                                        as="span"
+                                                                        variant="headingSm"
+                                                                        fontWeight="bold"
                                                                     >
-                                                                        $
                                                                         {
-                                                                            plan.price
+                                                                            credits.value
                                                                         }
                                                                     </Text>
-                                                                    <Text
-                                                                        variant="bodyLg"
-                                                                        tone="subdued"
-                                                                    >
-                                                                        /
-                                                                        {getIntervalLabel(
-                                                                            plan.interval
-                                                                        )}
+                                                                    <Text variant="bodySm">
+                                                                        {
+                                                                            credits.text
+                                                                        }
                                                                     </Text>
                                                                 </InlineStack>
+                                                            </Box>
 
-                                                                {billingInterval ===
-                                                                    "annual" && (
-                                                                    <Text
-                                                                        variant="bodySm"
-                                                                        tone="subdued"
-                                                                    >
-                                                                        (Billed
-                                                                        annually)
-                                                                    </Text>
+                                                            {/* Trial Badge */}
+                                                            {plan.trial_days >
+                                                                0 &&
+                                                                !isCurrent && (
+                                                                    <Badge tone="info">
+                                                                        {
+                                                                            plan.trial_days
+                                                                        }{" "}
+                                                                        day free
+                                                                        trial
+                                                                    </Badge>
                                                                 )}
-
-                                                                {/* Credits Badge - FIXED: Only show value once */}
-                                                                <Box
-                                                                    background="bg-surface-secondary"
-                                                                    padding="200"
-                                                                    borderRadius="100"
-                                                                >
-                                                                    <InlineStack
-                                                                        gap="200"
-                                                                        blockAlign="center"
-                                                                        align="center"
-                                                                    >
-                                                                        <Text
-                                                                            variant="headingSm"
-                                                                            fontWeight="bold"
-                                                                        >
-                                                                            {
-                                                                                credits.value
-                                                                            }
-                                                                        </Text>
-                                                                        <Text variant="bodySm">
-                                                                            {
-                                                                                credits.text
-                                                                            }
-                                                                        </Text>
-                                                                    </InlineStack>
-                                                                </Box>
-
-                                                                {/* Trial Badge */}
-                                                                {plan.trial_days >
-                                                                    0 &&
-                                                                    !isCurrent && (
-                                                                        <Badge tone="info">
-                                                                            {
-                                                                                plan.trial_days
-                                                                            }{" "}
-                                                                            day
-                                                                            free
-                                                                            trial
-                                                                        </Badge>
-                                                                    )}
-                                                            </BlockStack>
-
-                                                            {/* Subscribe Button */}
-                                                            <Button
-                                                                variant={
-                                                                    isCurrent
-                                                                        ? "plain"
-                                                                        : "primary"
-                                                                }
-                                                                size="large"
-                                                                fullWidth
-                                                                onClick={() =>
-                                                                    handleSubscribePlan(
-                                                                        plan.id
-                                                                    )
-                                                                }
-                                                                loading={
-                                                                    isLoading
-                                                                }
-                                                                disabled={
-                                                                    isCurrent ||
-                                                                    isLoading
-                                                                }
-                                                            >
-                                                                {getButtonText(
-                                                                    plan
-                                                                )}
-                                                            </Button>
                                                         </BlockStack>
+
+                                                        {/* Subscribe Button */}
+                                                        <Button
+                                                            variant={
+                                                                isCurrent
+                                                                    ? "plain"
+                                                                    : "primary"
+                                                            }
+                                                            size="large"
+                                                            fullWidth
+                                                            onClick={() =>
+                                                                handleSubscribePlan(
+                                                                    plan.id
+                                                                )
+                                                            }
+                                                            loading={isLoading}
+                                                            disabled={
+                                                                isCurrent ||
+                                                                isLoading
+                                                            }
+                                                        >
+                                                            {getButtonText(
+                                                                plan
+                                                            )}
+                                                        </Button>
+
                                                         {/* Features List */}
-                                                        <div className="flex-1 mt-4">
-                                                            <BlockStack gap="300">
-                                                                <BlockStack gap="300">
-                                                                    {plan.features &&
-                                                                    plan
-                                                                        .features
-                                                                        .length >
-                                                                        0 ? (
-                                                                        plan.features.map(
-                                                                            (
-                                                                                feature,
+                                                        <BlockStack gap="200">
+                                                            {plan.features &&
+                                                            plan.features
+                                                                .length > 0 ? (
+                                                                plan.features.map(
+                                                                    (
+                                                                        feature,
+                                                                        idx
+                                                                    ) => (
+                                                                        <InlineStack
+                                                                            key={
                                                                                 idx
-                                                                            ) => (
-                                                                                <InlineStack
-                                                                                    key={
-                                                                                        idx
-                                                                                    }
-                                                                                    gap="300"
-                                                                                    blockAlign="start"
-                                                                                >
-                                                                                    <div className="flex-shrink-0 mt-1">
-                                                                                        <div className="flex items-center justify-center w-4 h-4 bg-green-100 rounded-full">
-                                                                                            <Icon
-                                                                                                source={
-                                                                                                    CheckIcon
-                                                                                                }
-                                                                                                tone="success"
-                                                                                            />
-                                                                                        </div>
-                                                                                    </div>
-                                                                                    <Text variant="bodySm">
-                                                                                        {
-                                                                                            feature
-                                                                                        }
-                                                                                    </Text>
-                                                                                </InlineStack>
-                                                                            )
-                                                                        )
-                                                                    ) : (
-                                                                        <Text
-                                                                            variant="bodySm"
-                                                                            tone="subdued"
+                                                                            }
+                                                                            gap="300"
+                                                                            blockAlign="start"
                                                                         >
-                                                                            No
-                                                                            features
-                                                                            listed
-                                                                        </Text>
-                                                                    )}
-                                                                </BlockStack>
-                                                            </BlockStack>
-                                                        </div>
-                                                    </div>
+                                                                            <div className="flex-shrink-0 mt-1">
+                                                                                <div className="flex items-center justify-center w-4 h-4 bg-green-100 rounded-full">
+                                                                                    <Icon
+                                                                                        source={
+                                                                                            CheckIcon
+                                                                                        }
+                                                                                        tone="success"
+                                                                                    />
+                                                                                </div>
+                                                                            </div>
+                                                                            <Text variant="bodySm">
+                                                                                {
+                                                                                    feature
+                                                                                }
+                                                                            </Text>
+                                                                        </InlineStack>
+                                                                    )
+                                                                )
+                                                            ) : (
+                                                                <Text
+                                                                    variant="bodySm"
+                                                                    tone="subdued"
+                                                                >
+                                                                    No features
+                                                                    listed
+                                                                </Text>
+                                                            )}
+                                                        </BlockStack>
+                                                    </BlockStack>
                                                 </Box>
                                             </Card>
                                         </div>
