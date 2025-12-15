@@ -112,7 +112,7 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                                     fontWeight="bold"
                                     tone="invert"
                                 >
-                                    SKU & Barcode Generator Pro
+                                    Airo SKU & Barcode Generator
                                 </Text>
                                 <Text variant="bodyLg" tone="invert-subdued">
                                     Fix missing SKUs & barcodes in seconds •
