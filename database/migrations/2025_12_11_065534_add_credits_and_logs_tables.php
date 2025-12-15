@@ -22,6 +22,7 @@ return new class extends Migration
         Schema::table('plans', function (Blueprint $table) {
             $table->integer('monthly_credits')->default(0)->after('price');
             $table->boolean('unlimited_credits')->default(false)->after('monthly_credits');
+            $table->text('description')->nullable()->after('unlimited_credits');
         });
 
         // Create credit_usage_logs table for tracking
@@ -49,7 +50,7 @@ return new class extends Migration
         Schema::dropIfExists('credit_usage_logs');
 
         Schema::table('plans', function (Blueprint $table) {
-            $table->dropColumn(['monthly_credits', 'unlimited_credits']);
+            $table->dropColumn(['monthly_credits', 'unlimited_credits', 'description']);
         });
 
         Schema::table('users', function (Blueprint $table) {

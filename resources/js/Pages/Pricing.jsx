@@ -1,72 +1,124 @@
-import React, { useState } from "react";
+// resources/js/Pages/Pricing.jsx
+import React, { useState, useMemo } from "react";
+import { Head, usePage } from "@inertiajs/react";
 import {
     Page,
     Layout,
     Card,
-    Text,
-    BlockStack,
-    InlineGrid,
-    InlineStack,
-    Box,
     Button,
+    Text,
     Badge,
     Icon,
+    Box,
+    InlineStack,
+    BlockStack,
     Divider,
-    Banner,
-    ProgressBar,
+    ButtonGroup,
 } from "@shopify/polaris";
-import {
-    CheckIcon,
-    StarFilledIcon,
-    CreditCardIcon,
-} from "@shopify/polaris-icons";
-import { router } from "@inertiajs/react";
-import axios from "axios";
+import { CheckIcon, XIcon } from "@shopify/polaris-icons";
 
 export default function Pricing({
     plans = [],
     currentPlan = {},
     user = {},
-    creditStats = {},
-    creditCosts = {},
+    allFeatures = [],
 }) {
-    const [loading, setLoading] = useState(null);
+    const { shop } = usePage().props || {};
+
+    const [isLoading, setIsLoading] = useState(false);
     const [billingInterval, setBillingInterval] = useState("monthly");
 
-    const handleSelectPlan = async (planId) => {
-        setLoading(planId);
+    // Filter plans by billing interval
+    const visiblePlans = useMemo(() => {
+        return plans.filter((plan) => {
+            if (billingInterval === "monthly") {
+                return plan.interval === "EVERY_30_DAYS";
+            }
+            return plan.interval === "ANNUAL";
+        });
+    }, [plans, billingInterval]);
 
+    // Get unique features from all visible plans
+    const featuresInVisiblePlans = useMemo(() => {
+        const featureIds = new Set();
+        visiblePlans.forEach((plan) => {
+            if (plan.feature_ids) {
+                plan.feature_ids.forEach((id) => featureIds.add(id));
+            }
+        });
+        return Array.from(featureIds);
+    }, [visiblePlans]);
+
+    // Map feature IDs to feature details
+    const featureDetails = useMemo(() => {
+        const map = {};
+        allFeatures.forEach((feature) => {
+            map[feature.id] = feature;
+        });
+        return map;
+    }, [allFeatures]);
+
+    // Group features by category
+    const groupedFeatures = useMemo(() => {
+        const grouped = {};
+        featuresInVisiblePlans.forEach((featureId) => {
+            const feature = featureDetails[featureId];
+            if (feature) {
+                const category = feature.category || "Other";
+                if (!grouped[category]) {
+                    grouped[category] = [];
+                }
+                grouped[category].push(feature);
+            }
+        });
+        return grouped;
+    }, [featuresInVisiblePlans, featureDetails]);
+
+    const handleSubscribePlan = async (planId) => {
+        setIsLoading(true);
         try {
-            const response = await axios.post(`/pricing/select/${planId}`, {
-                plan_id: planId,
+            const response = await fetch(`/pricing/select/${planId}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN": document.querySelector(
+                        'meta[name="csrf-token"]'
+                    )?.content,
+                },
+                body: JSON.stringify({ plan_id: planId }),
             });
 
-            if (response.data.success && response.data.redirectUrl) {
-                window.open(response.data.redirectUrl, "_blank");
-            } else {
-                console.error("No redirect URL received");
-                setLoading(null);
+            const data = await response.json();
+            if (data.success && data.redirectUrl) {
+                window.open(data.redirectUrl, "_blank");
             }
         } catch (error) {
             console.error("Error selecting plan:", error);
-            setLoading(null);
         }
+        setIsLoading(false);
     };
 
-    const isCurrentPlan = (planId) => {
-        return currentPlan.id === planId;
+    const isCurrentPlan = (planId) => currentPlan.id === planId;
+
+    const planHasFeature = (planId, featureId) => {
+        const plan = plans.find((p) => p.id === planId);
+        return plan?.feature_ids?.includes(featureId) || false;
     };
 
-    const isFreemium = user.shopify_freemium === 1;
-
-    const getPlanBadge = (plan) => {
-        if (plan.name === "Pro Annual" || plan.interval === "ANNUAL") {
-            return <Badge tone="success">Save 17%</Badge>;
-        }
+    const getCreditsDisplay = (plan) => {
         if (plan.unlimited_credits) {
-            return <Badge tone="magic">Best Value</Badge>;
+            return { text: "Unlimited Credits", value: "∞" };
         }
-        return null;
+        return {
+            text: `Credits/${
+                plan.interval === "EVERY_30_DAYS" ? "Month" : "Year"
+            }`,
+            value: plan.monthly_credits,
+        };
+    };
+
+    const getIntervalLabel = (interval) => {
+        return interval === "EVERY_30_DAYS" ? "month" : "year";
     };
 
     const getButtonText = (plan) => {
@@ -76,334 +128,332 @@ export default function Pricing({
         if (plan.trial_days > 0) {
             return `Start ${plan.trial_days}-Day Free Trial`;
         }
-        return "Select Plan";
+        return "Subscribe";
     };
 
-    const getCreditProgress = () => {
-        if (creditStats.unlimited) {
-            return 100;
+    const getDiscountPercent = () => {
+        if (billingInterval === "annual" && visiblePlans.length > 0) {
+            const monthlyPlan = plans.find(
+                (p) =>
+                    p.interval === "EVERY_30_DAYS" &&
+                    p.name === visiblePlans[0].name
+            );
+            const annualPlan = visiblePlans[0];
+
+            if (monthlyPlan && annualPlan) {
+                const monthlyYearlyCost = parseFloat(monthlyPlan.price) * 12;
+                const annualCost = parseFloat(annualPlan.price) * 12;
+                const discount =
+                    ((monthlyYearlyCost - annualCost) / monthlyYearlyCost) *
+                    100;
+                return Math.round(discount);
+            }
         }
-        const total = currentPlan.monthly_credits || 10;
-        const used = creditStats.used || 0;
-        return Math.min((used / total) * 100, 100);
+        return 0;
     };
 
-    // Filter plans based on billing interval
-    const filteredPlans = plans.filter((plan) => {
-        if (billingInterval === "monthly") {
-            return plan.interval === "EVERY_30_DAYS";
-        } else {
-            return plan.interval === "ANNUAL";
-        }
-    });
-
-    // Custom toggle button component
-    const BillingToggle = () => (
-        <Box padding="100" background="bg-surface-secondary" borderRadius="400">
-            <InlineStack gap="0">
-                <button
-                    onClick={() => setBillingInterval("monthly")}
-                    style={{
-                        padding: "12px 32px",
-                        border: "none",
-                        borderRadius: "12px",
-                        background:
-                            billingInterval === "monthly"
-                                ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-                                : "transparent",
-                        color:
-                            billingInterval === "monthly"
-                                ? "white"
-                                : "var(--p-color-text)",
-                        fontWeight:
-                            billingInterval === "monthly" ? "600" : "500",
-                        fontSize: "15px",
-                        cursor: "pointer",
-                        transition: "all 0.3s ease",
-                        boxShadow:
-                            billingInterval === "monthly"
-                                ? "0 4px 12px rgba(102, 126, 234, 0.4)"
-                                : "none",
-                    }}
-                >
-                    Monthly
-                </button>
-                <button
-                    onClick={() => setBillingInterval("annual")}
-                    style={{
-                        padding: "12px 32px",
-                        border: "none",
-                        borderRadius: "12px",
-                        background:
-                            billingInterval === "annual"
-                                ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-                                : "transparent",
-                        color:
-                            billingInterval === "annual"
-                                ? "white"
-                                : "var(--p-color-text)",
-                        fontWeight:
-                            billingInterval === "annual" ? "600" : "500",
-                        fontSize: "15px",
-                        cursor: "pointer",
-                        transition: "all 0.3s ease",
-                        boxShadow:
-                            billingInterval === "annual"
-                                ? "0 4px 12px rgba(102, 126, 234, 0.4)"
-                                : "none",
-                    }}
-                >
-                    <InlineStack gap="200" blockAlign="center">
-                        <span>Annual</span>
-                        <Badge tone="success" size="small">
-                            Save 17%
-                        </Badge>
-                    </InlineStack>
-                </button>
-            </InlineStack>
-        </Box>
-    );
+    const discountPercent = getDiscountPercent();
 
     return (
-        <Page>
-            <Layout>
-                {/* Billing Toggle */}
-                <Layout.Section>
-                    <Box paddingBlockStart="400" paddingBlockEnd="400">
-                        <InlineStack align="center" blockAlign="center">
-                            <BillingToggle />
-                        </InlineStack>
-                    </Box>
-                </Layout.Section>
+        <>
+            <Head title="Pricing Plans" />
 
-                {/* Pricing Cards */}
-                <Layout.Section>
-                    <InlineGrid
-                        columns={{ xs: 1, sm: 2, lg: filteredPlans.length }}
-                        gap="400"
-                    >
-                        {filteredPlans.map((plan) => {
-                            const isPopular = plan.name === "Pro";
-                            const isCurrent = isCurrentPlan(plan.id);
-
-                            return (
-                                <Box key={plan.id} position="relative">
-                                    {isPopular && (
-                                        <Box
-                                            position="absolute"
-                                            insetBlockStart="0"
-                                            insetInlineStart="50%"
-                                            style={{
-                                                transform:
-                                                    "translate(-50%, -50%)",
-                                                zIndex: 10,
-                                            }}
-                                        >
-                                            <Badge
-                                                tone="attention"
-                                                size="large"
-                                            >
-                                                Most Popular
-                                            </Badge>
-                                        </Box>
-                                    )}
-
-                                    <Card>
-                                        <BlockStack gap="400">
-                                            {/* Plan Header */}
-                                            <BlockStack gap="300">
-                                                <InlineStack
-                                                    align="space-between"
-                                                    blockAlign="start"
-                                                >
-                                                    <Text
-                                                        variant="headingLg"
-                                                        fontWeight="bold"
-                                                    >
-                                                        {plan.name}
-                                                    </Text>
-                                                    {isCurrent && (
-                                                        <Badge tone="success">
-                                                            Active
-                                                        </Badge>
-                                                    )}
-                                                    {!isCurrent &&
-                                                        getPlanBadge(plan)}
-                                                </InlineStack>
-
-                                                <InlineStack
-                                                    blockAlign="baseline"
-                                                    gap="100"
-                                                >
-                                                    <Text
-                                                        variant="heading2xl"
-                                                        fontWeight="bold"
-                                                    >
-                                                        ${plan.price}
-                                                    </Text>
-                                                    <Text tone="subdued">
-                                                        /
-                                                        {plan.interval ===
-                                                        "EVERY_30_DAYS"
-                                                            ? "month"
-                                                            : "year"}
-                                                    </Text>
-                                                </InlineStack>
-
-                                                {/* Credits Display */}
-                                                <Box
-                                                    background="bg-surface-secondary"
-                                                    padding="300"
-                                                    borderRadius="200"
-                                                >
-                                                    <InlineStack
-                                                        gap="200"
-                                                        blockAlign="center"
-                                                    >
-                                                        {plan.unlimited_credits ? (
-                                                            <>
-                                                                <Text
-                                                                    variant="headingMd"
-                                                                    fontWeight="bold"
-                                                                >
-                                                                    ∞
-                                                                </Text>
-                                                                <Text>
-                                                                    Unlimited
-                                                                    Credits
-                                                                </Text>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Text
-                                                                    variant="headingMd"
-                                                                    fontWeight="bold"
-                                                                >
-                                                                    {
-                                                                        plan.monthly_credits
-                                                                    }
-                                                                </Text>
-                                                                <Text>
-                                                                    credits/
-                                                                    {plan.interval ===
-                                                                    "EVERY_30_DAYS"
-                                                                        ? "month"
-                                                                        : "year"}
-                                                                </Text>
-                                                            </>
-                                                        )}
-                                                    </InlineStack>
-                                                </Box>
-
-                                                {plan.trial_days > 0 &&
-                                                    !isCurrent && (
-                                                        <Badge tone="info">
-                                                            {plan.trial_days}{" "}
-                                                            day free trial
-                                                        </Badge>
-                                                    )}
-                                            </BlockStack>
-
-                                            <Divider />
-
-                                            {/* Features List */}
-                                            <BlockStack gap="300">
-                                                {plan.features.map(
-                                                    (feature, idx) => (
-                                                        <InlineStack
-                                                            key={idx}
-                                                            gap="300"
-                                                            blockAlign="start"
-                                                        >
-                                                            <Box
-                                                                background="bg-surface-success"
-                                                                padding="100"
-                                                                borderRadius="full"
-                                                                minWidth="20px"
-                                                            >
-                                                                <Icon
-                                                                    source={
-                                                                        CheckIcon
-                                                                    }
-                                                                    tone="success"
-                                                                />
-                                                            </Box>
-                                                            <Text>
-                                                                {feature}
-                                                            </Text>
-                                                        </InlineStack>
-                                                    )
-                                                )}
-                                            </BlockStack>
-
-                                            <Divider />
-
-                                            {/* Action Button */}
-                                            <Button
-                                                variant={
-                                                    isCurrent
-                                                        ? "plain"
-                                                        : "primary"
-                                                }
-                                                size="large"
-                                                fullWidth
-                                                disabled={isCurrent}
-                                                loading={loading === plan.id}
-                                                onClick={() =>
-                                                    handleSelectPlan(plan.id)
-                                                }
-                                                icon={
-                                                    !isCurrent && (
-                                                        <Icon
-                                                            source={
-                                                                CreditCardIcon
-                                                            }
-                                                        />
-                                                    )
-                                                }
-                                            >
-                                                {getButtonText(plan)}
-                                            </Button>
-                                        </BlockStack>
-                                    </Card>
-                                </Box>
-                            );
-                        })}
-                    </InlineGrid>
-                </Layout.Section>
-
-                {/* Support CTA */}
-                <Layout.Section>
-                    <Box
-                        background="bg-surface-secondary"
-                        padding="400"
-                        borderRadius="300"
-                    >
-                        <InlineStack
-                            align="space-between"
-                            blockAlign="center"
-                            gap="400"
-                            wrap={false}
-                        >
-                            <BlockStack gap="200">
-                                <Text variant="headingMd" fontWeight="semibold">
-                                    Need help choosing?
-                                </Text>
-                                <Text tone="subdued">
-                                    Our support team is here to help you find
-                                    the perfect plan for your business
-                                </Text>
-                            </BlockStack>
+            <Page>
+                <BlockStack gap="600">
+                    {/* Billing Cycle Toggle */}
+                    <InlineStack align="center" gap="200" blockAlign="center">
+                        <ButtonGroup variant="segmented">
                             <Button
-                                url="/support"
-                                icon={<Icon source={StarFilledIcon} />}
+                                pressed={billingInterval === "monthly"}
+                                onClick={() => setBillingInterval("monthly")}
+                                variant={
+                                    billingInterval === "monthly"
+                                        ? "primary"
+                                        : undefined
+                                }
                             >
-                                Contact Support
+                                Monthly
                             </Button>
-                        </InlineStack>
-                    </Box>
-                </Layout.Section>
-            </Layout>
-        </Page>
+                            <Button
+                                pressed={billingInterval === "annual"}
+                                onClick={() => setBillingInterval("annual")}
+                                variant={
+                                    billingInterval === "annual"
+                                        ? "primary"
+                                        : undefined
+                                }
+                            >
+                                Yearly
+                                {discountPercent > 0 && (
+                                    <>
+                                        {" ("}
+                                        <Badge tone="success">
+                                            Save {discountPercent}%
+                                        </Badge>
+                                        {")"}
+                                    </>
+                                )}
+                            </Button>
+                        </ButtonGroup>
+                    </InlineStack>
+
+                    {/* Pricing Cards Section */}
+                    <div className="relative my-5">
+                        <div className="flex justify-center gap-4">
+                            {visiblePlans.map((plan, idx) => {
+                                const isPopular =
+                                    visiblePlans.length === 3 && idx === 1;
+                                const isCurrent = isCurrentPlan(plan.id);
+                                const credits = getCreditsDisplay(plan);
+
+                                return (
+                                    <div
+                                        key={plan.id}
+                                        className="relative"
+                                        style={{
+                                            width: "350px",
+                                            maxWidth: "350px",
+                                        }}
+                                    >
+                                        {/* Most Popular Badge - Top Center */}
+                                        {isPopular && (
+                                            <div
+                                                className="absolute z-20 transform -translate-x-1/2 left-1/2"
+                                                style={{ top: "-16px" }}
+                                            >
+                                                <Badge
+                                                    tone="attention"
+                                                    size="large"
+                                                >
+                                                    ⭐ Most Popular
+                                                </Badge>
+                                            </div>
+                                        )}
+
+                                        {/* Current Plan Badge - Top Center */}
+                                        {isCurrent && (
+                                            <div
+                                                className="absolute z-20 transform -translate-x-1/2 left-1/2"
+                                                style={{ top: "-16px" }}
+                                            >
+                                                <Badge
+                                                    tone="success"
+                                                    size="large"
+                                                >
+                                                    ⭐ Current Plan
+                                                </Badge>
+                                            </div>
+                                        )}
+
+                                        <div
+                                            className={`relative h-full rounded-lg overflow-hidden ${
+                                                isPopular
+                                                    ? "border-2 border-green-600 shadow-lg shadow-green-500/25"
+                                                    : "border border-gray-200"
+                                            }`}
+                                        >
+                                            <Card>
+                                                <Box padding="300">
+                                                    <div className="flex flex-col h-full min-h-[500px]">
+                                                        <BlockStack gap="300">
+                                                            {/* Plan Header */}
+                                                            <BlockStack
+                                                                gap="200"
+                                                                inlineAlign="center"
+                                                            >
+                                                                <Text
+                                                                    variant="headingLg"
+                                                                    as="h3"
+                                                                    alignment="center"
+                                                                >
+                                                                    {plan.name}
+                                                                </Text>
+                                                                {plan.description && (
+                                                                    <Text
+                                                                        variant="bodySm"
+                                                                        tone="subdued"
+                                                                        alignment="center"
+                                                                    >
+                                                                        {
+                                                                            plan.description
+                                                                        }
+                                                                    </Text>
+                                                                )}
+                                                            </BlockStack>
+
+                                                            {/* Price and Credits */}
+                                                            <BlockStack
+                                                                gap="100"
+                                                                inlineAlign="center"
+                                                            >
+                                                                <InlineStack
+                                                                    gap="100"
+                                                                    blockAlign="baseline"
+                                                                    align="center"
+                                                                >
+                                                                    <Text
+                                                                        variant="heading2xl"
+                                                                        as="span"
+                                                                    >
+                                                                        $
+                                                                        {
+                                                                            plan.price
+                                                                        }
+                                                                    </Text>
+                                                                    <Text
+                                                                        variant="bodyLg"
+                                                                        tone="subdued"
+                                                                    >
+                                                                        /
+                                                                        {getIntervalLabel(
+                                                                            plan.interval
+                                                                        )}
+                                                                    </Text>
+                                                                </InlineStack>
+
+                                                                {billingInterval ===
+                                                                    "annual" && (
+                                                                    <Text
+                                                                        variant="bodySm"
+                                                                        tone="subdued"
+                                                                    >
+                                                                        (Billed
+                                                                        annually)
+                                                                    </Text>
+                                                                )}
+
+                                                                {/* Credits Badge - FIXED: Only show value once */}
+                                                                <Box
+                                                                    background="bg-surface-secondary"
+                                                                    padding="200"
+                                                                    borderRadius="100"
+                                                                >
+                                                                    <InlineStack
+                                                                        gap="200"
+                                                                        blockAlign="center"
+                                                                        align="center"
+                                                                    >
+                                                                        <Text
+                                                                            variant="headingSm"
+                                                                            fontWeight="bold"
+                                                                        >
+                                                                            {
+                                                                                credits.value
+                                                                            }
+                                                                        </Text>
+                                                                        <Text variant="bodySm">
+                                                                            {
+                                                                                credits.text
+                                                                            }
+                                                                        </Text>
+                                                                    </InlineStack>
+                                                                </Box>
+
+                                                                {/* Trial Badge */}
+                                                                {plan.trial_days >
+                                                                    0 &&
+                                                                    !isCurrent && (
+                                                                        <Badge tone="info">
+                                                                            {
+                                                                                plan.trial_days
+                                                                            }{" "}
+                                                                            day
+                                                                            free
+                                                                            trial
+                                                                        </Badge>
+                                                                    )}
+                                                            </BlockStack>
+
+                                                            {/* Subscribe Button */}
+                                                            <Button
+                                                                variant={
+                                                                    isCurrent
+                                                                        ? "plain"
+                                                                        : "primary"
+                                                                }
+                                                                size="large"
+                                                                fullWidth
+                                                                onClick={() =>
+                                                                    handleSubscribePlan(
+                                                                        plan.id
+                                                                    )
+                                                                }
+                                                                loading={
+                                                                    isLoading
+                                                                }
+                                                                disabled={
+                                                                    isCurrent ||
+                                                                    isLoading
+                                                                }
+                                                            >
+                                                                {getButtonText(
+                                                                    plan
+                                                                )}
+                                                            </Button>
+                                                        </BlockStack>
+                                                        {/* Features List */}
+                                                        <div className="flex-1 mt-4">
+                                                            <BlockStack gap="300">
+                                                                <BlockStack gap="300">
+                                                                    {plan.features &&
+                                                                    plan
+                                                                        .features
+                                                                        .length >
+                                                                        0 ? (
+                                                                        plan.features.map(
+                                                                            (
+                                                                                feature,
+                                                                                idx
+                                                                            ) => (
+                                                                                <InlineStack
+                                                                                    key={
+                                                                                        idx
+                                                                                    }
+                                                                                    gap="300"
+                                                                                    blockAlign="start"
+                                                                                >
+                                                                                    <div className="flex-shrink-0 mt-1">
+                                                                                        <div className="flex items-center justify-center w-4 h-4 bg-green-100 rounded-full">
+                                                                                            <Icon
+                                                                                                source={
+                                                                                                    CheckIcon
+                                                                                                }
+                                                                                                tone="success"
+                                                                                            />
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    <Text variant="bodySm">
+                                                                                        {
+                                                                                            feature
+                                                                                        }
+                                                                                    </Text>
+                                                                                </InlineStack>
+                                                                            )
+                                                                        )
+                                                                    ) : (
+                                                                        <Text
+                                                                            variant="bodySm"
+                                                                            tone="subdued"
+                                                                        >
+                                                                            No
+                                                                            features
+                                                                            listed
+                                                                        </Text>
+                                                                    )}
+                                                                </BlockStack>
+                                                            </BlockStack>
+                                                        </div>
+                                                    </div>
+                                                </Box>
+                                            </Card>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </BlockStack>
+            </Page>
+        </>
     );
 }

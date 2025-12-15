@@ -18,5 +18,6 @@ class DatabaseSeeder extends Seeder
         $this->call(PrinterPresetSeeder::class);
         $this->call(PlanSeeder::class);
         $this->call(AdminUserSeeder::class);
+        $this->call(FeatureSeeder::class);
     }
 }
