@@ -11,7 +11,6 @@ import {
     Button,
     Badge,
     Icon,
-    ProgressBar,
 } from "@shopify/polaris";
 import {
     BarcodeIcon,
@@ -69,31 +68,10 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
         };
     };
 
-    const creditsData = {
-        plan_name: credits.plan_name || "Freemium",
-        available: credits.available || 0,
-        used: credits.used || 0,
-        total: credits.total || 0,
-        unlimited: credits.unlimited || false,
-    };
-
-    const creditsUsedPercent =
-        creditsData.unlimited || creditsData.total === 0
-            ? 0
-            : Math.round((creditsData.used / creditsData.total) * 100);
-
-    const getProgressTone = (percent) => {
-        if (percent >= 90) return "critical";
-        if (percent >= 70) return "warning";
-        return "success";
-    };
-
-    const showUpgrade = !creditsData.unlimited && creditsData.available <= 0;
-
     return (
         <Page>
             <Layout>
-                {/* HERO — Shopify Admin Style (Dark) */}
+                {/* HERO */}
                 <Layout.Section>
                     <Box
                         background="bg-surface-active"
@@ -133,7 +111,7 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                                 </Button>
                                 <Button
                                     size="large"
-                                    variant="primary" // Polaris native solid button
+                                    variant="primary"
                                     icon={<Icon source={StarFilledIcon} />}
                                     onClick={() =>
                                         window.open(
@@ -148,22 +126,37 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                         </InlineStack>
                     </Box>
                 </Layout.Section>
+
                 <Layout.Section>
                     <CreditsSpeedometerCard credits={credits} />
                 </Layout.Section>
-                {/* Stats Grid */}
+
+                {/* Stats Grid - All with light green background */}
                 <Layout.Section>
                     <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
+                        {/* Total Variants */}
                         <Card>
                             <BlockStack gap="300">
                                 <InlineStack gap="300">
-                                    <Box
-                                        background="bg-surface-info-subdued"
-                                        padding="300"
-                                        borderRadius="200"
+                                    <div
+                                        style={{
+                                            background:
+                                                "rgba(149, 191, 71, 0.12)",
+                                            borderRadius: "10px",
+                                            padding: "10px",
+                                            width: "48px",
+                                            height: "48px",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            flexShrink: 0,
+                                        }}
                                     >
-                                        <Icon source={MagicIcon} tone="info" />
-                                    </Box>
+                                        <Icon
+                                            source={MagicIcon}
+                                            tone="success"
+                                        />
+                                    </div>
                                     <BlockStack gap="100">
                                         <Text
                                             variant="headingXl"
@@ -179,19 +172,29 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                             </BlockStack>
                         </Card>
 
+                        {/* Missing SKUs */}
                         <Card>
                             <BlockStack gap="300">
                                 <InlineStack gap="300">
-                                    <Box
-                                        background="bg-surface-warning-subdued"
-                                        padding="300"
-                                        borderRadius="200"
+                                    <div
+                                        style={{
+                                            background:
+                                                "rgba(149, 191, 71, 0.12)",
+                                            borderRadius: "10px",
+                                            padding: "10px",
+                                            width: "48px",
+                                            height: "48px",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            flexShrink: 0,
+                                        }}
                                     >
                                         <Icon
                                             source={ProductIcon}
-                                            tone="warning"
+                                            tone="success"
                                         />
-                                    </Box>
+                                    </div>
                                     <BlockStack gap="100">
                                         <InlineStack
                                             blockAlign="center"
@@ -216,19 +219,29 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                             </BlockStack>
                         </Card>
 
+                        {/* Missing Barcodes */}
                         <Card>
                             <BlockStack gap="300">
                                 <InlineStack gap="300">
-                                    <Box
-                                        background="bg-surface-critical-subdued"
-                                        padding="300"
-                                        borderRadius="200"
+                                    <div
+                                        style={{
+                                            background:
+                                                "rgba(149, 191, 71, 0.12)",
+                                            borderRadius: "10px",
+                                            padding: "10px",
+                                            width: "48px",
+                                            height: "48px",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            flexShrink: 0,
+                                        }}
                                     >
                                         <Icon
                                             source={BarcodeIcon}
-                                            tone="critical"
+                                            tone="success"
                                         />
-                                    </Box>
+                                    </div>
                                     <BlockStack gap="100">
                                         <InlineStack
                                             blockAlign="center"
@@ -257,9 +270,10 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                     </InlineGrid>
                 </Layout.Section>
 
-                {/* Quick Actions */}
+                {/* Quick Actions - Now ALL with the same light green background */}
                 <Layout.Section>
                     <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
+                        {/* Generate SKUs */}
                         <Link
                             href="/sku-generator?auto=missing"
                             style={{ textDecoration: "none" }}
@@ -267,16 +281,25 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                             <Card>
                                 <BlockStack gap="400">
                                     <InlineStack gap="300">
-                                        <Box
-                                            background="bg-surface-warning-subdued"
-                                            padding="300"
-                                            borderRadius="200"
+                                        <div
+                                            style={{
+                                                background:
+                                                    "rgba(149, 191, 71, 0.12)",
+                                                borderRadius: "10px",
+                                                padding: "10px",
+                                                width: "48px",
+                                                height: "48px",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                flexShrink: 0,
+                                            }}
                                         >
                                             <Icon
                                                 source={ProductIcon}
-                                                tone="warning"
+                                                tone="success"
                                             />
-                                        </Box>
+                                        </div>
                                         <BlockStack gap="100">
                                             <Text
                                                 variant="headingMd"
@@ -310,6 +333,7 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                             </Card>
                         </Link>
 
+                        {/* Generate Barcodes */}
                         <Link
                             href="/barcode-generator?auto=missing"
                             style={{ textDecoration: "none" }}
@@ -317,16 +341,25 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                             <Card>
                                 <BlockStack gap="400">
                                     <InlineStack gap="300">
-                                        <Box
-                                            background="bg-surface-critical-subdued"
-                                            padding="300"
-                                            borderRadius="200"
+                                        <div
+                                            style={{
+                                                background:
+                                                    "rgba(149, 191, 71, 0.12)",
+                                                borderRadius: "10px",
+                                                padding: "10px",
+                                                width: "48px",
+                                                height: "48px",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                flexShrink: 0,
+                                            }}
                                         >
                                             <Icon
                                                 source={BarcodeIcon}
-                                                tone="critical"
+                                                tone="success"
                                             />
-                                        </Box>
+                                        </div>
                                         <BlockStack gap="100">
                                             <Text
                                                 variant="headingMd"
@@ -360,6 +393,7 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                             </Card>
                         </Link>
 
+                        {/* Print Labels */}
                         <Link
                             href="/barcode-printer"
                             style={{ textDecoration: "none" }}
@@ -367,16 +401,25 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                             <Card>
                                 <BlockStack gap="400">
                                     <InlineStack gap="300">
-                                        <Box
-                                            // background="bg-surface-brand"
-                                            padding="300"
-                                            borderRadius="200"
+                                        <div
+                                            style={{
+                                                background:
+                                                    "rgba(149, 191, 71, 0.12)",
+                                                borderRadius: "10px",
+                                                padding: "10px",
+                                                width: "48px",
+                                                height: "48px",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                flexShrink: 0,
+                                            }}
                                         >
                                             <Icon
                                                 source={LabelPrinterIcon}
-                                                tone="base"
+                                                tone="success"
                                             />
-                                        </Box>
+                                        </div>
                                         <BlockStack gap="100">
                                             <Text
                                                 variant="headingMd"
