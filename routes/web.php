@@ -77,10 +77,6 @@ Route::middleware(['verify.shopify', 'billable'])->group(function () {
     Route::get('/pricing', [PricingController::class, 'index'])->name('pricing');
     Route::post('/pricing/select/{planId}', [PricingController::class, 'selectPlan'])->name('pricing.select');
     Route::post('/pricing/cancel', [PricingController::class, 'cancel'])->name('pricing.cancel');
-    Route::get('/billing/{planId}', [PricingController::class, 'showBilling'])->name('billing.show');
-    Route::post('/billing/{planId}/create', [PricingController::class, 'createCharge'])->name('billing.create');
-    Route::get('/billing/process', [PricingController::class, 'processBilling'])->name('billing.process');
-    Route::post('/upgrade-plan', [PricingController::class, 'upgradePlan']);
     Route::get('/credit-stats', [PricingController::class, 'creditStats'])->name('pricing.credit-stats');
 });
 

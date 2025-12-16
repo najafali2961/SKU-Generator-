@@ -75,27 +75,21 @@ export default function Pricing({
     }, [featuresInVisiblePlans, featureDetails]);
 
     const handleSubscribePlan = async (planId) => {
-        setIsLoading(true);
-        try {
-            const response = await fetch(`/pricing/select/${planId}`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-TOKEN": document.querySelector(
-                        'meta[name="csrf-token"]'
-                    )?.content,
-                },
-                body: JSON.stringify({ plan_id: planId }),
-            });
+        setIsLoading(planId);
 
-            const data = await response.json();
-            if (data.success && data.redirectUrl) {
-                window.open(data.redirectUrl, "_blank");
+        try {
+            const response = await axios.post(`/pricing/select/${planId}`);
+
+            if (response.data.success && response.data.redirectUrl) {
+                window.open(response.data.redirectUrl);
+            } else {
+                console.error("No redirect URL received");
+                setIsLoading(null);
             }
         } catch (error) {
             console.error("Error selecting plan:", error);
+            setIsLoading(null);
         }
-        setIsLoading(false);
     };
 
     const isCurrentPlan = (planId) => currentPlan.id === planId;
