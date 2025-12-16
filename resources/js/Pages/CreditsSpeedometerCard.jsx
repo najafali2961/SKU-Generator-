@@ -19,114 +19,166 @@ export default function CreditsSpeedometerCard({ credits = {} }) {
         unlimited: credits.unlimited || false,
     };
 
-    const usagePercent = creditsData.unlimited
+    const remainingPercent = creditsData.unlimited
         ? 100
         : creditsData.total === 0
         ? 0
-        : Math.round((creditsData.used / creditsData.total) * 100);
+        : Math.round((creditsData.available / creditsData.total) * 100);
+
+    const size = 90;
+    const strokeWidth = 8;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const fillOffset = circumference - (remainingPercent / 100) * circumference;
 
     return (
-        <Card background="bg-surface" borderRadius="300" padding="500">
-            <BlockStack gap="300">
-                {/* Header: Plan + Badge */}
-                <InlineStack gap="400" blockAlign="center">
-                    <Box>
+        <Card background="bg-surface" borderRadius="300" padding="600">
+            <InlineStack align="space-between" blockAlign="center" wrap={false}>
+                {/* Left: Plan details */}
+
+                <InlineStack gap="200" blockAlign="center">
+                    <div
+                        style={{
+                            background: "rgba(149, 191, 71, 0.12)",
+                            borderRadius: "10px",
+                            padding: "10px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
+                    >
                         <Icon source={CreditCardIcon} tone="success" />
-                    </Box>
-
-                    <BlockStack gap="100">
-                        <InlineStack gap="200" blockAlign="center">
-                            <Text variant="headingLg" fontWeight="bold" as="h2">
-                                {creditsData.plan_name} Plan
-                            </Text>
-
-                            {creditsData.unlimited ? (
-                                <Badge tone="success" size="large">
-                                    Unlimited
-                                </Badge>
-                            ) : (
-                                <Badge tone="info">
-                                    {creditsData.available.toLocaleString()}{" "}
-                                    left
-                                </Badge>
-                            )}
-                        </InlineStack>
+                    </div>
+                    <BlockStack gap="050">
+                        <Text variant="headingLg" fontWeight="bold" as="h2">
+                            {creditsData.plan_name} Plan
+                        </Text>
+                        <Text variant="bodySm" tone="subdued">
+                            Credit Usage Overview
+                        </Text>
                     </BlockStack>
                 </InlineStack>
 
-                {/* Main Animated Gradient Progress Bar */}
-                <BlockStack gap="200">
-                    <div style={{ padding: "0 8px" }}>
-                        <div
+                <InlineStack gap="400" blockAlign="center">
+                    <BlockStack gap="200">
+                        <Text variant="headingLg" fontWeight="bold">
+                            {creditsData.used.toLocaleString()}
+                        </Text>
+                        <Text variant="bodySm" tone="subdued">
+                            Used
+                        </Text>
+                    </BlockStack>
+                    <div
+                        style={{
+                            width: "1px",
+                            height: "32px",
+                            background: "rgba(0,0,0,0.1)",
+                        }}
+                    />
+                    <BlockStack gap="200">
+                        <Text variant="headingLg" fontWeight="bold">
+                            {creditsData.available.toLocaleString()}
+                        </Text>
+                        <Text variant="bodySm" tone="subdued">
+                            Remaining
+                        </Text>
+                    </BlockStack>
+                    <div
+                        style={{
+                            width: "1px",
+                            height: "32px",
+                            background: "rgba(0,0,0,0.1)",
+                        }}
+                    />
+                    <BlockStack gap="200">
+                        <Text variant="headingLg" fontWeight="bold">
+                            {creditsData.total.toLocaleString()}
+                        </Text>
+                        <Text variant="bodySm" tone="subdued">
+                            Total
+                        </Text>
+                    </BlockStack>
+                </InlineStack>
+                {/* Right: Circular Progress */}
+                <div
+                    style={{
+                        position: "relative",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}
+                >
+                    {/* Subtle glow behind */}
+                    <div
+                        style={{
+                            position: "absolute",
+                            width: size - 10,
+                            height: size - 10,
+                            borderRadius: "50%",
+                            background: "rgba(149, 191, 71, 0.08)",
+                            filter: "blur(8px)",
+                        }}
+                    />
+                    <svg
+                        width={size}
+                        height={size}
+                        style={{ transform: "rotate(-90deg)" }}
+                    >
+                        <circle
+                            cx={size / 2}
+                            cy={size / 2}
+                            r={radius}
+                            fill="none"
+                            stroke="rgba(0,0,0,0.06)"
+                            strokeWidth={strokeWidth}
+                        />
+                        <circle
+                            cx={size / 2}
+                            cy={size / 2}
+                            r={radius}
+                            fill="none"
+                            stroke="#95BF47"
+                            strokeWidth={strokeWidth}
+                            strokeLinecap="round"
+                            strokeDasharray={circumference}
+                            strokeDashoffset={fillOffset}
                             style={{
-                                height: "10px",
-                                background: "rgba(0,0,0,0.05)",
-                                borderRadius: "12px",
-                                overflow: "hidden",
-                                position: "relative",
-                                boxShadow: "inset 0 2px 4px rgba(0,0,0,0.06)",
+                                transition: "stroke-dashoffset 0.8s ease-out",
+                                filter: "drop-shadow(0 0 4px rgba(149, 191, 71, 0.4))",
+                            }}
+                        />
+                    </svg>
+                    <div
+                        style={{
+                            position: "absolute",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
+                    >
+                        <span
+                            style={{
+                                fontSize: "18px",
+                                fontWeight: 700,
+                                color: "#202223",
+                                lineHeight: 1,
                             }}
                         >
-                            {/* Animated Gradient Fill */}
-                            <div
-                                style={{
-                                    height: "100%",
-                                    width: `${usagePercent}%`,
-                                    background: creditsData.unlimited
-                                        ? "linear-gradient(90deg, #10b981, #34d399)"
-                                        : "linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899)",
-                                    borderRadius: "12px",
-                                    transition:
-                                        "width 1.6s cubic-bezier(0.16, 1, 0.3, 1)",
-                                    position: "relative",
-                                    overflow: "hidden",
-                                }}
-                            >
-                                {/* Shimmer Effect */}
-                                <div
-                                    style={{
-                                        position: "absolute",
-                                        top: 0,
-                                        left: "-150%",
-                                        width: "80%",
-                                        height: "100%",
-                                        background:
-                                            "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)",
-                                        animation: "shimmer 3s infinite",
-                                        transform: "skewX(-20deg)",
-                                    }}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Usage Text */}
-                    <InlineStack align="space-between" blockAlign="center">
-                        <Text variant="bodyMd" fontWeight="semibold">
-                            {creditsData.used.toLocaleString()} used
-                        </Text>
-                        <Text
-                            variant="bodyMd"
-                            tone="subdued"
-                            fontWeight="semibold"
+                            {remainingPercent}%
+                        </span>
+                        <span
+                            style={{
+                                fontSize: "10px",
+                                color: "#6d7175",
+                                marginTop: "2px",
+                            }}
                         >
-                            {creditsData.total.toLocaleString()} total
-                        </Text>
-                    </InlineStack>
-                </BlockStack>
-            </BlockStack>
-
-            {/* Shimmer Animation */}
-            <style jsx>{`
-                @keyframes shimmer {
-                    0% {
-                        transform: translateX(-100%) skewX(-20deg);
-                    }
-                    100% {
-                        transform: translateX(200%) skewX(-20deg);
-                    }
-                }
-            `}</style>
+                            left
+                        </span>
+                    </div>
+                </div>
+            </InlineStack>
         </Card>
     );
 }
