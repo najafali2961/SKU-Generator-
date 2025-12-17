@@ -46,7 +46,6 @@ const useAppNavigate = () => {
         }
     };
 };
-
 export default function JobShow({ job: initialJob }) {
     const navigate = useAppNavigate();
     const [job, setJob] = useState(initialJob);
@@ -256,8 +255,8 @@ export default function JobShow({ job: initialJob }) {
                                                 height: 80,
                                                 borderRadius: "50%",
                                                 background:
-                                                    "linear-gradient(135deg, #ffffff 0%, #e3f2fd 100%)",
-                                                border: "3px solid #2196F3",
+                                                    "linear-gradient(135deg, #ffffff 0%, rgba(149, 191, 71, 0.12) 100%)",
+                                                border: "3px solid #95bf47",
                                                 display: "flex",
                                                 alignItems: "center",
                                                 justifyContent: "center",
@@ -269,9 +268,9 @@ export default function JobShow({ job: initialJob }) {
                                                     width: 74,
                                                     height: 74,
                                                     borderRadius: "50%",
-                                                    background: `conic-gradient(#2196F3 0deg ${
+                                                    background: `conic-gradient(#95bf47 0deg ${
                                                         (progress / 100) * 360
-                                                    }deg, #e3f2fd ${
+                                                    }deg, rgba(149, 191, 71, 0.12) ${
                                                         (progress / 100) * 360
                                                     }deg 360deg)`,
                                                     opacity: 0.2,
@@ -280,7 +279,7 @@ export default function JobShow({ job: initialJob }) {
                                             <Text
                                                 variant="headingLg"
                                                 fontWeight="bold"
-                                                style={{ color: "#1976D2" }}
+                                                style={{ color: "#4a6616" }}
                                             >
                                                 {progress}%
                                             </Text>
@@ -328,7 +327,25 @@ export default function JobShow({ job: initialJob }) {
                                         TIMING
                                     </Text>
                                     <InlineStack gap="400" blockAlign="center">
-                                        <Icon source={ClockIcon} tone="base" />
+                                        <div
+                                            style={{
+                                                background:
+                                                    "rgba(149, 191, 71, 0.12)",
+                                                borderRadius: "10px",
+                                                padding: "10px",
+                                                width: "48px",
+                                                height: "48px",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            <Icon
+                                                source={ClockIcon}
+                                                tone="success"
+                                            />
+                                        </div>
                                         <BlockStack gap="100">
                                             <Text
                                                 variant="headingMd"
@@ -372,10 +389,25 @@ export default function JobShow({ job: initialJob }) {
                                         SUCCESS RATE
                                     </Text>
                                     <InlineStack gap="400" blockAlign="center">
-                                        <Icon
-                                            source={CheckCircleIcon}
-                                            tone="success"
-                                        />
+                                        <div
+                                            style={{
+                                                background:
+                                                    "rgba(149, 191, 71, 0.12)",
+                                                borderRadius: "10px",
+                                                padding: "10px",
+                                                width: "48px",
+                                                height: "48px",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            <Icon
+                                                source={CheckCircleIcon}
+                                                tone="success"
+                                            />
+                                        </div>
                                         <BlockStack gap="100">
                                             <Text
                                                 variant="headingMd"
@@ -401,24 +433,42 @@ export default function JobShow({ job: initialJob }) {
                                         JOB STATUS
                                     </Text>
                                     <InlineStack gap="400" blockAlign="center">
-                                        <Icon
-                                            source={
-                                                job.status === "completed"
-                                                    ? CheckCircleIcon
-                                                    : job.status === "failed"
-                                                    ? XCircleIcon
-                                                    : job.status === "running"
-                                                    ? PlayIcon
-                                                    : AlertDiamondIcon
-                                            }
-                                            tone={
-                                                job.status === "completed"
-                                                    ? "success"
-                                                    : job.status === "failed"
-                                                    ? "critical"
-                                                    : "info"
-                                            }
-                                        />
+                                        <div
+                                            style={{
+                                                background:
+                                                    "rgba(149, 191, 71, 0.12)",
+                                                borderRadius: "10px",
+                                                padding: "10px",
+                                                width: "48px",
+                                                height: "48px",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            <Icon
+                                                source={
+                                                    job.status === "completed"
+                                                        ? CheckCircleIcon
+                                                        : job.status ===
+                                                          "failed"
+                                                        ? XCircleIcon
+                                                        : job.status ===
+                                                          "running"
+                                                        ? PlayIcon
+                                                        : AlertDiamondIcon
+                                                }
+                                                tone={
+                                                    job.status === "completed"
+                                                        ? "success"
+                                                        : job.status ===
+                                                          "failed"
+                                                        ? "critical"
+                                                        : "info"
+                                                }
+                                            />
+                                        </div>
                                         <BlockStack gap="100">
                                             <Text
                                                 variant="headingMd"
