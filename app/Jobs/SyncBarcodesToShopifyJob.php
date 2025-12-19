@@ -53,7 +53,7 @@ class SyncBarcodesToShopifyJob implements ShouldQueue
                 $barcode = $variant->barcode;
 
                 // Make Shopify API call
-                $response = $shop->api()->rest('PUT', "/admin/api/2024-10/variants/{$shopifyVariantId}.json", [
+                $response = $shop->api()->rest('PUT', "/admin/api/2025-07/variants/{$shopifyVariantId}.json", [
                     'variant' => [
                         'id' => $shopifyVariantId,
                         'barcode' => $barcode,

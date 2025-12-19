@@ -36,7 +36,7 @@ class EditUser extends EditRecord
             if ($plan) {
                 try {
                     // Create recurring charge via Shopify API
-                    $response = $user->api()->rest('POST', '/admin/api/2024-10/recurring_application_charges.json', [
+                    $response = $user->api()->rest('POST', '/admin/api/2025-07/recurring_application_charges.json', [
                         'recurring_application_charge' => [
                             'name' => $plan->name,
                             'price' => $plan->price,
