@@ -2,8 +2,13 @@
 
 @section('styles')
     @routes
-    @viteReactRefresh
-    @vite(['resources/js/app.jsx'])
+
+    {{ vite_assets() }}
+
+    {{-- @viteReactRefresh --}}
+    {{-- @vite(['resources/js/app.jsx', "resources/js/Pages/{$page['component']}.jsx"]) --}}
+
+
     @inertiaHead
 @endsection
 
