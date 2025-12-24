@@ -39,6 +39,7 @@ export default function SkuPreviewTable({
     setPage,
     duplicatePage,
     setDuplicatePage,
+    isApplyDisabled = () => false,
     activeTab,
     setActiveTab,
     queryValue,
@@ -564,13 +565,16 @@ export default function SkuPreviewTable({
                         {
                             content: `Apply to Selected (${selected.size})`,
                             onAction: () => applySKUs("selected"),
-                            disabled: selected.size === 0,
+                            disabled:
+                                selected.size === 0 ||
+                                isApplyDisabled("selected"),
                         },
                     ]}
                     promotedBulkActions={[
                         {
                             content: "Apply to Visible",
                             onAction: () => applySKUs("visible"),
+                            disabled: isApplyDisabled("visible"),
                         },
                     ]}
                     loading={loading}
@@ -618,14 +622,20 @@ export default function SkuPreviewTable({
                                     </Button>
                                     <Button
                                         onClick={() => applySKUs("visible")}
-                                        disabled={preview.length === 0}
+                                        disabled={
+                                            preview.length === 0 ||
+                                            isApplyDisabled("visible")
+                                        }
                                     >
                                         Apply to Visible ({preview.length})
                                     </Button>
                                 </ButtonGroup>
 
                                 <ButtonGroup>
-                                    <Button onClick={() => applySKUs("all")}>
+                                    <Button
+                                        onClick={() => applySKUs("all")}
+                                        disabled={isApplyDisabled("all")}
+                                    >
                                         {activeTab === "duplicates"
                                             ? `Fix All Duplicates (${stats.duplicates})`
                                             : activeTab === "missing"
@@ -635,7 +645,10 @@ export default function SkuPreviewTable({
                                     <Button
                                         variant="primary"
                                         loading={applying}
-                                        disabled={selected.size === 0}
+                                        disabled={
+                                            selected.size === 0 ||
+                                            isApplyDisabled("selected")
+                                        }
                                         onClick={() => applySKUs("selected")}
                                     >
                                         Apply to Selected ({selected.size})

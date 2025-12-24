@@ -45,6 +45,38 @@ class SkuController extends Controller
             'status' => 'pending',
         ]);
 
+        // Validate credits
+        $itemCount = count($request->input('selected_variant_ids', []));
+        if ($request->input('apply_scope') !== 'selected') {
+           // For 'all' or 'visible', we need to count. 
+           // Since we trust Job to handle large batches, we validate against a 'base' count here if possible,
+           // OR we just validate if they have ANY credits.
+           // Better: Re-run the count query efficiently.
+           $baseQuery = $this->buildFilteredQuery($request, $shop);
+           $itemCount = $baseQuery->count();
+        }
+
+        $validation = $shop->validateCreditsForOperation('sku_generation', $itemCount);
+        if (!$validation['can_proceed']) {
+            return back()->withErrors([
+                'credits' => $validation['message']
+            ])->with('error', 'Insufficient credits.');
+        }
+
+        // Deduct credits
+        $creditDeducted = $shop->useCredits(
+            'sku_generation', 
+            $itemCount, 
+            "SKU generation for {$itemCount} variant(s)",
+            ['apply_scope' => $request->input('apply_scope', 'selected')]
+        );
+
+        if (!$creditDeducted) {
+             return back()->withErrors([
+                'credits' => 'Failed to deduct credits. Please try again.'
+            ])->with('error', 'Credit deduction failed.');
+        }
+
         GenerateSkuJob::dispatch($shop->id, $request->all(), $jobLog->id);
 
         return redirect()->route('jobs.show', $jobLog)
@@ -57,6 +89,10 @@ class SkuController extends Controller
         $page    = max(1, (int)$request->input('page', 1));
         $perPage = 8;
         $tab     = $request->input('tab', 'all');
+
+        // Validation first for preview stats (optional but good for consistency)
+        $creditValidation = $shop->validateCreditsForOperation('sku_generation', 0); // Check base access
+
 
         // ✅ BUILD BASE QUERY WITH ALL FILTERS
         $baseQuery = $this->buildFilteredQuery($request, $shop);
@@ -175,6 +211,14 @@ class SkuController extends Controller
                 'missing'     => $missingCount,
                 'duplicates'  => $duplicateCount,
                 'total'       => $totalVariants,
+                'total'       => $totalVariants,
+            ],
+            'credit_info' => [
+                'available' => $shop->getAvailableCredits(),
+                'cost_per_sku' => $shop->getCreditCost('sku_generation', 1),
+                'has_unlimited' => $shop->hasUnlimitedCredits(),
+                'max_allowed' => $shop->getMaxAllowedItems('sku_generation'),
+                'can_process_all' => $creditValidation['can_proceed'] ?? true,
             ],
         ]);
     }

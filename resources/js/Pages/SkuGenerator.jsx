@@ -5,10 +5,16 @@ import { router } from "@inertiajs/react";
 import SkuHeader from "./components/SkuHeader";
 import SkuSidebar from "./components/SkuSidebar";
 import SkuPreviewTable from "./components/SkuPreviewTable";
+import CreditWarning from "./components/CreditWarning";
 
 const DEBOUNCE_DELAY = 500;
 
-export default function SkuGenerator({ initialCollections = [] }) {
+export default function SkuGenerator({
+    initialCollections = [],
+    availableCredits = 0,
+    hasUnlimitedCredits = false,
+    creditCostPerSku = 1,
+}) {
     const [form, setForm] = useState({
         prefix: "PROD",
         auto_start: "0001",
@@ -21,6 +27,15 @@ export default function SkuGenerator({ initialCollections = [] }) {
         source_len: 2,
         source_placement: "before",
         restart_per_product: false,
+    });
+
+    const [creditInfo, setCreditInfo] = useState({
+        available: availableCredits,
+        cost_per_sku: creditCostPerSku,
+        has_unlimited: hasUnlimitedCredits,
+        max_allowed: hasUnlimitedCredits
+            ? Number.MAX_SAFE_INTEGER
+            : Math.floor(availableCredits / creditCostPerSku),
     });
 
     const [preview, setPreview] = useState([]);
@@ -72,7 +87,12 @@ export default function SkuGenerator({ initialCollections = [] }) {
             setDuplicateGroups(res.data.duplicateGroups || []);
             setVisibleIds(res.data.visibleIds || []);
             setTotal(res.data.total || 0);
-            setStats(res.data.stats || { missing: 0, duplicates: 0 });
+            setTotal(res.data.total || 0);
+            setStats(res.data.stats || { missing: 0, duplicates: 0, total: 0 });
+
+            if (res.data.credit_info) {
+                setCreditInfo(res.data.credit_info);
+            }
         } catch (error) {
             console.error("Failed to fetch preview:", error);
         } finally {
@@ -119,7 +139,91 @@ export default function SkuGenerator({ initialCollections = [] }) {
         fetchPreview();
     }, [page, duplicatePage, fetchPreview]);
 
+    // Calculate credit requirements
+    const getCreditRequirements = (scope) => {
+        let itemCount = 0;
+        console.log(`[Debug] getCreditRequirements: Scope=${scope}`, {
+            stats,
+            creditInfo,
+        });
+
+        if (scope === "selected") {
+            itemCount = selected.size;
+        } else if (scope === "visible") {
+            itemCount = preview.length;
+        } else if (scope === "all") {
+            if (activeTab === "missing") {
+                itemCount = stats.missing;
+            } else if (activeTab === "duplicates") {
+                itemCount = stats.duplicates;
+            } else {
+                itemCount = stats.total;
+            }
+        }
+
+        const requiredCredits =
+            Number(itemCount) * Number(creditInfo.cost_per_sku);
+        const available = Number(creditInfo.available);
+        const hasEnough =
+            creditInfo.has_unlimited || available >= requiredCredits;
+
+        const ret = {
+            itemCount,
+            requiredCredits,
+            hasEnough,
+            available: creditInfo.available,
+            maxAllowed: creditInfo.max_allowed,
+        };
+        console.log(`[Debug] Req for ${scope}:`, ret);
+        return ret;
+    };
+
+    // Determine if we should show credit warning
+    const shouldShowCreditWarning = () => {
+        if (creditInfo.has_unlimited) return false;
+
+        const selectedReq = getCreditRequirements("selected");
+        const allReq = getCreditRequirements("all");
+
+        // Show warning if user has selected more than they can afford
+        // OR if the total available is less than what they're trying to process
+        const show =
+            (selected.size > 0 && !selectedReq.hasEnough) || !allReq.hasEnough;
+        console.log(
+            "Should Show Warning?",
+            show,
+            "SelectedReq:",
+            selectedReq,
+            "AllReq:",
+            allReq
+        );
+        return show;
+    };
+
+    // Check if apply should be disabled
+    const isApplyDisabled = (scope) => {
+        const requirements = getCreditRequirements(scope);
+
+        if (requirements.itemCount === 0) return true;
+        if (creditInfo.has_unlimited) return false;
+
+        return !requirements.hasEnough;
+    };
+
     const applySKUs = async (scope = "selected") => {
+        const requirements = getCreditRequirements(scope);
+
+        // Validate credits before proceeding
+        if (!creditInfo.has_unlimited && !requirements.hasEnough) {
+            alert(
+                `Insufficient credits!\n\n` +
+                    `Items to process: ${requirements.itemCount}\n` +
+                    `Credits required: ${requirements.requiredCredits}\n` +
+                    `Credits available: ${requirements.available}\n\n` +
+                    `Maximum items you can process: ${requirements.maxAllowed}`
+            );
+            return;
+        }
         let ids = [];
 
         if (scope === "selected") {
@@ -229,6 +333,27 @@ export default function SkuGenerator({ initialCollections = [] }) {
                     onExport={handleExport}
                 />
 
+                {/* Warning at the top */}
+                {shouldShowCreditWarning() && (
+                    <div className="mt-6">
+                        <CreditWarning
+                            selectedCount={selected.size}
+                            totalCount={
+                                activeTab === "missing"
+                                    ? stats.missing
+                                    : activeTab === "duplicates"
+                                    ? stats.duplicates
+                                    : stats.total
+                            }
+                            availableCredits={creditInfo.available}
+                            costPerItem={creditInfo.cost_per_sku}
+                            hasUnlimited={creditInfo.has_unlimited}
+                            scope={selected.size > 0 ? "selected" : "all"}
+                            maxAllowed={creditInfo.max_allowed}
+                        />
+                    </div>
+                )}
+
                 <div className="grid gap-6 mt-6 lg:grid-cols-12">
                     <div className="lg:col-span-4">
                         <SkuSidebar form={form} setForm={setForm} />
@@ -244,6 +369,7 @@ export default function SkuGenerator({ initialCollections = [] }) {
                             setPage={setPage}
                             duplicatePage={duplicatePage}
                             setDuplicatePage={setDuplicatePage}
+                            isApplyDisabled={isApplyDisabled}
                             activeTab={activeTab}
                             setActiveTab={handleTabChange}
                             selected={selected}
