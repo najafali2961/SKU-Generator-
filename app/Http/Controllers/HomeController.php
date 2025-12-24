@@ -62,7 +62,7 @@ class HomeController extends Controller
             'plan_name' => $planName,
             'available' => $shop->getAvailableCredits(),
             'used' => $shop->credits_used,
-            'total' => $monthlyCredits,
+            'total' => $shop->credits,
             'unlimited' => $shop->hasUnlimitedCredits(),
         ];
 

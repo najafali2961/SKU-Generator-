@@ -61,13 +61,10 @@ trait HasCredits
             return PHP_INT_MAX;
         }
 
-        $plan = $this->plan;
-        if (!$plan) {
-            return max(0, $this->credits);
-        }
+
 
         // Available = allocated credits - used credits
-        return max(0, $plan->monthly_credits - $this->credits_used);
+        return max(0, $this->credits - $this->credits_used);
     }
 
     /**
@@ -82,7 +79,7 @@ trait HasCredits
         $costs = $this->getCreditCosts();
         $costPerUnit = $costs[$feature] ?? 1;
 
-        return (int) floor($this->credits / $costPerUnit);
+        return (int) floor(($this->credits - $this->credits_used) / $costPerUnit);
     }
 
     /**
