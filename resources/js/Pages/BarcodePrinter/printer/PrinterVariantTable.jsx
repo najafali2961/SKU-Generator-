@@ -49,6 +49,7 @@ export default function PrinterVariantTable({
     setSelectedTypes,
     selectedTags,
     setSelectedTags,
+    disablePrint = false,
 }) {
     const [selectedVariant, setSelectedVariant] = useState(null);
     const [showPreview, setShowPreview] = useState(true);
@@ -794,7 +795,8 @@ export default function PrinterVariantTable({
                                         disabled={
                                             (selected.size === 0 &&
                                                 variants.length === 0) ||
-                                            printing
+                                            printing ||
+                                            disablePrint
                                         }
                                     >
                                         {selected.size > 0

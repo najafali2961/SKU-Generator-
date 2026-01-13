@@ -342,7 +342,7 @@ class PrinterController extends Controller
 
             $validated = $request->validate([
                 'setting_id' => 'required|exists:barcode_printer_settings,id',
-                'variant_ids' => 'required|array|min:1|max:1000',
+                'variant_ids' => 'required|array|min:1|max:5000',
                 'variant_ids.*' => 'integer|exists:variants,id',
                 'quantity_per_variant' => 'nullable|integer|min:1|max:100',
             ]);

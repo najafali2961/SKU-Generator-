@@ -3,6 +3,16 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 
+import {
+    Card,
+    Page,
+    Layout,
+    SkeletonPage,
+    SkeletonBodyText,
+    Toast,
+    Frame,
+} from "@shopify/polaris"; // Added Toast, Frame
+
 import PrinterHeader from "./printer/PrinterHeader";
 import PrinterSidebar from "./printer/PrinterSidebar";
 import PrinterVariantTable from "./printer/PrinterVariantTable";
@@ -17,6 +27,26 @@ export default function BarcodePrinterIndex({
     hasUnlimitedCredits = false,
     creditCostPerLabel = 1,
 }) {
+    // Toast State
+    const [toastActive, setToastActive] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
+    const [toastError, setToastError] = useState(false);
+
+    const toggleToast = () => setToastActive((active) => !active);
+    const showToast = (message, isError = false) => {
+        setToastMessage(message);
+        setToastError(isError);
+        setToastActive(true);
+    };
+
+    const toastMarkup = toastActive ? (
+        <Toast
+            content={toastMessage}
+            onDismiss={toggleToast}
+            error={toastError}
+        />
+    ) : null;
+
     const [variants, setVariants] = useState([]);
     const [total, setTotal] = useState(0);
     const [stats, setStats] = useState({ missing: 0, with_barcode: 0, all: 0 });
@@ -134,10 +164,11 @@ export default function BarcodePrinterIndex({
             setStats(res.data.stats || { missing: 0, with_barcode: 0, all: 0 });
         } catch (error) {
             console.error("❌ Failed to load variants:", error);
-            alert(
+            showToast(
                 `Failed to load variants: ${
                     error.response?.data?.message || error.message
-                }`
+                }`,
+                true
             );
         } finally {
             setLoading(false);
@@ -181,28 +212,19 @@ export default function BarcodePrinterIndex({
         };
     };
 
+    const activeScope = selected.size > 0 ? "selected" : "all";
+    const currentRequirements = getCreditRequirements(activeScope);
+
     const shouldShowCreditWarning = () => {
         if (creditInfo.has_unlimited) return false;
-
-        const selectedReq = getCreditRequirements("selected");
-        // Only warn if selected exceeds (or if we want to be proactive)
-        // Usually we warn if selected > available
-        return selected.size > 0 && !selectedReq.hasEnough;
+        return !currentRequirements.hasEnough;
     };
 
     const generatePDF = async (scope = "selected") => {
         const requirements = getCreditRequirements(scope);
 
         if (!creditInfo.has_unlimited && !requirements.hasEnough) {
-            alert(
-                `Insufficient credits!\n\n` +
-                    `Items to print: ${requirements.itemCount}\n` +
-                    `Credits required: ${requirements.requiredCredits}\n` +
-                    `Credits available: ${requirements.available}\n\n` +
-                    `Maximum items you can print: ${Math.floor(
-                        requirements.available / creditInfo.cost_per_item
-                    )}`
-            );
+            showToast("Insufficient credits to perform this action.", true);
             return;
         }
 
@@ -227,13 +249,13 @@ export default function BarcodePrinterIndex({
                 variantIds = res.data.all_variant_ids || [];
             } catch (error) {
                 console.error("Failed to get all variant IDs:", error);
-                alert("Failed to get variant IDs");
+                showToast("Failed to get variant IDs", true);
                 return;
             }
         }
 
         if (variantIds.length === 0) {
-            alert("No variants selected!");
+            showToast("No variants selected!", true);
             return;
         }
 
@@ -266,91 +288,97 @@ export default function BarcodePrinterIndex({
             a.download = `labels-${new Date().toISOString().slice(0, 10)}.pdf`;
             a.click();
             window.URL.revokeObjectURL(url);
+            showToast("Labels generated successfully!");
         } catch (error) {
             console.error("PDF generation failed:", error);
-            alert("Failed to generate PDF. Please try again.");
+            showToast("Failed to generate PDF. Please try again.", true);
         } finally {
             setPrinting(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            <div className="p-6 mx-auto max-w-7xl">
-                <PrinterHeader
-                    selectedCount={selected.size}
-                    totalVariants={total}
-                />
+        <Frame>
+            <div className="min-h-screen bg-gray-50">
+                <div className="p-6 mx-auto max-w-7xl">
+                    <PrinterHeader
+                        selectedCount={selected.size}
+                        totalVariants={total}
+                    />
 
-                <div className="grid gap-6 mt-6 lg:grid-cols-12">
-                    {/* LEFT SIDEBAR - Configuration */}
-                    <div className="lg:col-span-4">
-                        <PrinterSidebar
-                            config={config}
-                            handleChange={handleChange}
-                            settingId={setting.id}
-                            templates={templates}
-                            printerPresets={printerPresets}
-                            onTemplatesUpdate={handleTemplatesUpdate}
-                        />
-                    </div>
+                    <div className="grid gap-6 mt-6 lg:grid-cols-12">
+                        {/* LEFT SIDEBAR - Configuration */}
+                        <div className="lg:col-span-4">
+                            <PrinterSidebar
+                                config={config}
+                                handleChange={handleChange}
+                                settingId={setting.id}
+                                templates={templates}
+                                printerPresets={printerPresets}
+                                onTemplatesUpdate={handleTemplatesUpdate}
+                            />
+                        </div>
 
-                    {/* RIGHT SECTION - Variants */}
-                    <div className="lg:col-span-8">
-                        {shouldShowCreditWarning() && (
-                            <div className="mb-6">
-                                <CreditWarning
-                                    selectedCount={
-                                        selected.size *
-                                        (parseInt(
-                                            config.quantity_per_variant
-                                        ) || 1)
-                                    }
-                                    totalCount={total}
-                                    availableCredits={creditInfo.available}
-                                    costPerItem={creditInfo.cost_per_item}
-                                    hasUnlimited={creditInfo.has_unlimited}
-                                    scope={"selected"}
-                                    maxAllowed={Math.floor(
-                                        creditInfo.available /
-                                            creditInfo.cost_per_item
-                                    )}
-                                    customMessage={(req, avail) =>
-                                        `Printing these labels requires ${req} credits, but you only have ${avail}.`
-                                    }
-                                />
-                            </div>
-                        )}
-                        <PrinterVariantTable
-                            variants={variants}
-                            total={total}
-                            stats={stats}
-                            loading={loading}
-                            page={page}
-                            setPage={setPage}
-                            activeTab={activeTab}
-                            setActiveTab={setActiveTab}
-                            queryValue={queryValue}
-                            setQueryValue={setQueryValue}
-                            selected={selected}
-                            setSelected={setSelected}
-                            printing={printing}
-                            generatePDF={generatePDF}
-                            config={config}
-                            handleChange={handleChange}
-                            initialCollections={initialCollections}
-                            selectedCollectionIds={selectedCollectionIds}
-                            setSelectedCollectionIds={setSelectedCollectionIds}
-                            selectedVendors={selectedVendors}
-                            setSelectedVendors={setSelectedVendors}
-                            selectedTypes={selectedTypes}
-                            setSelectedTypes={setSelectedTypes}
-                            selectedTags={selectedTags}
-                            setSelectedTags={setSelectedTags}
-                        />
+                        {/* RIGHT SECTION - Variants */}
+                        <div className="lg:col-span-8">
+                            {shouldShowCreditWarning() && (
+                                <div className="mb-6">
+                                    <CreditWarning
+                                        selectedCount={
+                                            currentRequirements.itemCount
+                                        }
+                                        totalCount={total}
+                                        availableCredits={creditInfo.available}
+                                        costPerItem={creditInfo.cost_per_item}
+                                        hasUnlimited={creditInfo.has_unlimited}
+                                        scope={activeScope}
+                                        maxAllowed={
+                                            currentRequirements.maxAllowed
+                                        }
+                                        customMessage={(req, avail) =>
+                                            `Printing these labels requires ${req} credits, but you only have ${avail}.`
+                                        }
+                                    />
+                                </div>
+                            )}
+                            <PrinterVariantTable
+                                variants={variants}
+                                total={total}
+                                stats={stats}
+                                loading={loading}
+                                page={page}
+                                setPage={setPage}
+                                activeTab={activeTab}
+                                setActiveTab={setActiveTab}
+                                queryValue={queryValue}
+                                setQueryValue={setQueryValue}
+                                selected={selected}
+                                setSelected={setSelected}
+                                printing={printing}
+                                generatePDF={generatePDF}
+                                config={config}
+                                handleChange={handleChange}
+                                initialCollections={initialCollections}
+                                selectedCollectionIds={selectedCollectionIds}
+                                setSelectedCollectionIds={
+                                    setSelectedCollectionIds
+                                }
+                                selectedVendors={selectedVendors}
+                                setSelectedVendors={setSelectedVendors}
+                                selectedTypes={selectedTypes}
+                                setSelectedTypes={setSelectedTypes}
+                                selectedTags={selectedTags}
+                                setSelectedTags={setSelectedTags}
+                                disablePrint={
+                                    !creditInfo.has_unlimited &&
+                                    !currentRequirements.hasEnough
+                                }
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+            {toastMarkup}
+        </Frame>
     );
 }
