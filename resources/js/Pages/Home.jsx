@@ -115,7 +115,7 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                                     icon={<Icon source={StarFilledIcon} />}
                                     onClick={() =>
                                         window.open(
-                                            "https://apps.shopify.com/your-app/reviews",
+                                            "https://apps.shopify.com/airo-sku-barcode-generator",
                                             "_blank"
                                         )
                                     }
