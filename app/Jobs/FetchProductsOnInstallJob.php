@@ -64,7 +64,5 @@ class FetchProductsOnInstallJob implements ShouldQueue
             usleep(200_000); // 0.2 sec
 
         } while ($hasNextPage);
-
-        Log::info("Successfully dispatched all product page jobs for {$shop->myshopify_domain}");
     }
 }

@@ -22,7 +22,7 @@ class AssignDefaultPlanOnInstall implements ShouldQueue
     {
         try {
             // Get the shop ID from the event (convert ShopId object to string)
-            $shopId = (string) $event->shopId;
+            $shopId = $event->shopId->toNative();
 
             if (!$shopId) {
                 Log::warning('No shop ID found in AppInstalledEvent');
@@ -43,7 +43,7 @@ class AssignDefaultPlanOnInstall implements ShouldQueue
             ]);
 
             // Set freemium on install (no plan needed)
-            $shop->freemium = true;
+            $shop->shopify_freemium = true;
             $shop->save();
 
             Log::info('Shop set to freemium on install', [

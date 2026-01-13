@@ -325,7 +325,6 @@ class FetchProductPageJob implements ShouldQueue
             }
         }
 
-        Log::info("Successfully processed product page for shop: {$shop->myshopify_domain}, cursor: {$this->afterCursor}");
     }
 
     /**
