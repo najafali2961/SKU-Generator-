@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "7d4945412c07915efc0b23fd85ee1d69"
-application_url = "https://bulkapp.omni-sync.com"
+application_url = "https://sku.airoapps.com"
 embedded = true
 name = "Airo SKU & Barcode Generator"
 handle = "airo-sku-barcode-generator-1"
@@ -35,7 +35,7 @@ scopes = "read_assigned_fulfillment_orders,read_checkouts,read_content,read_draf
 
 [auth]
 redirect_urls = [
-  "https://bulkapp.omni-sync.com/authenticate"
+  "https://sku.airoapps.com/authenticate"
 ]
 
 [pos]

@@ -386,16 +386,20 @@ return [
 
     'webhooks' => [
         [
+            'topic' => 'APP_UNINSTALLED',
+            'address' => env('APP_URL') . '/webhook/app-uninstalled'
+        ],
+        [
             'topic' => 'PRODUCTS_UPDATE',
-            'address' => 'https://bulkapp.omni-sync.com/webhook/products-update'
+            'address' => env('APP_URL') . '/webhook/products-update'
         ],
         [
             'topic' => 'PRODUCTS_DELETE',
-            'address' => 'https://bulkapp.omni-sync.com/webhook/products-delete'
+            'address' => env('APP_URL') . '/webhook/products-delete'
         ],
         [
             'topic' => 'PRODUCTS_CREATE',
-            'address' => 'https://bulkapp.omni-sync.com/webhook/products-create'
+            'address' => env('APP_URL') . '/webhook/products-create'
         ]
         /*
             [

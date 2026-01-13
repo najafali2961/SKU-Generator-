@@ -16,8 +16,14 @@ import {
     Thumbnail,
     SkeletonBodyText,
     EmptyState,
+    TextField,
+    Spinner,
 } from "@shopify/polaris";
-import { UploadIcon, FolderDownIcon } from "@shopify/polaris-icons";
+import {
+    UploadIcon,
+    FolderDownIcon,
+    AlertCircleIcon,
+} from "@shopify/polaris-icons";
 import Papa from "papaparse";
 import { router } from "@inertiajs/react";
 import CreditWarning from "./components/CreditWarning";
@@ -33,11 +39,22 @@ export default function BarcodeImport({
     const [dragActive, setDragActive] = useState(false);
     const [parsing, setParsing] = useState(false);
     const [uploading, setUploading] = useState(false);
+
+    // validation.preview now contains:
+    // {
+    //   id: string (local unique id for list),
+    //   shopify_variant_id: string (editable),
+    //   new_barcode: string,
+    //   original_row_idx: number,
+    //   status: 'pending' | 'success' | 'error',
+    //   error_message?: string,
+    //   product_data?: { ... }
+    // }
     const [validation, setValidation] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
 
     const downloadSample = () => {
-        const csv = `shopify_variant_id,barcode\n47718466191611,"0123456789012"\n47718466191612,"0123456789013"`;
+        const csv = `shopify_variant_id,barcode\n="47718466191611",="0123456789012"\n="47718466191612",="0123456789013"`;
         const blob = new Blob([csv], { type: "text/csv" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -49,10 +66,41 @@ export default function BarcodeImport({
 
     const fixBigNumber = (val) => {
         if (!val) return "";
-        const str = String(val)
-            .trim()
-            .replace(/^"+|"+$/g, "");
+        let str = String(val).trim();
+
+        if (str.startsWith('="') && str.endsWith('"')) {
+            str = str.slice(2, -1);
+        }
+
+        if (str.startsWith("'")) {
+            str = str.slice(1);
+        }
+
+        str = str.replace(/^"+|"+$/g, "");
+
         return /^[0-9.]+E\+[0-9]+$/i.test(str) ? Number(str).toFixed(0) : str;
+    };
+
+    const fetchVariantDetails = async (id) => {
+        try {
+            const res = await fetch("/barcode/import-preview", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-TOKEN":
+                        document.querySelector('meta[name="csrf-token"]')
+                            ?.content || "",
+                },
+                body: JSON.stringify({ variant_ids: [id] }),
+            });
+
+            if (!res.ok) throw new Error("Server error");
+            const { variants } = await res.json();
+            return variants[0] || null;
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
     };
 
     const parseCSV = useCallback(async (file) => {
@@ -78,132 +126,138 @@ export default function BarcodeImport({
                     return;
                 }
 
-                const shopifyIds = rows
-                    .map((row) => {
-                        const headers = Object.keys(row).map((h) =>
-                            h.toLowerCase().trim()
-                        );
-                        const possibleId =
-                            row["shopify_variant_id"] ||
-                            row["shopify variant id"] ||
-                            row["variant id"] ||
-                            row["variant_id"] ||
-                            row["variantid"] ||
-                            row["id"] ||
-                            row["Id"] ||
-                            row["ID"] ||
-                            row[
-                                headers.find(
-                                    (h) =>
-                                        h.includes("variant") &&
-                                        h.includes("id")
-                                )
-                            ] ||
-                            row[headers.find((h) => h === "id")];
-                        return fixBigNumber(possibleId);
-                    })
-                    .filter((id) => id && id.length >= 10);
-
-                if (shopifyIds.length === 0) {
-                    setValidation({
-                        status: "error",
-                        message:
-                            "No valid Shopify Variant IDs found. Column must contain 'variant', 'id', or 'shopify' in name.",
-                        preview: [],
-                    });
-                    setParsing(false);
-                    return;
-                }
-
-                try {
-                    const res = await fetch("/barcode/import-preview", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "X-CSRF-TOKEN":
-                                document.querySelector(
-                                    'meta[name="csrf-token"]'
-                                )?.content || "",
-                        },
-                        body: JSON.stringify({ variant_ids: shopifyIds }),
-                    });
-
-                    if (!res.ok) throw new Error("Server error");
-                    const { variants } = await res.json();
-                    const variantMap = Object.fromEntries(
-                        variants.map((v) => [v.shopify_variant_id, v])
+                // 1. Extract all IDs to fetch initially
+                const validIds = new Set();
+                const initialRows = rows.map((row, idx) => {
+                    const headers = Object.keys(row).map((h) =>
+                        h.toLowerCase().trim()
                     );
 
-                    const preview = [];
-                    const importData = [];
-                    const errors = [];
-
-                    rows.forEach((row, idx) => {
-                        const rawId =
-                            row["shopify_variant_id"] ||
-                            row["shopify variant id"] ||
-                            row["variant id"] ||
-                            row["variant_id"] ||
-                            row["id"] ||
-                            Object.values(row).find((v) =>
-                                String(v).match(/^\d{10,20}$/)
-                            );
-
-                        const shopifyId = fixBigNumber(rawId);
-                        const barcode = fixBigNumber(
-                            row["barcode"] ||
-                                row["code"] ||
-                                row["ean"] ||
-                                row["upc"] ||
-                                ""
+                    // improved header matching
+                    const idKey =
+                        headers.find((h) =>
+                            [
+                                "shopify_variant_id",
+                                "shopify variant id",
+                                "variant id",
+                                "variant_id",
+                                "variantid",
+                                "id",
+                            ].includes(h)
+                        ) ||
+                        headers.find(
+                            (h) => h.includes("variant") && h.includes("id")
                         );
 
-                        if (!shopifyId || !barcode) {
-                            errors.push(
-                                `Row ${idx + 2}: Missing ID or barcode`
-                            );
-                            return;
-                        }
+                    const barcodeKey = headers.find((h) =>
+                        ["barcode", "code", "ean", "upc"].includes(h)
+                    );
 
-                        const dbVariant = variantMap[shopifyId];
-                        if (!dbVariant) {
-                            errors.push(
-                                `Row ${
-                                    idx + 2
-                                }: Variant not found → ${shopifyId}`
-                            );
-                            return;
-                        }
+                    const cleanId = fixBigNumber(row[idKey] || row["id"] || "");
+                    const cleanBarcode = fixBigNumber(row[barcodeKey] || "");
 
-                        preview.push({
-                            ...dbVariant,
-                            new_barcode: barcode,
-                            row: idx + 2,
+                    if (cleanId && /^\d+$/.test(cleanId)) validIds.add(cleanId);
+
+                    return {
+                        local_id: `row-${idx}`,
+                        shopify_variant_id: cleanId,
+                        new_barcode: cleanBarcode,
+                        original_row_idx: idx + 2,
+                        status: "pending",
+                        error_message: null,
+                        product_data: null,
+                    };
+                });
+
+                // 2. Batch fetch known valid IDs
+                let variantMap = {};
+                if (validIds.size > 0) {
+                    try {
+                        const res = await fetch("/barcode/import-preview", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "X-CSRF-TOKEN":
+                                    document.querySelector(
+                                        'meta[name="csrf-token"]'
+                                    )?.content || "",
+                            },
+                            body: JSON.stringify({
+                                variant_ids: Array.from(validIds),
+                            }),
                         });
-                        importData.push({
-                            shopify_variant_id: shopifyId,
-                            barcode,
-                        });
-                    });
-
-                    setValidation({
-                        status: errors.length === 0 ? "success" : "warning",
-                        message:
-                            errors.length === 0
-                                ? `Ready to import ${preview.length} variant(s)`
-                                : `${preview.length} valid • ${errors.length} errors`,
-                        preview,
-                        importData,
-                        errors,
-                    });
-                } catch (err) {
-                    setValidation({
-                        status: "error",
-                        message: "Server connection failed",
-                    });
-                } finally {
-                    setParsing(false);
+                        if (res.ok) {
+                            const { variants } = await res.json();
+                            variantMap = Object.fromEntries(
+                                variants.map((v) => [
+                                    String(v.shopify_variant_id),
+                                    v,
+                                ])
+                            );
+                        }
+                    } catch (err) {
+                        console.error("Batch fetch failed", err);
+                    }
                 }
+
+                // 3. Reconcile rows
+                let validCount = 0;
+                let errorCount = 0;
+
+                const processedPreview = initialRows.map((row) => {
+                    if (!row.shopify_variant_id) {
+                        return {
+                            ...row,
+                            status: "error",
+                            error_message: "Missing Variant ID",
+                        };
+                    }
+
+                    if (!row.new_barcode) {
+                        return {
+                            ...row,
+                            status: "error",
+                            error_message: "Missing Barcode",
+                        };
+                    }
+
+                    const productData = variantMap[row.shopify_variant_id];
+                    if (productData) {
+                        validCount++;
+                        return {
+                            ...row,
+                            status: "success",
+                            product_data: productData,
+                        };
+                    } else {
+                        // Check if it looks like scientific notation that got mangled
+                        // e.g. "4.74E+13" -> "474000..." (handled by fixBigNumber, but if it came in as "4.74E+13" string literal)
+                        const isScientific =
+                            row.shopify_variant_id.includes("0000000"); // simplistic heuristic if fixBigNumber lost precision
+
+                        return {
+                            ...row,
+                            status: "error",
+                            error_message: isScientific
+                                ? "Variant not found (Check format)"
+                                : "Variant not found",
+                        };
+                    }
+                });
+
+                errorCount = processedPreview.length - validCount;
+
+                setValidation({
+                    status: errorCount === 0 ? "success" : "warning",
+                    message:
+                        errorCount === 0
+                            ? `Ready to import ${validCount} variant(s)`
+                            : `${validCount} valid • ${errorCount} errors`,
+                    preview: processedPreview,
+                    importData: [], // We calculate this dynamically based on valid rows
+                });
+
+                setParsing(false);
             },
             error: () => {
                 setValidation({
@@ -214,6 +268,84 @@ export default function BarcodeImport({
             },
         });
     }, []);
+
+    const handleIdChange = (newValue, localId) => {
+        setValidation((prev) => {
+            const newPreview = prev.preview.map((item) => {
+                if (item.local_id === localId) {
+                    return {
+                        ...item,
+                        shopify_variant_id: newValue,
+                        status: "pending",
+                        error_message: null,
+                    };
+                }
+                return item;
+            });
+            return { ...prev, preview: newPreview };
+        });
+    };
+
+    const handleIdBlur = async (localId, value) => {
+        // If empty, mark error immediately
+        if (!value) {
+            setValidation((prev) => ({
+                ...prev,
+                preview: prev.preview.map((item) =>
+                    item.local_id === localId
+                        ? {
+                              ...item,
+                              status: "error",
+                              error_message: "Missing ID",
+                          }
+                        : item
+                ),
+            }));
+            return;
+        }
+
+        // Fetch details
+        // Optimistically set to loading state if valid format? For now just keep distinct Pending?
+        const productData = await fetchVariantDetails(value);
+
+        setValidation((prev) => {
+            const newPreview = prev.preview.map((item) => {
+                if (item.local_id === localId) {
+                    if (productData) {
+                        return {
+                            ...item,
+                            status: "success",
+                            product_data: productData,
+                            error_message: null,
+                        };
+                    } else {
+                        return {
+                            ...item,
+                            status: "error",
+                            error_message: "Variant not found",
+                        };
+                    }
+                }
+                return item;
+            });
+
+            // Update summary
+            const validCount = newPreview.filter(
+                (i) => i.status === "success"
+            ).length;
+            const errorCount = newPreview.length - validCount;
+
+            return {
+                ...prev,
+                preview: newPreview,
+                status: errorCount === 0 ? "success" : "warning",
+                message:
+                    errorCount === 0
+                        ? `Ready to import ${validCount} variant(s)`
+                        : `${validCount} valid • ${errorCount} errors`,
+            };
+        });
+    };
 
     const handleFile = (f) => {
         if (!f || !f.name.endsWith(".csv")) {
@@ -240,15 +372,21 @@ export default function BarcodeImport({
     }, []);
 
     const handleImport = () => {
-        if (!validation?.importData?.length) return;
+        const validItems =
+            validation?.preview?.filter((i) => i.status === "success") || [];
+        if (validItems.length === 0) return;
 
-        // Validate credits
-        const requiredCredits =
-            validation.importData.length * creditCostPerBarcode;
+        // Prepare import data
+        const importData = validItems.map((item) => ({
+            shopify_variant_id: item.shopify_variant_id,
+            barcode: item.new_barcode,
+        }));
+
+        const requiredCredits = importData.length * creditCostPerBarcode;
         if (!hasUnlimitedCredits && availableCredits < requiredCredits) {
             alert(
                 `Insufficient credits!\n\n` +
-                    `Items to import: ${validation.importData.length}\n` +
+                    `Items to import: ${importData.length}\n` +
                     `Credits required: ${requiredCredits}\n` +
                     `Credits available: ${availableCredits}\n\n` +
                     `Maximum items you can import: ${Math.floor(
@@ -259,21 +397,17 @@ export default function BarcodeImport({
         }
 
         setUploading(true);
-
         router.post(
             "/barcode/import-apply",
-            { custom_barcodes: validation.importData },
+            { custom_barcodes: importData },
             {
                 preserveState: false,
                 preserveScroll: false,
-                onFinish: () => {
-                    setUploading(false);
-                },
+                onFinish: () => setUploading(false),
                 onError: (errors) => {
                     setUploading(false);
-                    if (errors.credits) {
+                    if (errors.credits)
                         alert(`Credit Error: ${errors.credits}`);
-                    }
                     setValidation((prev) => ({
                         ...prev,
                         status: "error",
@@ -295,34 +429,28 @@ export default function BarcodeImport({
             (currentPage - 1) * ITEMS_PER_PAGE,
             currentPage * ITEMS_PER_PAGE
         ) || [];
+
     const totalPages = Math.ceil(
         (validation?.preview?.length || 0) / ITEMS_PER_PAGE
     );
 
-    // Check if should show credit warning
-    const shouldShowCreditWarning = () => {
-        if (hasUnlimitedCredits) return false;
-        if (!validation?.importData?.length) return false;
-
-        const requiredCredits =
-            validation.importData.length * creditCostPerBarcode;
-        return availableCredits < requiredCredits;
-    };
+    const validCount =
+        validation?.preview?.filter((i) => i.status === "success").length || 0;
+    const errorCount = (validation?.preview?.length || 0) - validCount;
+    const hasErrors = errorCount > 0;
 
     const canStartImport = () => {
-        if (
-            !validation ||
-            validation.status === "error" ||
-            !validation?.preview?.length
-        ) {
-            return false;
-        }
-
+        if (!validation || hasErrors || validCount === 0) return false;
         if (hasUnlimitedCredits) return true;
-
-        const requiredCredits =
-            validation.importData.length * creditCostPerBarcode;
+        const requiredCredits = validCount * creditCostPerBarcode;
         return availableCredits >= requiredCredits;
+    };
+
+    const shouldShowCreditWarning = () => {
+        if (hasUnlimitedCredits) return false;
+        if (validCount === 0) return false;
+        const requiredCredits = validCount * creditCostPerBarcode;
+        return availableCredits < requiredCredits;
     };
 
     return (
@@ -348,12 +476,11 @@ export default function BarcodeImport({
             ]}
         >
             <Layout>
-                {/* Credit Warning - Only show when insufficient */}
                 {shouldShowCreditWarning() && (
                     <Layout.Section>
                         <CreditWarning
                             selectedCount={0}
-                            totalCount={validation.importData.length}
+                            totalCount={validCount}
                             availableCredits={availableCredits}
                             costPerItem={creditCostPerBarcode}
                             hasUnlimited={hasUnlimitedCredits}
@@ -365,7 +492,6 @@ export default function BarcodeImport({
                     </Layout.Section>
                 )}
 
-                {/* Upload Section */}
                 <Layout.Section>
                     <Card>
                         <BlockStack gap="400">
@@ -442,62 +568,28 @@ export default function BarcodeImport({
                     </Card>
                 </Layout.Section>
 
-                {/* Validation Banner */}
                 {validation && (
                     <Layout.Section>
                         <Banner
-                            tone={
-                                validation.status === "success"
-                                    ? "success"
-                                    : validation.status === "warning"
-                                    ? "warning"
-                                    : "critical"
-                            }
+                            tone={hasErrors ? "critical" : "success"}
                             title={
-                                validation.status === "success"
-                                    ? "Validation Successful"
-                                    : validation.status === "warning"
-                                    ? "Validation Completed with Warnings"
-                                    : "Validation Failed"
+                                hasErrors
+                                    ? "Review Errors"
+                                    : "Validation Successful"
                             }
                         >
                             <p>{validation.message}</p>
-                            {validation.errors &&
-                                validation.errors.length > 0 && (
-                                    <Box paddingBlockStart="200">
-                                        <Text
-                                            variant="bodyMd"
-                                            fontWeight="semibold"
-                                        >
-                                            Errors:
-                                        </Text>
-                                        <ul
-                                            style={{
-                                                paddingLeft: "20px",
-                                                marginTop: "8px",
-                                            }}
-                                        >
-                                            {validation.errors
-                                                .slice(0, 5)
-                                                .map((err, i) => (
-                                                    <li key={i}>{err}</li>
-                                                ))}
-                                            {validation.errors.length > 5 && (
-                                                <li>
-                                                    ... and{" "}
-                                                    {validation.errors.length -
-                                                        5}{" "}
-                                                    more
-                                                </li>
-                                            )}
-                                        </ul>
-                                    </Box>
-                                )}
+                            {hasErrors && (
+                                <p>
+                                    You must fix all{" "}
+                                    <strong>{errorCount}</strong> errors before
+                                    importing.
+                                </p>
+                            )}
                         </Banner>
                     </Layout.Section>
                 )}
 
-                {/* Loading State */}
                 {parsing && (
                     <Layout.Section>
                         <Card>
@@ -511,78 +603,129 @@ export default function BarcodeImport({
                     </Layout.Section>
                 )}
 
-                {/* Preview Table */}
                 {validation?.preview?.length > 0 && (
                     <Layout.Section>
                         <Card>
                             <BlockStack gap="400">
                                 <InlineStack align="space-between">
                                     <Text variant="headingMd">
-                                        Step 2: Review Changes (
-                                        {validation.preview.length} variants)
+                                        Step 2: Review & Edit (
+                                        {validation.preview.length} rows)
                                     </Text>
-                                    <Badge tone="info">
-                                        {validation.preview.length} items
-                                    </Badge>
+                                    {hasErrors && (
+                                        <Badge tone="critical">
+                                            {errorCount} Errors
+                                        </Badge>
+                                    )}
                                 </InlineStack>
 
                                 <IndexTable
                                     itemCount={validation.preview.length}
                                     headings={[
+                                        { title: "Status" },
+                                        { title: "Variant ID (Editable)" },
                                         { title: "Product" },
-                                        { title: "Current Barcode" },
-                                        { title: "" },
                                         { title: "New Barcode" },
                                     ]}
                                     selectable={false}
                                 >
                                     {paginated.map((item) => (
-                                        <IndexTable.Row
-                                            key={item.shopify_variant_id}
-                                        >
+                                        <IndexTable.Row key={item.local_id}>
                                             <IndexTable.Cell>
-                                                <InlineStack gap="300">
-                                                    <Thumbnail
-                                                        source={
-                                                            item.image_url || ""
-                                                        }
-                                                        size="small"
-                                                        alt=""
+                                                {item.status === "success" ? (
+                                                    <Badge tone="success">
+                                                        ✓
+                                                    </Badge>
+                                                ) : item.status ===
+                                                  "pending" ? (
+                                                    <Spinner size="small" />
+                                                ) : (
+                                                    <Icon
+                                                        source={AlertCircleIcon}
+                                                        tone="critical"
                                                     />
-                                                    <BlockStack gap="050">
-                                                        <Text fontWeight="semibold">
-                                                            {item.variant_title}
-                                                        </Text>
-                                                        <Text
-                                                            variant="bodySm"
-                                                            tone="subdued"
-                                                        >
-                                                            {item.product_title}
-                                                        </Text>
-                                                        <Text
-                                                            variant="bodySm"
-                                                            tone="subdued"
-                                                        >
-                                                            SKU:{" "}
-                                                            {item.sku || "—"}
-                                                        </Text>
-                                                    </BlockStack>
-                                                </InlineStack>
+                                                )}
                                             </IndexTable.Cell>
                                             <IndexTable.Cell>
-                                                <Badge
-                                                    tone={
-                                                        item.old_barcode
-                                                            ? "info"
-                                                            : "attention"
-                                                    }
+                                                <div
+                                                    style={{
+                                                        maxWidth: "200px",
+                                                    }}
                                                 >
-                                                    {item.old_barcode ||
-                                                        "Empty"}
-                                                </Badge>
+                                                    <TextField
+                                                        value={
+                                                            item.shopify_variant_id
+                                                        }
+                                                        onChange={(v) =>
+                                                            handleIdChange(
+                                                                v,
+                                                                item.local_id
+                                                            )
+                                                        }
+                                                        onBlur={() =>
+                                                            handleIdBlur(
+                                                                item.local_id,
+                                                                item.shopify_variant_id
+                                                            )
+                                                        }
+                                                        autoComplete="off"
+                                                        error={
+                                                            item.error_message
+                                                        }
+                                                        size="slim"
+                                                    />
+                                                </div>
                                             </IndexTable.Cell>
                                             <IndexTable.Cell>
-                                                <Text variant="bodyMd">→</Text>
+                                                {item.product_data ? (
+                                                    <InlineStack gap="300">
+                                                        <Thumbnail
+                                                            source={
+                                                                item
+                                                                    .product_data
+                                                                    .image_url ||
+                                                                ""
+                                                            }
+                                                            size="small"
+                                                            alt=""
+                                                        />
+                                                        <BlockStack gap="050">
+                                                            <Text fontWeight="semibold">
+                                                                {
+                                                                    item
+                                                                        .product_data
+                                                                        .variant_title
+                                                                }
+                                                            </Text>
+                                                            <Text
+                                                                variant="bodySm"
+                                                                tone="subdued"
+                                                            >
+                                                                {
+                                                                    item
+                                                                        .product_data
+                                                                        .product_title
+                                                                }
+                                                            </Text>
+                                                            <Text
+                                                                variant="bodySm"
+                                                                tone="subdued"
+                                                            >
+                                                                SKU:{" "}
+                                                                {item
+                                                                    .product_data
+                                                                    .sku || "—"}
+                                                            </Text>
+                                                        </BlockStack>
+                                                    </InlineStack>
+                                                ) : (
+                                                    <Text
+                                                        tone="subdued"
+                                                        as="span"
+                                                    >
+                                                        --
+                                                    </Text>
+                                                )}
                                             </IndexTable.Cell>
                                             <IndexTable.Cell>
                                                 <Badge tone="success">
@@ -617,7 +760,6 @@ export default function BarcodeImport({
                     </Layout.Section>
                 )}
 
-                {/* Empty State */}
                 {!file && !parsing && !validation && (
                     <Layout.Section>
                         <Card>
