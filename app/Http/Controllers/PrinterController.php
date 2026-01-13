@@ -422,7 +422,90 @@ class PrinterController extends Controller
         }
     }
 
-    // ========== HELPER METHODS ==========
+    public function generatePdfJob(Request $request)
+    {
+        try {
+            $user = auth()->user();
+
+            $validated = $request->validate([
+                'setting_id' => 'required|exists:barcode_printer_settings,id',
+                'variant_ids' => 'required|array|min:1|max:5000',
+                'variant_ids.*' => 'integer|exists:variants,id',
+                'quantity_per_variant' => 'nullable|integer|min:1|max:100',
+            ]);
+
+            // Refresh settings
+            $setting = $user->barcodePrinterSettings()->findOrFail($validated['setting_id']);
+            $setting->refresh();
+
+            // Validate credits
+            $totalItems = count($validated['variant_ids']) * ($validated['quantity_per_variant'] ?? 1);
+            $validation = $user->validateCreditsForOperation('label_printing', $totalItems);
+
+            if (!$validation['can_proceed']) {
+                return response()->json([
+                    'error' => 'Insufficient credits',
+                    'message' => $validation['message']
+                ], 402);
+            }
+
+            // Deduct credits
+            $creditDeducted = $user->useCredits(
+                'label_printing',
+                $totalItems,
+                "Printing labels for {$totalItems} items",
+                ['setting_id' => $setting->id]
+            );
+
+            if (!$creditDeducted) {
+                return response()->json([
+                    'error' => 'Credit deduction failed',
+                    'message' => 'Failed to deduct credits. Please try again.'
+                ], 500);
+            }
+
+            // Create JobLog
+            $jobLog = \App\Models\JobLog::create([
+                'user_id' => $user->id,
+                'type' => 'label_generation',
+                'status' => 'pending',
+                'title' => 'Generating Barcode Labels',
+                'total_items' => count($validated['variant_ids']),
+                'processed_items' => 0,
+                'payload' => [
+                    'setting_id' => $setting->id,
+                    'quantity_per_variant' => $validated['quantity_per_variant'] ?? 1,
+                    'total_variants' => count($validated['variant_ids']),
+                ]
+            ]);
+
+            // Dispatch Job
+            \App\Jobs\GenerateLabelPdfJob::dispatch(
+                $user, 
+                $setting, 
+                $validated['variant_ids'], 
+                $jobLog->id,
+                $validated['quantity_per_variant'] ?? 1
+            );
+
+            return response()->json([
+                'success' => true,
+                'job_id' => $jobLog->id,
+                'message' => 'Label generation started in background'
+            ]);
+
+        } catch (\Throwable $e) {
+            Log::error('PDF Job Dispatch Failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'Failed to start generation job',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
 
     protected function formatVariant($variant)
     {

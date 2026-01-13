@@ -32,21 +32,7 @@ class BarcodeLabelPdfGenerator
     public function generatePdf($variantIds, $quantityPerVariant = 1)
     {
         try {
-            $variants = Variant::whereIn('id', $variantIds)
-                ->with('product')
-                ->get();
-
-            if ($variants->isEmpty()) {
-                throw new \Exception('No variants found');
-            }
-
-            $labels = [];
-            foreach ($variants as $variant) {
-                for ($i = 0; $i < $quantityPerVariant; $i++) {
-                    $labels[] = $this->generateLabelData($variant);
-                }
-            }
-
+            $labels = $this->prepareLabels($variantIds, $quantityPerVariant);
             return $this->renderPdf($labels);
         } catch (\Exception $e) {
             Log::error('PDF Generation Error', [
@@ -55,6 +41,39 @@ class BarcodeLabelPdfGenerator
             ]);
             throw $e;
         }
+    }
+
+    public function generateRawPdf($variantIds, $quantityPerVariant = 1)
+    {
+        try {
+            $labels = $this->prepareLabels($variantIds, $quantityPerVariant);
+            return $this->renderPdfRaw($labels);
+        } catch (\Exception $e) {
+            Log::error('Raw PDF Generation Error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
+    }
+
+    protected function prepareLabels($variantIds, $quantityPerVariant)
+    {
+        $variants = Variant::whereIn('id', $variantIds)
+            ->with('product')
+            ->get();
+
+        if ($variants->isEmpty()) {
+            throw new \Exception('No variants found');
+        }
+
+        $labels = [];
+        foreach ($variants as $variant) {
+            for ($i = 0; $i < $quantityPerVariant; $i++) {
+                $labels[] = $this->generateLabelData($variant);
+            }
+        }
+        return $labels;
     }
 
     protected function generateLabelData($variant)
@@ -371,9 +390,31 @@ class BarcodeLabelPdfGenerator
             ->setOption('isPhpEnabled', false)
             ->setOption('isFontSubsettingEnabled', true)
             ->setOption('defaultFont', $this->setting->font_family ?? 'Arial')
-            ->setOption('dpi', 300)
             ->setOption('defaultMediaType', 'print')
             ->stream('barcode-labels.pdf', ['Attachment' => false]);
+    }
+
+    protected function renderPdfRaw($labels)
+    {
+        $html = $this->buildHtml($labels);
+
+        $paperSize = [
+            0,
+            0,
+            floatval($this->setting->paper_width) * self::MM_TO_PT,
+            floatval($this->setting->paper_height) * self::MM_TO_PT
+        ];
+
+        return Pdf::loadHTML($html)
+            ->setPaper($paperSize, $this->setting->paper_orientation)
+            ->setOption('isRemoteEnabled', true)
+            ->setOption('isHtml5ParserEnabled', true)
+            ->setOption('isPhpEnabled', false)
+            ->setOption('isFontSubsettingEnabled', true)
+            ->setOption('defaultFont', $this->setting->font_family ?? 'Arial')
+            ->setOption('dpi', 300)
+            ->setOption('defaultMediaType', 'print')
+            ->output();
     }
 
     protected function calculateEffectiveDimensions()

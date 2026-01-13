@@ -72,6 +72,7 @@ Route::middleware(['verify.shopify', 'billable'])->group(function () {
 
         // PDF
         Route::post('/generate-pdf', [PrinterController::class, 'generatePdf'])->name('generate-pdf');
+        Route::post('/generate-pdf-job', [PrinterController::class, 'generatePdfJob'])->name('generate-pdf-job');
     });
 
     // Pricing

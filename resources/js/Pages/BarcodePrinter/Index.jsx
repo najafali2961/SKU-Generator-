@@ -11,7 +11,10 @@ import {
     SkeletonBodyText,
     Toast,
     Frame,
-} from "@shopify/polaris"; // Added Toast, Frame
+    Text,
+    BlockStack,
+    ProgressBar,
+} from "@shopify/polaris"; // Added Toast, Frame, Progress components
 
 import PrinterHeader from "./printer/PrinterHeader";
 import PrinterSidebar from "./printer/PrinterSidebar";
@@ -220,6 +223,51 @@ export default function BarcodePrinterIndex({
         return !currentRequirements.hasEnough;
     };
 
+    // Job State
+    const [jobActive, setJobActive] = useState(false);
+    const [jobProgress, setJobProgress] = useState(0);
+    const [jobStatus, setJobStatus] = useState("");
+    const [jobError, setJobError] = useState(null);
+
+    const pollJob = async (jobId) => {
+        try {
+            const res = await axios.get(`/jobs/${jobId}/progress`);
+            const job = res.data; // Response is direct JSON from progress() method
+
+            if (job.status === "completed") {
+                setJobProgress(100);
+                setJobStatus("Completed!");
+                setJobActive(false);
+
+                if (job.payload?.download_url) {
+                    const a = document.createElement("a");
+                    a.href = job.payload.download_url;
+                    a.download = `labels-job-${jobId}.zip`;
+                    a.click();
+                }
+                showToast("Labels generated successfully!");
+            } else if (job.status === "failed") {
+                setJobError(job.payload?.error || "Job failed");
+                showToast("Job failed", true);
+            } else {
+                // Update progress
+                if (job.total_items > 0) {
+                    const p = Math.round(
+                        (job.processed_items / job.total_items) * 100
+                    );
+                    setJobProgress(p);
+                }
+                setJobStatus(job.title || "Processing...");
+
+                // Poll again
+                setTimeout(() => pollJob(jobId), 2000);
+            }
+        } catch (error) {
+            console.error("Polling failed:", error);
+            setJobError("Failed to track job status");
+        }
+    };
+
     const generatePDF = async (scope = "selected") => {
         const requirements = getCreditRequirements(scope);
 
@@ -259,6 +307,51 @@ export default function BarcodePrinterIndex({
             return;
         }
 
+        // BATCH MODE CHECK
+        const BATCH_THRESHOLD = 500;
+        if (variantIds.length > BATCH_THRESHOLD || variantIds.length > 100) {
+            // Lower threshold for testing or memory safety
+            // Use Background Job for larger batches
+            try {
+                setPrinting(true);
+
+                // Save config first
+                await axios.post(
+                    `/barcode-printer/update-setting/${setting.id}`,
+                    config
+                );
+
+                const res = await axios.post(
+                    "/barcode-printer/generate-pdf-job",
+                    {
+                        setting_id: setting.id,
+                        variant_ids: variantIds,
+                        quantity_per_variant: parseInt(
+                            config.quantity_per_variant
+                        ),
+                    }
+                );
+
+                if (res.data.success) {
+                    setJobActive(true);
+                    setJobProgress(0);
+                    setJobStatus("Initializing...");
+                    setJobError(null);
+                    pollJob(res.data.job_id);
+                }
+            } catch (error) {
+                console.error("Job start failed:", error);
+                showToast(
+                    error.response?.data?.message || "Failed to start job",
+                    true
+                );
+            } finally {
+                setPrinting(false);
+            }
+            return;
+        }
+
+        // STANDARD DIRECT DOWNLOAD
         try {
             setPrinting(true);
 
@@ -299,6 +392,46 @@ export default function BarcodePrinterIndex({
 
     return (
         <Frame>
+            {/* Progress Modal */}
+            {jobActive && (
+                <div
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        background: "rgba(0,0,0,0.5)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        zIndex: 9999,
+                    }}
+                >
+                    <div
+                        style={{
+                            background: "white",
+                            padding: "2rem",
+                            borderRadius: "8px",
+                            width: "400px",
+                            maxWidth: "90%",
+                        }}
+                    >
+                        <BlockStack gap="400">
+                            <Text as="h2" variant="headingMd">
+                                Generating Labels...
+                            </Text>
+                            <ProgressBar progress={jobProgress} size="small" />
+                            <Text as="p">
+                                {jobStatus} ({jobProgress}%)
+                            </Text>
+                            {jobError && (
+                                <Text as="p" tone="critical">
+                                    {jobError}
+                                </Text>
+                            )}
+                        </BlockStack>
+                    </div>
+                </div>
+            )}
+
             <div className="min-h-screen bg-gray-50">
                 <div className="p-6 mx-auto max-w-7xl">
                     <PrinterHeader

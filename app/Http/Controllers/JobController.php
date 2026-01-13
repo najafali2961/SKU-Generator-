@@ -69,6 +69,7 @@ class JobController extends Controller
             'error_message'       => $jobLog->error_message,
             'started_at'          => $jobLog->started_at?->toDateTimeString(),
             'finished_at'         => $jobLog->finished_at?->toDateTimeString(),
+            'payload'             => $jobLog->payload,
             'logs'                => $latestLogs->map(fn($log) => [
                 'type'    => $log->level,
                 'title'   => $log->title,
