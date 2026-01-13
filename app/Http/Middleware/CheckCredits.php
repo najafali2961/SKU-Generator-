@@ -30,19 +30,12 @@ class CheckCredits
         ]);
 
         if (!$user) {
-            Log::warning('CheckCredits: No authenticated user');
             abort(403);
         }
 
         // Block access if user has zero credits
         if ($user->hasZeroCredits()) {
-            Log::warning('CheckCredits: User has zero credits, blocking access', [
-                'user_id' => $user->id,
-                'credits' => $user->credits,
-                'credits_used' => $user->credits_used,
-                'route' => $request->route()->getName(),
-            ]);
-
+           
             return inertia('NoCreditPage', [
                 'feature' => $this->getFeatureName($feature),
                 'required_credits' => 1,
@@ -50,33 +43,17 @@ class CheckCredits
             ]);
         }
 
-        Log::info('CheckCredits: User has credits, continuing', [
-            'user_id' => $user->id,
-            'credits' => $user->credits,
-            'available_credits' => $user->getAvailableCredits(),
-            'route' => $request->route()->getName(),
-        ]);
+       
 
         // Feature-specific credit check
         if ($feature && !$user->hasUnlimitedCredits()) {
             $requiredCredits = $user->getCreditCost($feature, 1);
             $availableCredits = $user->getAvailableCredits();
 
-            Log::info('CheckCredits: Checking feature-specific credits', [
-                'user_id' => $user->id,
-                'feature' => $feature,
-                'cost_per_unit' => $requiredCredits,
-                'available' => $availableCredits,
-            ]);
+          
 
             if ($availableCredits < $requiredCredits) {
-                Log::warning('CheckCredits: Insufficient feature-specific credits', [
-                    'user_id' => $user->id,
-                    'feature' => $feature,
-                    'required' => $requiredCredits,
-                    'available' => $availableCredits,
-                ]);
-
+               
                 return inertia('NoCreditPage', [
                     'feature' => $this->getFeatureName($feature),
                     'required_credits' => $requiredCredits,
