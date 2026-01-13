@@ -149,6 +149,24 @@ export default function JobShow({ job: initialJob }) {
         return () => clearInterval(interval);
     }, [job.started_at, job.finished_at, isDone]);
 
+    // Auto-download when job completes
+    useEffect(() => {
+        if (job.status === "completed" && job.payload?.download_url) {
+            // Check if we already downloaded to prevent loops/duplicates
+            // We can use a session storage flag or just rely on the user leaving the page
+            const key = `downloaded_job_${job.id}`;
+            if (!sessionStorage.getItem(key)) {
+                const a = document.createElement("a");
+                a.href = job.payload.download_url;
+                a.download = `labels-job-${job.id}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                sessionStorage.setItem(key, "true");
+            }
+        }
+    }, [job.status, job.payload?.download_url, job.id]);
+
     const filteredLogs = logs.filter((log) => {
         if (filter === "all") return true;
         const logType = (log.type || log.level || "info").toLowerCase();
@@ -183,13 +201,33 @@ export default function JobShow({ job: initialJob }) {
                                         ? "success"
                                         : "critical"
                                 }
+                                action={
+                                    job.status === "completed" &&
+                                    job.payload?.download_url
+                                        ? {
+                                              content: "Download Labels (ZIP)",
+                                              onAction: () => {
+                                                  const a =
+                                                      document.createElement(
+                                                          "a"
+                                                      );
+                                                  a.href =
+                                                      job.payload.download_url;
+                                                  a.download = `labels-job-${job.id}.zip`;
+                                                  document.body.appendChild(a);
+                                                  a.click();
+                                                  document.body.removeChild(a);
+                                              },
+                                          }
+                                        : undefined
+                                }
                             >
-                                <Text>
+                                <p>
                                     {job.status === "completed"
                                         ? `All ${total} variants processed and synced to Shopify.`
                                         : job.error_message ||
                                           "An unknown error occurred."}
-                                </Text>
+                                </p>
                             </Banner>
                         </Box>
                     )}
