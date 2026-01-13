@@ -47,6 +47,7 @@ Route::middleware(['verify.shopify', 'billable'])->group(function () {
 
     // Jobs
     Route::get('/jobs', [JobController::class, 'index'])->name('jobs.index');
+    Route::get('/history', [JobController::class, 'index'])->name('history');
     Route::get('/jobs/{jobLog}', [JobController::class, 'show'])->name('jobs.show');
     Route::get('/jobs/{jobLog}/progress', [JobController::class, 'progress'])->name('jobs.progress');
 

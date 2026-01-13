@@ -69,7 +69,11 @@ class PrinterController extends Controller
                 'printerPresets' => $printerPresets,
                 'initialCollections' => $collections,
                 'vendors' => $vendors,
+                'vendors' => $vendors,
                 'productTypes' => $productTypes,
+                'availableCredits' => $user->getAvailableCredits(),
+                'hasUnlimitedCredits' => $user->hasUnlimitedCredits(),
+                'creditCostPerLabel' => $user->getCreditCost('label_printing', 1),
             ]);
         } catch (\Exception $e) {
             Log::error('Barcode printer index error', [
@@ -347,6 +351,32 @@ class PrinterController extends Controller
             $setting = $user->barcodePrinterSettings()
                 ->findOrFail($validated['setting_id']);
             $setting->refresh();
+
+            // Validate credits
+            $totalItems = count($validated['variant_ids']) * ($validated['quantity_per_variant'] ?? 1);
+            $validation = $user->validateCreditsForOperation('label_printing', $totalItems);
+
+            if (!$validation['can_proceed']) {
+                return response()->json([
+                    'error' => 'Insufficient credits',
+                    'message' => $validation['message']
+                ], 402); // 402 Payment Required
+            }
+
+            // Deduct credits
+            $creditDeducted = $user->useCredits(
+                'label_printing',
+                $totalItems,
+                "Printing labels for {$totalItems} items",
+                ['setting_id' => $setting->id]
+            );
+
+            if (!$creditDeducted) {
+                return response()->json([
+                    'error' => 'Credit deduction failed',
+                    'message' => 'Failed to deduct credits. Please try again.'
+                ], 500);
+            }
 
             // Log settings being used
             Log::info('Generating PDF with settings', [

@@ -730,6 +730,26 @@ export default function PrinterVariantTable({
                             { title: "SKU" },
                             { title: "Barcode" },
                         ]}
+                        bulkActions={[
+                            {
+                                content: "Select Visible",
+                                onAction: handleSelectVisible,
+                            },
+                            {
+                                content: "Clear Selection",
+                                onAction: handleClearSelection,
+                            },
+                        ]}
+                        promotedBulkActions={[
+                            {
+                                content: "Select Visible",
+                                onAction: handleSelectVisible,
+                            },
+                            {
+                                content: "Clear Selection",
+                                onAction: handleClearSelection,
+                            },
+                        ]}
                         loading={loading}
                     >
                         {rowMarkup}
@@ -757,54 +777,31 @@ export default function PrinterVariantTable({
                                 padding="400"
                                 background="bg-surface-secondary"
                             >
-                                <InlineStack
-                                    align="space-between"
-                                    blockAlign="center"
-                                >
-                                    <ButtonGroup>
-                                        <Button
-                                            onClick={handleClearSelection}
-                                            disabled={selected.size === 0}
-                                        >
-                                            Clear Selection
-                                        </Button>
-                                        <Button
-                                            onClick={handleSelectVisible}
-                                            disabled={variants.length === 0}
-                                        >
-                                            Select Visible ({variants.length})
-                                        </Button>
-                                    </ButtonGroup>
-
-                                    <InlineStack gap="200">
-                                        {!showPreview && (
-                                            <Button
-                                                onClick={() =>
-                                                    setShowPreview(true)
-                                                }
-                                            >
-                                                Show Preview
-                                            </Button>
-                                        )}
-                                        <Button
-                                            onClick={() => generatePDF("all")}
-                                            disabled={printing}
-                                        >
-                                            Print All ({total})
-                                        </Button>
-                                        <Button
-                                            variant="primary"
-                                            icon={PrintIcon}
-                                            onClick={() =>
-                                                generatePDF("selected")
+                                <BlockStack gap="400">
+                                    <Button
+                                        fullWidth
+                                        variant="primary"
+                                        size="large"
+                                        loading={printing}
+                                        icon={PrintIcon}
+                                        onClick={() => {
+                                            if (selected.size > 0) {
+                                                generatePDF("selected");
+                                            } else {
+                                                generatePDF("all");
                                             }
-                                            loading={printing}
-                                            disabled={selected.size === 0}
-                                        >
-                                            Print Selected ({selected.size})
-                                        </Button>
-                                    </InlineStack>
-                                </InlineStack>
+                                        }}
+                                        disabled={
+                                            (selected.size === 0 &&
+                                                variants.length === 0) ||
+                                            printing
+                                        }
+                                    >
+                                        {selected.size > 0
+                                            ? `Print Labels for ${selected.size} Selected Items`
+                                            : `Print Labels for All ${total} Variants`}
+                                    </Button>
+                                </BlockStack>
                             </Box>
                         </>
                     )}

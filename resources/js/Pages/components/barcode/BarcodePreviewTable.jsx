@@ -524,7 +524,7 @@ export default function BarcodePreviewTable({
                             ? "All"
                             : selected.size
                     }
-                    onSelectionChange={(selectionType, toggle) => {
+                    onSelectionChange={(selectionType, toggle, selection) => {
                         if (selectionType === "all") {
                             const ids =
                                 activeTab === "duplicates"
@@ -533,6 +533,25 @@ export default function BarcodePreviewTable({
                                       )
                                     : barcodes.map((b) => b.id);
                             setSelected(toggle ? new Set(ids) : new Set());
+                        } else if (selectionType === "single") {
+                            // selection is the ID
+                            toggleRowSelection(selection);
+                        } else if (selectionType === "page") {
+                            // Select visible items on current page
+                            const ids =
+                                activeTab === "duplicates"
+                                    ? paginatedGroups.flatMap((g) =>
+                                          g.variants.map((v) => v.id)
+                                      )
+                                    : barcodes.map((b) => b.id);
+
+                            setSelected((prev) => {
+                                const next = new Set(prev);
+                                ids.forEach((id) =>
+                                    toggle ? next.add(id) : next.delete(id)
+                                );
+                                return next;
+                            });
                         }
                     }}
                     hasZebraStriping
@@ -544,16 +563,55 @@ export default function BarcodePreviewTable({
                     ]}
                     bulkActions={[
                         {
-                            content: `Apply to Selected (${selected.size})`,
-                            onAction: () => applyBarcodes("selected"),
-                            disabled: isApplyDisabled("selected"),
+                            content: "Select Visible",
+                            onAction: () => {
+                                const ids =
+                                    activeTab === "duplicates"
+                                        ? paginatedGroups.flatMap((g) =>
+                                              g.variants.map((v) => v.id)
+                                          )
+                                        : barcodes.map((b) => b.id);
+                                setSelected((prev) => {
+                                    const next = new Set(prev);
+                                    ids.forEach((id) => next.add(id));
+                                    return next;
+                                });
+                            },
                         },
-                    ]}
+                        {
+                            content: "Clear Selection",
+                            onAction: () => setSelected(new Set()),
+                        },
+                        activeTab === "duplicates" && {
+                            content: `Select All Duplicates (${stats.duplicates})`,
+                            onAction: () => {
+                                const ids = duplicateGroupList.flatMap((g) =>
+                                    g.variants.map((v) => v.id)
+                                );
+                                setSelected(new Set(ids));
+                            },
+                        },
+                    ].filter(Boolean)}
                     promotedBulkActions={[
                         {
-                            content: "Apply to Visible",
-                            onAction: () => applyBarcodes("visible"),
-                            disabled: isApplyDisabled("visible"),
+                            content: "Select Visible",
+                            onAction: () => {
+                                const ids =
+                                    activeTab === "duplicates"
+                                        ? paginatedGroups.flatMap((g) =>
+                                              g.variants.map((v) => v.id)
+                                          )
+                                        : barcodes.map((b) => b.id);
+                                setSelected((prev) => {
+                                    const next = new Set(prev);
+                                    ids.forEach((id) => next.add(id));
+                                    return next;
+                                });
+                            },
+                        },
+                        {
+                            content: "Clear Selection",
+                            onAction: () => setSelected(new Set()),
                         },
                     ]}
                     loading={loading}
@@ -609,45 +667,38 @@ export default function BarcodePreviewTable({
                             )}
 
                         <Box padding="400" background="bg-surface-secondary">
-                            <InlineStack align="space-between">
-                                <ButtonGroup>
-                                    <Button
-                                        onClick={() => setSelected(new Set())}
-                                        disabled={selected.size === 0}
-                                    >
-                                        Clear Selection
-                                    </Button>
-                                    <Button
-                                        onClick={() => applyBarcodes("visible")}
-                                        disabled={isApplyDisabled("visible")}
-                                    >
-                                        Apply to Visible ({barcodes.length})
-                                    </Button>
-                                </ButtonGroup>
-
-                                <ButtonGroup>
-                                    <Button
-                                        onClick={() => applyBarcodes("all")}
-                                        disabled={isApplyDisabled("all")}
-                                    >
-                                        {activeTab === "duplicates"
-                                            ? `Fix All Duplicates (${stats.duplicates})`
-                                            : activeTab === "missing"
-                                            ? `Fix All Missing (${stats.missing})`
-                                            : `Apply to All (${stats.total})`}
-                                    </Button>
-                                    <Button
-                                        variant="primary"
-                                        loading={applying}
-                                        disabled={isApplyDisabled("selected")}
-                                        onClick={() =>
-                                            applyBarcodes("selected")
+                            <BlockStack gap="400">
+                                <Button
+                                    fullWidth
+                                    variant="primary"
+                                    size="large"
+                                    loading={applying}
+                                    onClick={() => {
+                                        if (selected.size > 0) {
+                                            applyBarcodes("selected");
+                                        } else {
+                                            applyBarcodes("all");
                                         }
-                                    >
-                                        Apply to Selected ({selected.size})
-                                    </Button>
-                                </ButtonGroup>
-                            </InlineStack>
+                                    }}
+                                    disabled={
+                                        (selected.size === 0 &&
+                                            barcodes.length === 0) ||
+                                        isApplyDisabled(
+                                            selected.size > 0
+                                                ? "selected"
+                                                : "all"
+                                        )
+                                    }
+                                >
+                                    {selected.size > 0
+                                        ? `Generate Barcodes for ${selected.size} Selected Items`
+                                        : activeTab === "duplicates"
+                                        ? `Fix All ${stats.duplicates} Duplicate Barcodes`
+                                        : activeTab === "missing"
+                                        ? `Fix All ${stats.missing} Missing Barcodes`
+                                        : `Generate Barcodes for All ${stats.total} Variants`}
+                                </Button>
+                            </BlockStack>
                         </Box>
                     </>
                 )}

@@ -539,7 +539,7 @@ export default function SkuPreviewTable({
                     selectedItemsCount={
                         selected.size === itemCount ? "All" : selected.size
                     }
-                    onSelectionChange={(selectionType, toggle) => {
+                    onSelectionChange={(selectionType, toggle, selection) => {
                         if (selectionType === "all") {
                             const ids =
                                 activeTab === "duplicates"
@@ -548,6 +548,24 @@ export default function SkuPreviewTable({
                                       )
                                     : preview.map((p) => p.id);
                             setSelected(toggle ? new Set(ids) : new Set());
+                        } else if (selectionType === "single") {
+                            toggleRowSelection(selection);
+                        } else if (selectionType === "page") {
+                            // Select all visible on current page
+                            const ids =
+                                activeTab === "duplicates"
+                                    ? paginatedGroups.flatMap((g) =>
+                                          g.variants.map((v) => v.id)
+                                      )
+                                    : preview.map((p) => p.id); // Valid for current page in 'all'/'missing' tabs
+
+                            setSelected((prev) => {
+                                const next = new Set(prev);
+                                ids.forEach((id) =>
+                                    toggle ? next.add(id) : next.delete(id)
+                                );
+                                return next;
+                            });
                         }
                     }}
                     hasZebraStriping
@@ -563,18 +581,55 @@ export default function SkuPreviewTable({
                     }
                     bulkActions={[
                         {
-                            content: `Apply to Selected (${selected.size})`,
-                            onAction: () => applySKUs("selected"),
-                            disabled:
-                                selected.size === 0 ||
-                                isApplyDisabled("selected"),
+                            content: "Select Visible",
+                            onAction: () => {
+                                const ids =
+                                    activeTab === "duplicates"
+                                        ? paginatedGroups.flatMap((g) =>
+                                              g.variants.map((v) => v.id)
+                                          )
+                                        : preview.map((p) => p.id);
+                                setSelected((prev) => {
+                                    const next = new Set(prev);
+                                    ids.forEach((id) => next.add(id));
+                                    return next;
+                                });
+                            },
                         },
-                    ]}
+                        {
+                            content: "Clear Selection",
+                            onAction: () => setSelected(new Set()),
+                        },
+                        activeTab === "duplicates" && {
+                            content: `Select All Duplicates (${stats.duplicates})`,
+                            onAction: () => {
+                                const ids = duplicateGroups.flatMap((g) =>
+                                    g.variants.map((v) => v.id)
+                                );
+                                setSelected(new Set(ids));
+                            },
+                        },
+                    ].filter(Boolean)}
                     promotedBulkActions={[
                         {
-                            content: "Apply to Visible",
-                            onAction: () => applySKUs("visible"),
-                            disabled: isApplyDisabled("visible"),
+                            content: "Select Visible",
+                            onAction: () => {
+                                const ids =
+                                    activeTab === "duplicates"
+                                        ? paginatedGroups.flatMap((g) =>
+                                              g.variants.map((v) => v.id)
+                                          )
+                                        : preview.map((p) => p.id);
+                                setSelected((prev) => {
+                                    const next = new Set(prev);
+                                    ids.forEach((id) => next.add(id));
+                                    return next;
+                                });
+                            },
+                        },
+                        {
+                            content: "Clear Selection",
+                            onAction: () => setSelected(new Set()),
                         },
                     ]}
                     loading={loading}
@@ -612,49 +667,38 @@ export default function SkuPreviewTable({
                         )}
 
                         <Box padding="400" background="bg-surface-secondary">
-                            <InlineStack align="space-between">
-                                <ButtonGroup>
-                                    <Button
-                                        onClick={() => setSelected(new Set())}
-                                        disabled={selected.size === 0}
-                                    >
-                                        Clear Selection
-                                    </Button>
-                                    <Button
-                                        onClick={() => applySKUs("visible")}
-                                        disabled={
-                                            preview.length === 0 ||
-                                            isApplyDisabled("visible")
+                            <BlockStack gap="400">
+                                <Button
+                                    fullWidth
+                                    variant="primary"
+                                    size="large"
+                                    loading={applying}
+                                    onClick={() => {
+                                        if (selected.size > 0) {
+                                            applySKUs("selected");
+                                        } else {
+                                            applySKUs("all");
                                         }
-                                    >
-                                        Apply to Visible ({preview.length})
-                                    </Button>
-                                </ButtonGroup>
-
-                                <ButtonGroup>
-                                    <Button
-                                        onClick={() => applySKUs("all")}
-                                        disabled={isApplyDisabled("all")}
-                                    >
-                                        {activeTab === "duplicates"
-                                            ? `Fix All Duplicates (${stats.duplicates})`
-                                            : activeTab === "missing"
-                                            ? `Fix All Missing (${stats.missing})`
-                                            : `Apply to All (${stats.total})`}
-                                    </Button>
-                                    <Button
-                                        variant="primary"
-                                        loading={applying}
-                                        disabled={
-                                            selected.size === 0 ||
-                                            isApplyDisabled("selected")
-                                        }
-                                        onClick={() => applySKUs("selected")}
-                                    >
-                                        Apply to Selected ({selected.size})
-                                    </Button>
-                                </ButtonGroup>
-                            </InlineStack>
+                                    }}
+                                    disabled={
+                                        (selected.size === 0 &&
+                                            itemCount === 0) ||
+                                        isApplyDisabled(
+                                            selected.size > 0
+                                                ? "selected"
+                                                : "all"
+                                        )
+                                    }
+                                >
+                                    {selected.size > 0
+                                        ? `Generate SKUs for ${selected.size} Selected Items`
+                                        : activeTab === "duplicates"
+                                        ? `Fix All ${stats.duplicates} Duplicate SKUs`
+                                        : activeTab === "missing"
+                                        ? `Fix All ${stats.missing} Missing SKUs`
+                                        : `Generate SKUs for All ${stats.total} Variants`}
+                                </Button>
+                            </BlockStack>
                         </Box>
                     </>
                 )}

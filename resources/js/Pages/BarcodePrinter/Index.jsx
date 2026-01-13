@@ -6,12 +6,16 @@ import axios from "axios";
 import PrinterHeader from "./printer/PrinterHeader";
 import PrinterSidebar from "./printer/PrinterSidebar";
 import PrinterVariantTable from "./printer/PrinterVariantTable";
+import CreditWarning from "../components/CreditWarning";
 
 export default function BarcodePrinterIndex({
     setting,
     templates: initialTemplates = [],
     printerPresets: initialPresets = [],
     initialCollections = [],
+    availableCredits = 0,
+    hasUnlimitedCredits = false,
+    creditCostPerLabel = 1,
 }) {
     const [variants, setVariants] = useState([]);
     const [total, setTotal] = useState(0);
@@ -29,6 +33,15 @@ export default function BarcodePrinterIndex({
     const [selectedVendors, setSelectedVendors] = useState([]);
     const [selectedTypes, setSelectedTypes] = useState([]);
     const [selectedTags, setSelectedTags] = useState([]);
+
+    const [creditInfo] = useState({
+        available: availableCredits,
+        cost_per_item: creditCostPerLabel,
+        has_unlimited: hasUnlimitedCredits,
+        max_allowed: hasUnlimitedCredits
+            ? Number.MAX_SAFE_INTEGER
+            : Math.floor(availableCredits / creditCostPerLabel),
+    });
 
     const [config, setConfig] = useState({
         // Label Design
@@ -140,7 +153,59 @@ export default function BarcodePrinterIndex({
         window.location.reload();
     };
 
+    // Calculate credit requirements
+    const getCreditRequirements = (scope) => {
+        let itemCount = 0;
+        const qtyPerVariant = parseInt(config.quantity_per_variant) || 1;
+
+        if (scope === "selected") {
+            itemCount = selected.size * qtyPerVariant;
+        } else if (scope === "all") {
+            // Need total from stats (assuming stats.all is total variants)
+            // But we might be filtered.
+            // Best to use 'total' state which tracks filtered count
+            itemCount = total * qtyPerVariant;
+        }
+
+        const requiredCredits = itemCount * creditInfo.cost_per_item;
+        const available = creditInfo.available;
+        const hasEnough =
+            creditInfo.has_unlimited || available >= requiredCredits;
+
+        return {
+            itemCount,
+            requiredCredits,
+            hasEnough,
+            available,
+            maxAllowed: creditInfo.max_allowed,
+        };
+    };
+
+    const shouldShowCreditWarning = () => {
+        if (creditInfo.has_unlimited) return false;
+
+        const selectedReq = getCreditRequirements("selected");
+        // Only warn if selected exceeds (or if we want to be proactive)
+        // Usually we warn if selected > available
+        return selected.size > 0 && !selectedReq.hasEnough;
+    };
+
     const generatePDF = async (scope = "selected") => {
+        const requirements = getCreditRequirements(scope);
+
+        if (!creditInfo.has_unlimited && !requirements.hasEnough) {
+            alert(
+                `Insufficient credits!\n\n` +
+                    `Items to print: ${requirements.itemCount}\n` +
+                    `Credits required: ${requirements.requiredCredits}\n` +
+                    `Credits available: ${requirements.available}\n\n` +
+                    `Maximum items you can print: ${Math.floor(
+                        requirements.available / creditInfo.cost_per_item
+                    )}`
+            );
+            return;
+        }
+
         let variantIds = [];
 
         if (scope === "selected") {
@@ -232,6 +297,30 @@ export default function BarcodePrinterIndex({
 
                     {/* RIGHT SECTION - Variants */}
                     <div className="lg:col-span-8">
+                        {shouldShowCreditWarning() && (
+                            <div className="mb-6">
+                                <CreditWarning
+                                    selectedCount={
+                                        selected.size *
+                                        (parseInt(
+                                            config.quantity_per_variant
+                                        ) || 1)
+                                    }
+                                    totalCount={total}
+                                    availableCredits={creditInfo.available}
+                                    costPerItem={creditInfo.cost_per_item}
+                                    hasUnlimited={creditInfo.has_unlimited}
+                                    scope={"selected"}
+                                    maxAllowed={Math.floor(
+                                        creditInfo.available /
+                                            creditInfo.cost_per_item
+                                    )}
+                                    customMessage={(req, avail) =>
+                                        `Printing these labels requires ${req} credits, but you only have ${avail}.`
+                                    }
+                                />
+                            </div>
+                        )}
                         <PrinterVariantTable
                             variants={variants}
                             total={total}

@@ -333,33 +333,30 @@ export default function SkuGenerator({
                     onExport={handleExport}
                 />
 
-                {/* Warning at the top */}
-                {shouldShowCreditWarning() && (
-                    <div className="mt-6">
-                        <CreditWarning
-                            selectedCount={selected.size}
-                            totalCount={
-                                activeTab === "missing"
-                                    ? stats.missing
-                                    : activeTab === "duplicates"
-                                    ? stats.duplicates
-                                    : stats.total
-                            }
-                            availableCredits={creditInfo.available}
-                            costPerItem={creditInfo.cost_per_sku}
-                            hasUnlimited={creditInfo.has_unlimited}
-                            scope={selected.size > 0 ? "selected" : "all"}
-                            maxAllowed={creditInfo.max_allowed}
-                        />
-                    </div>
-                )}
-
                 <div className="grid gap-6 mt-6 lg:grid-cols-12">
                     <div className="lg:col-span-4">
                         <SkuSidebar form={form} setForm={setForm} />
                     </div>
 
                     <div className="space-y-6 lg:col-span-8">
+                        {/* Credit Warning moved here */}
+                        {shouldShowCreditWarning() && (
+                            <CreditWarning
+                                selectedCount={selected.size}
+                                totalCount={
+                                    activeTab === "missing"
+                                        ? stats.missing
+                                        : activeTab === "duplicates"
+                                        ? stats.duplicates
+                                        : stats.total
+                                }
+                                availableCredits={creditInfo.available}
+                                costPerItem={creditInfo.cost_per_sku}
+                                hasUnlimited={creditInfo.has_unlimited}
+                                scope={selected.size > 0 ? "selected" : "all"}
+                                maxAllowed={creditInfo.max_allowed}
+                            />
+                        )}
                         <SkuPreviewTable
                             preview={preview}
                             duplicateGroups={duplicateGroups}

@@ -27,27 +27,9 @@ import {
     ArrowLeftIcon,
     HomeIcon,
 } from "@shopify/polaris-icons";
+import { router } from "@inertiajs/react";
 
-// SAFE NAVIGATION — NO APP-BRIDGE NEEDED!
-const useAppNavigate = () => {
-    return (path) => {
-        const params = new URLSearchParams(window.location.search);
-        const shop = params.get("shop");
-        const host = params.get("host");
-
-        if (shop && host) {
-            // Proper Shopify embedded app navigation
-            window.location.href = `/?shop=${shop}&host=${host}&target=${encodeURIComponent(
-                path
-            )}`;
-        } else {
-            // Fallback
-            window.location.href = path;
-        }
-    };
-};
 export default function JobShow({ job: initialJob }) {
-    const navigate = useAppNavigate();
     const [job, setJob] = useState(initialJob);
     const [logs, setLogs] = useState([]);
     const [filter, setFilter] = useState("all");
@@ -174,13 +156,15 @@ export default function JobShow({ job: initialJob }) {
     return (
         <Page
             title={`Job #${job.id}`}
-            secondaryActions={[
-                {
-                    content: "Home",
-                    icon: HomeIcon,
-                    onAction: () => navigate("/"),
-                },
-            ]}
+            subtitle="View realtime progress for this bulk operation."
+            backAction={{
+                content: "History",
+                onAction: () => router.visit("/history"),
+            }}
+            primaryAction={{
+                content: "Refresh",
+                onAction: () => router.visit(window.location.pathname),
+            }}
         >
             <Layout>
                 <Layout.Section>
