@@ -13,15 +13,15 @@ return new class extends Migration
     {
         Schema::create('products', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('user_id')->index();
             $table->string('shopify_id')->unique();
             $table->string('title');
             $table->text('description_html')->nullable();
-            $table->string('status')->nullable();
+            $table->string('status')->nullable()->index();
             $table->decimal('price', 10, 2)->nullable();
             $table->integer('stock')->nullable();
-            $table->string('vendor')->nullable();
-            $table->string('product_type')->nullable();
+            $table->string('vendor')->nullable()->index();
+            $table->string('product_type')->nullable()->index();
             // $table->json('tags')->nullable();
             $table->text('tags')->nullable();
             $table->json('images')->nullable();

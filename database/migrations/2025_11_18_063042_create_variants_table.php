@@ -14,14 +14,14 @@ return new class extends Migration
             $table->unsignedBigInteger('shopify_variant_id')->unique(); // ← Shopify's real ID
             $table->index('shopify_variant_id');
             $table->string('title')->nullable();
-            $table->string('sku')->nullable();
+            $table->string('sku')->nullable()->index();
             $table->string('barcode')->nullable(); // ← Real UPC/EAN from Shopify
             $table->index('barcode');
             $table->string('option1')->nullable();
             $table->string('option2')->nullable();
             $table->string('option3')->nullable();
-            $table->decimal('price', 10, 2)->default(0);
-            $table->integer('inventory_quantity')->default(0);
+            $table->decimal('price', 10, 2)->default(0)->index();
+            $table->integer('inventory_quantity')->default(0)->index();
             $table->string('image')->nullable();
             $table->string('image_alt')->nullable();
 

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->unsignedBigInteger('variant_id')->unique();
             $table->index('variant_id');
 
-            $table->string('barcode_value'); // Final value: real barcode → SKU → AUTO-
+            $table->string('barcode_value')->index(); // Final value: real barcode → SKU → AUTO-
             $table->string('format')->default('UPC');
             $table->string('image_url')->nullable();
             $table->boolean('is_duplicate')->default(false);
