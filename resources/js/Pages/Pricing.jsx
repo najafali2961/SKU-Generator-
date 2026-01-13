@@ -366,7 +366,10 @@ export default function Pricing({
                                                                     plan.id
                                                                 )
                                                             }
-                                                            loading={isLoading}
+                                                            loading={
+                                                                isLoading ===
+                                                                plan.id
+                                                            }
                                                             disabled={
                                                                 isCurrent ||
                                                                 isLoading
