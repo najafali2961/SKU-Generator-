@@ -16,6 +16,8 @@ class JobLog extends Model
         'finished_at' => 'datetime',
     ];
 
+    protected $appends = ['progress_percentage'];
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

@@ -30,6 +30,7 @@ import {
 import { router } from "@inertiajs/react";
 
 export default function JobShow({ job: initialJob }) {
+    // ... rest of component
     const [job, setJob] = useState(initialJob);
     const [logs, setLogs] = useState([]);
     const [filter, setFilter] = useState("all");
@@ -74,8 +75,9 @@ export default function JobShow({ job: initialJob }) {
     const successRate = total > 0 ? ((processed - failed) / total) * 100 : 0;
 
     useEffect(() => {
-        if (initialJob.activityLogs?.length > 0) {
-            const formatted = initialJob.activityLogs
+        const logs = initialJob.activity_logs || initialJob.activityLogs;
+        if (logs?.length > 0) {
+            const formatted = logs
                 .map((log) => ({
                     type: log.level,
                     title: log.title,
@@ -85,7 +87,7 @@ export default function JobShow({ job: initialJob }) {
                 .reverse();
             setLogs(formatted);
         }
-    }, []);
+    }, [initialJob]);
 
     useEffect(() => {
         if (isDone) return;
