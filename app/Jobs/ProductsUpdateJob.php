@@ -37,13 +37,17 @@ class ProductsUpdateJob
         $len = Redis::rpush(ProcessProductUpdateBuffer::REDIS_KEY, $item);
 
         // Deterministic Dispatch Strategy:
-        // 1. STORM: Dispatch exactly once every 50 items (Modulo).
-        // 2. TRICKLE: If buffer is small (<50), dispatch occasionally (10% chance) to ensure clean-up.
+        // 1. STORM: Dispatch exactly once every 50 items. This allows multiple workers to help with large queues.
+        // 2. TRICKLE: If buffer is small (<50), use a Cache Lock (Throttle) to ensure we only wake up ONE worker every 5 seconds.
+        //    This prevents 15 webhooks from firing 3+ jobs that find an empty buffer.
         
         if ($len % 50 === 0) {
             ProcessProductUpdateBuffer::dispatch();
-        } elseif ($len < 50 && rand(1, 10) === 1) {
-            ProcessProductUpdateBuffer::dispatch();
+        } elseif ($len < 50) {
+            // Atomic check: only true if key didn't exist. "Lock" for 5 seconds.
+            if (\Illuminate\Support\Facades\Cache::add('buffer_trickle_lock', true, 5)) {
+                ProcessProductUpdateBuffer::dispatch();
+            }
         }
     }
 }
