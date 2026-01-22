@@ -32,7 +32,7 @@
                 ["store_name", "{{ Auth::user()->name ?? null }}"],
                 ["store_domain", "{{ Auth::user()->storeDetails->primary_domain ?? null }}"],
                 ["store_plan", "{{ Auth::user()->storeDetails->plan_name ?? null }}"],
-                ["app_name", "Airo SKU & Barcode Generator"],
+                ["app_name", "AiroSKU"],
                 ["app_plan", "{{ Auth::user()->plan->name ?? null }}"],
             ]
         ]]);
