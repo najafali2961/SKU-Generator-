@@ -99,4 +99,8 @@ class User extends Authenticatable implements IShopModel
     {
         return !$this->isFreemium() && $this->plan_id !== null;
     }
+    public function storeDetails()
+    {
+        return $this->hasOne(StoreDetail::class);
+    }
 }
