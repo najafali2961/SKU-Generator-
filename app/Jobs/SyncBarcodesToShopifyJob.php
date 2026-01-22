@@ -78,6 +78,5 @@ class SyncBarcodesToShopifyJob implements ShouldQueue
             }
         }
 
-        Log::info("SyncBarcodesToShopifyJob: Processed {$processed}, Failed {$failed}");
     }
 }

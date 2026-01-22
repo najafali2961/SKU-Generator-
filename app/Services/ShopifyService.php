@@ -224,12 +224,6 @@ GRAPHQL;
             'variants' => $bulkVariants,
         ];
 
-        Log::info("[BARCODE-SYNC] Sending to Shopify", [
-            'product_id' => $localProductId,
-            'shopify_product_gid' => $variables['productId'],
-            'variant_count' => count($bulkVariants),
-            'sample_variant' => $bulkVariants[0] ?? null,
-        ]);
 
         try {
             $response = $this->graph($mutation, $variables);
@@ -247,12 +241,7 @@ GRAPHQL;
 
             $returnedVariants = $response['data']['productVariantsBulkUpdate']['productVariants'] ?? [];
 
-            Log::info("[BARCODE-SYNC] SUCCESS", [
-                'product_id' => $localProductId,
-                'sent_count' => count($bulkVariants),
-                'returned_count' => count($returnedVariants),
-                'sample_response' => $returnedVariants[0] ?? null,
-            ]);
+        
 
             return true;
         } catch (\Exception $e) {

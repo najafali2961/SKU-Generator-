@@ -82,7 +82,5 @@ class GenerateBarcodeJob implements ShouldQueue
                 $jobLog->markAsFailed("Job failed: " . $e->getMessage());
             })
             ->dispatch();
-
-        Log::info("Barcode generation batch dispatched for shop {$shop->id}, {$total} variants");
     }
 }
