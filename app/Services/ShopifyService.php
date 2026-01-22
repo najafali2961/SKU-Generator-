@@ -122,9 +122,7 @@ GRAPHQL;
                 'inventoryItem' => ['sku' => $newSku]
             ];
 
-            // Update local DB immediately
-            $variant->sku = $newSku;
-            $variant->save();
+
         }
 
         if (empty($bulkVariants)) {

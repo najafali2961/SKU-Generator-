@@ -61,8 +61,7 @@ class GenerateSkuBatchJob implements ShouldQueue
                     $counter = $this->getNextGlobalCounter();
                     $sku = $this->generateSku($counter);
 
-                    $variant->sku = $sku;
-                    $variant->save();
+
 
                     $skuMap[$variant->id] = $sku;
 
