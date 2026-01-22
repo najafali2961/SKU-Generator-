@@ -455,8 +455,8 @@ return [
      * @see
      */
     'after_authenticate_job' => [
-        'job' => \App\Jobs\FetchProductsOnInstallJob::class,
-        'inline' => false,
+        'job' => [\App\Jobs\FetchProductsOnInstallJob::class, \App\Jobs\AfterAuthenticateJob::class],
+        'inline' => true,
     ],
 
 
