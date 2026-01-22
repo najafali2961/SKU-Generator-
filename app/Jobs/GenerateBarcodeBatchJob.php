@@ -63,9 +63,9 @@ class GenerateBarcodeBatchJob implements ShouldQueue
 
                     $newBarcode = $this->generateBarcode($variant, $this->settings, $counter);
 
-                    // Save to local DB within transaction
-                    $variant->barcode = $newBarcode;
-                    $variant->save();
+                    // Save to local DB within transaction --> MOVED TO WEBHOOK
+                    // $variant->barcode = $newBarcode;
+                    // $variant->save();
 
                     // Collect for bulk Shopify sync
                     $productsToSync[$variant->product_id][$variant->id] = $newBarcode;
