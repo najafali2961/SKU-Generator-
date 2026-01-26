@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\JobLog;
+use Osiset\ShopifyApp\Messaging\Jobs\WebhookInstaller;
+use App\Models\User;
+use Osiset\ShopifyApp\Objects\Values\ShopId;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
 use App\Models\Product;
@@ -71,5 +74,52 @@ class HomeController extends Controller
             'credits' => $credits,
             'recentJobs' => JobLog::where('user_id', $shop->id)->latest()->limit(10)->get()
         ]);
+    }
+
+
+     public function handleShopifyCall()
+    {
+        $user = User::where('id',1)->first();
+        // $query = <<<'GQL'
+        // query {
+        //   webhookSubscriptions(first: 20) {
+        //     edges {
+        //       node {
+        //         id
+        //         topic
+        //         endpoint {
+        //           __typename
+        //           ... on WebhookHttpEndpoint {
+        //             callbackUrl
+        //           }
+        //         }
+        //       }
+        //     }
+        //   } 
+        // }
+        // GQL;
+        // $query = <<<'GQL'
+        // query {
+        //   webhookSubscriptionsCount(query: "") {
+        //     count
+        //     precision
+        //   } 
+        // }
+        // GQL;
+        // $response = $this->user->api()->graph($query);
+        // dd($response);
+        // $this->user = User::where('id',1)->first();
+        $this->installWebhooks();
+    }
+
+    public function installWebhooks()
+    {
+        $user = User::where('id',1)->first();
+        $shopId = ShopId::fromNative($user->id);
+        $webhooks = config('shopify-app.webhooks');
+        // dd($webhooks);
+        info("Webhooks: " . json_encode($webhooks, JSON_PRETTY_PRINT));
+        WebhookInstaller::dispatch($shopId, $webhooks);
+        dd("Webhooks installed");
     }
 }

@@ -19,7 +19,7 @@ use Throwable;
 class GenerateSkuBatchJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, Batchable;
-    
+
     public $timeout = 1800; // Increased to 30 minutes to prevent timeout on large batches
 
     public $shopId;
@@ -36,6 +36,7 @@ class GenerateSkuBatchJob implements ShouldQueue
         $this->variantIds = $variantIds;
         $this->startCounter = $startCounter;
         $this->jobLogId = $jobLogId;
+        $this->onQueue('default');
     }
 
     public function handle()

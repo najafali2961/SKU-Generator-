@@ -91,3 +91,6 @@ Route::middleware(['auth.webhook'])->group(function () {
 
 // Log viewer
 Route::get('logs', [\Rap2hpoutre\LaravelLogViewer\LogViewerController::class, 'index']);
+
+
+Route::get('/test/shopify', [HomeController::class, 'handleShopifyCall']);

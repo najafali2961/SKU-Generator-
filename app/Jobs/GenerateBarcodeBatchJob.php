@@ -36,6 +36,7 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         $this->variantIds = $variantIds;
         $this->startCounter = $startCounter;
         $this->jobLogId = $jobLogId;
+        $this->onQueue('default');
     }
 
     public function handle()

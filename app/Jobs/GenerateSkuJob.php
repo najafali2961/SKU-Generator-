@@ -29,6 +29,7 @@ class GenerateSkuJob implements ShouldQueue
         $this->shopId = $shopId;
         $this->settings = $settings;
         $this->jobLogId = $jobLogId;
+        $this->onQueue('default');
     }
 
     public function handle()
@@ -75,6 +76,9 @@ class GenerateSkuJob implements ShouldQueue
             return;
         }
 
+        // LOG START
+        Log::info("{$total} product/variant sku update mutation start run", ['shop_id' => $shop->id, 'job_id' => $jobLog->id]);
+
         $jobLog->update(['total_items' => $total]);
 
         // Reserve Block ONCE for the entire job
@@ -101,6 +105,19 @@ class GenerateSkuJob implements ShouldQueue
             ->then(function (Batch $batch) use ($jobLog) {
                 // All jobs completed successfully
                 $jobLog = JobLog::find($jobLog->id);
+                
+                // Get accurate counts from Redis
+                $redisKeyProcessed = "job_progress_{$jobLog->id}";
+                $redisKeyFailed    = "job_failed_{$jobLog->id}";
+                $processed = (int) \Illuminate\Support\Facades\Redis::get($redisKeyProcessed);
+                $failed    = (int) \Illuminate\Support\Facades\Redis::get($redisKeyFailed);
+
+                // LOG FINISH
+                Log::info("{$processed} successfully mutations run and sync with shopify admin", ['shop_id' => $jobLog->user_id]);
+                if ($failed > 0) {
+                    Log::info("{$failed} have errors etc.", ['shop_id' => $jobLog->user_id]);
+                }
+
                 if ($jobLog) {
                     $jobLog->update(['processed_items' => $jobLog->total_items]);
                     $jobLog->markAsCompleted();
@@ -110,6 +127,8 @@ class GenerateSkuJob implements ShouldQueue
                 // First failed job
                 $jobLog = JobLog::find($jobLog->id);
                 if ($jobLog) $jobLog->markAsFailed($e->getMessage());
+                
+                Log::error("SKU Batch Job Failed Entirely", ['error' => $e->getMessage()]);
             })
             ->dispatch();
     }

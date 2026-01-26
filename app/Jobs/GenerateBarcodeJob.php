@@ -26,6 +26,7 @@ class GenerateBarcodeJob implements ShouldQueue
         $this->shopId = $shopId;
         $this->settings = $settings;
         $this->jobLogId = $jobLogId;
+        $this->onQueue('default');
     }
 
     public function handle()
@@ -63,6 +64,9 @@ class GenerateBarcodeJob implements ShouldQueue
             return;
         }
 
+        // LOG START
+        Log::info("{$total} product/variant barcode update mutation start run", ['shop_id' => $shop->id, 'job_id' => $jobLog->id]);
+
         $jobLog->update(['total_items' => $total]);
 
         // Reserve Block ONCE
@@ -89,6 +93,19 @@ class GenerateBarcodeJob implements ShouldQueue
             ->name("Barcode Generation - Shop {$shop->id}")
             ->then(function (Batch $batch) use ($jobLog) {
                  $jobLog = JobLog::find($jobLog->id);
+                 
+                 // Get accurate counts from Redis
+                 $redisKeyProcessed = "job_progress_{$jobLog->id}";
+                 $redisKeyFailed    = "job_failed_{$jobLog->id}";
+                 $processed = (int) \Illuminate\Support\Facades\Redis::get($redisKeyProcessed);
+                 $failed    = (int) \Illuminate\Support\Facades\Redis::get($redisKeyFailed);
+ 
+                 // LOG FINISH
+                 Log::info("{$processed} successfully mutations run and sync with shopify admin", ['shop_id' => $jobLog->user_id]);
+                 if ($failed > 0) {
+                     Log::info("{$failed} have errors etc.", ['shop_id' => $jobLog->user_id]);
+                 }
+
                  if($jobLog) {
                     $jobLog->update(['processed_items' => $jobLog->total_items]);
                  }
@@ -97,6 +114,7 @@ class GenerateBarcodeJob implements ShouldQueue
             ->catch(function (Batch $batch, \Throwable $e) use ($jobLog) {
                  $jobLog = JobLog::find($jobLog->id);
                  if($jobLog) $jobLog->markAsFailed("Job failed: " . $e->getMessage());
+                 Log::error("Barcode Batch Job Failed Entirely", ['error' => $e->getMessage()]);
             })
             ->dispatch();
     }
