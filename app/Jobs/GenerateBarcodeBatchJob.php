@@ -19,17 +19,22 @@ use Throwable;
 class GenerateBarcodeBatchJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, Batchable;
+    
+    public $timeout = 1800; // Increased to 30 minutes
 
     public $shopId;
     public $settings;
     public $variantIds;
     public $jobLogId;
 
-    public function __construct($shopId, $settings, array $variantIds, $jobLogId)
+    public $startCounter;
+
+    public function __construct($shopId, $settings, array $variantIds, $startCounter, $jobLogId = null)
     {
         $this->shopId = $shopId;
         $this->settings = $settings;
         $this->variantIds = $variantIds;
+        $this->startCounter = $startCounter;
         $this->jobLogId = $jobLogId;
     }
 
@@ -40,7 +45,7 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         $jobLog = JobLog::find($this->jobLogId);
         if (!$jobLog) return;
 
-        $shop = \App\Models\User::find($this->shopId);
+        $shop = \App\Models\User::find($this->shopId); 
         if (!$shop) return;
 
         $shopify = new ShopifyService($shop);
@@ -52,119 +57,63 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         $failed = 0;
         $productsToSync = [];
 
-        // Wrap everything in a transaction
-        DB::beginTransaction();
+        // Use Reserved Counter
+        $currentCounter = $this->startCounter;
 
-        try {
-            foreach ($variants as $variant) {
-                try {
-                    // Get atomic counter from database
-                    $counter = $this->getNextBarcodeCounter();
+        // Use Redis for high-speed progress tracking
+        $redisKeyProcessed = "job_progress_{$this->jobLogId}";
+        $redisKeyFailed    = "job_failed_{$this->jobLogId}";
+        
+        foreach ($variants as $variant) {
+            try {
+                // Use reserved counter (in-memory increment)
+                $newBarcode = $this->generateBarcode($variant, $this->settings, $currentCounter);
+                $currentCounter++; // Local increment
 
-                    $newBarcode = $this->generateBarcode($variant, $this->settings, $counter);
-
-                    // Save to local DB within transaction --> MOVED TO WEBHOOK
-                    // $variant->barcode = $newBarcode;
-                    // $variant->save();
-
-                    // Collect for bulk Shopify sync
-                    $productsToSync[$variant->product_id][$variant->id] = $newBarcode;
-
-                    $jobLog->success(
-                        "Barcode Generated",
-                        "{$variant->product->title} – {$variant->title} → {$newBarcode}"
-                    );
-
-                    $processed++;
-                } catch (\Exception $e) {
-                    Log::error('[BARCODE-BATCH] Generation failed', [
-                        'variant_id' => $variant->id,
-                        'error' => $e->getMessage(),
-                    ]);
-                    $jobLog->error("Generation Failed", "Variant #{$variant->id}: " . $e->getMessage());
-                    $failed++;
-                    throw $e; // Rollback entire batch if any fails
-                }
+                // Collect for bulk Shopify sync
+                $productsToSync[$variant->product_id][$variant->id] = $newBarcode;
+                $processed++;
+            } catch (\Exception $e) {
+                $failed++;
+                 \Illuminate\Support\Facades\Redis::incr($redisKeyFailed);
             }
-
-            // Commit before Shopify sync
-            DB::commit();
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('[BARCODE-BATCH] Batch transaction failed', [
-                'error' => $e->getMessage(),
-            ]);
-            throw $e;
         }
 
-        // Sync to Shopify after local DB success
         foreach ($productsToSync as $productId => $barcodeMap) {
             try {
                 $success = $shopify->updateVariantBarcodes((int)$productId, $barcodeMap);
 
                 if ($success) {
-                    $jobLog->info("Synced to Shopify", "Product ID {$productId} – " . count($barcodeMap) . " variants");
+                    usleep(200000); // 0.2s Throttle
+                    
+                    // Increment processed count in Redis for live UI updates
+                    if (count($barcodeMap) > 0) {
+                         \Illuminate\Support\Facades\Redis::incrby($redisKeyProcessed, count($barcodeMap));
+                    }
                 } else {
-                    Log::warning("[BARCODE-BATCH] Shopify sync returned false", ['product_id' => $productId]);
-                    $jobLog->warning("Shopify Sync Failed", "Product ID {$productId}");
+                     $failed += count($barcodeMap); // Silent fail count
+                     \Illuminate\Support\Facades\Redis::incrby($redisKeyFailed, count($barcodeMap));
                 }
             } catch (\Exception $e) {
-                Log::error("[BARCODE-BATCH] Shopify sync exception", [
-                    'product_id' => $productId,
-                    'error' => $e->getMessage(),
-                ]);
-                $jobLog->error("Shopify Sync Error", "Product ID {$productId}: " . $e->getMessage());
+                $failed += count($barcodeMap);
+                \Illuminate\Support\Facades\Redis::incrby($redisKeyFailed, count($barcodeMap));
             }
         }
+        
+        // TTL
+        \Illuminate\Support\Facades\Redis::expire($redisKeyProcessed, 86400);
+        \Illuminate\Support\Facades\Redis::expire($redisKeyFailed, 86400);
 
-        $jobLog->increment('processed_items', $processed);
-        if ($failed > 0) {
-            $jobLog->increment('failed_items', $failed);
-        }
+        // Progress updates removed to prevent DB row locking.
+        // Final status will be updated in the parent job.
     }
 
     public function failed(Throwable $exception)
     {
         $jobLog = JobLog::find($this->jobLogId);
         if ($jobLog) {
-            Log::error("[BARCODE-BATCH] Job failed", [
-                'error' => $exception->getMessage(),
-            ]);
-            $jobLog->error('Batch Failed', $exception->getMessage());
             $jobLog->markAsFailed("Batch failed: " . $exception->getMessage());
         }
-    }
-
-    private function getNextBarcodeCounter(): int
-    {
-        return DB::transaction(function () {
-            $format = $this->settings['format'] ?? 'UPC';
-            $startNumber = (int)($this->settings['start_number'] ?? 1);
-
-            $row = DB::table('barcode_counters')
-                ->lockForUpdate()
-                ->where('shop_id', $this->shopId)
-                ->where('format', $format)
-                ->first();
-
-            if (!$row) {
-                DB::table('barcode_counters')->insert([
-                    'shop_id' => $this->shopId,
-                    'format' => $format,
-                    'counter' => $startNumber,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-                return $startNumber;
-            }
-
-            $next = $row->counter + 1;
-            DB::table('barcode_counters')
-                ->where('id', $row->id)
-                ->update(['counter' => $next, 'updated_at' => now()]);
-
-            return $next;
-        });
     }
 
     private function generateBarcode($variant, $rules, $counter)

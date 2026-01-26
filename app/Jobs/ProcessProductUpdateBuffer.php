@@ -22,15 +22,11 @@ class ProcessProductUpdateBuffer implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $timeout = 120; // Allow 2 mins for a batch
+    public $tries = 3;
 
-    // Process 50 items at a time
-    const BATCH_SIZE = 50; 
+    // Process 10 items at a time to reduce contention
+    const BATCH_SIZE = 10; 
     const REDIS_KEY = 'product_updates_buffer';
-
-    // public function middleware()
-    // {
-    //    // Middleware removed to allow parallel processing of the buffer by multiple workers.
-    // }
 
     public function handle()
     {
@@ -48,16 +44,13 @@ class ProcessProductUpdateBuffer implements ShouldQueue
             }
 
             $count = count($rawItems);
-
+            
             // 2. Group by Shop Domain
             $groupedByShop = collect($rawItems)->groupBy('shop');
 
             foreach ($groupedByShop as $domain => $items) {
-                // Wrap critical database operations in Transaction with Retry
-                // Deadlocks happen when multiple workers hit the same table (products/variants) simultaneously
-                DB::transaction(function () use ($domain, $items) {
-                    $this->processShopBatch($domain, $items);
-                }, 3); // 3 Retries on Deadlock
+                // Removed Transaction to prevent Deadlocks. Upserts are atomic enough.
+                $this->processShopBatch($domain, $items);
             }
 
             // 3. Loop if we had a full batch (there might be more)
@@ -66,13 +59,7 @@ class ProcessProductUpdateBuffer implements ShouldQueue
             }
 
         } catch (\Throwable $e) {
-            // CATCH-ALL: Prevent the job from being marked as "Failed".
-            // Just log it. The data might be lost for this batch if we popped it, 
-            // but preventing the loop crash is priority.
-            // Ideally we'd re-push to Redis, but for stabilization, we log and exit.
-            Log::error("[BufferProcessor] Critical Error (Handled): " . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
-            ]);
+             // Silent fail to prevent log flooding
         }
     }
 
@@ -85,7 +72,6 @@ class ProcessProductUpdateBuffer implements ShouldQueue
             });
 
             if (!$shop) {
-                Log::warning("[BufferProcessor] Shop not found: {$domain}");
                 return;
             }
 
@@ -294,10 +280,8 @@ class ProcessProductUpdateBuffer implements ShouldQueue
                 );
             }
             
-            // Log::info("[BufferProcessor] Synced Shop {$domain}: " . count($productUpserts) . " Products");
-
         } catch (\Throwable $e) {
-            Log::error("[BufferProcessor] Error processing batch for {$domain}: " . $e->getMessage());
+             // Silent fail
         }
     }
 

@@ -13,27 +13,34 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class GenerateSkuBatchJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, Batchable;
+    
+    public $timeout = 1800; // Increased to 30 minutes to prevent timeout on large batches
 
     public $shopId;
     public $variantIds;
     public $settings;
     public $jobLogId;
 
-    public function __construct($shopId, $settings, array $variantIds, $jobLogId)
+    public $startCounter;
+
+    public function __construct($shopId, $settings, array $variantIds, $startCounter, $jobLogId = null)
     {
         $this->shopId = $shopId;
         $this->settings = $settings;
         $this->variantIds = $variantIds;
+        $this->startCounter = $startCounter;
         $this->jobLogId = $jobLogId;
     }
 
     public function handle()
     {
+        // No logs.
         $jobLog = JobLog::find($this->jobLogId);
         if (!$jobLog) return;
 
@@ -48,47 +55,53 @@ class GenerateSkuBatchJob implements ShouldQueue
 
         if ($variants->isEmpty()) return;
 
-        $jobLog->info("Processing Batch", "Starting batch of {$variants->count()} variants");
-
         $processed = 0;
         $failed = 0;
 
+        // Use pre-allocated counter
+        $currentCounter = $this->startCounter;
+
+        // Use Redis for high-speed progress tracking to avoid DB row locks
+        $redisKeyProcessed = "job_progress_{$this->jobLogId}";
+        $redisKeyFailed    = "job_failed_{$this->jobLogId}";
+
         foreach ($variants->groupBy('product_id') as $productId => $productVariants) {
             $skuMap = [];
+            $batchProcessed = 0;
 
             foreach ($productVariants as $variant) {
                 try {
-                    $counter = $this->getNextGlobalCounter();
-                    $sku = $this->generateSku($counter);
-
-
+                    $sku = $this->generateSku($currentCounter);
+                    $currentCounter++; 
 
                     $skuMap[$variant->id] = $sku;
-
-                    $jobLog->success("SKU Assigned", "Variant #{$variant->id} → {$sku}");
-                    $processed++;
+                    $batchProcessed++;
                 } catch (\Exception $e) {
-                    $jobLog->error("SKU Generation Failed", "Variant #{$variant->id}: " . $e->getMessage());
                     $failed++;
+                    \Illuminate\Support\Facades\Redis::incr($redisKeyFailed);
                 }
             }
 
             if (!empty($skuMap)) {
                 try {
                     $shopify->updateVariantSkus((int)$productId, $skuMap);
-                    $jobLog->info("Synced to Shopify", "Product ID {$productId} updated");
+                    usleep(200000); // 0.2s Throttle
+                    
+                    // Atomic increment for the whole product batch
+                    if ($batchProcessed > 0) {
+                        \Illuminate\Support\Facades\Redis::incrby($redisKeyProcessed, $batchProcessed);
+                    }
                 } catch (\Exception $e) {
-                    $jobLog->error("Shopify Sync Failed", "Product ID {$productId}: " . $e->getMessage());
+                    // Failed to sync
                     $failed += count($skuMap);
+                    \Illuminate\Support\Facades\Redis::incrby($redisKeyFailed, count($skuMap));
                 }
             }
         }
-
-        // Update progress
-        $jobLog->increment('processed_items', $processed);
-        if ($failed > 0) {
-            $jobLog->increment('failed_items', $failed);
-        }
+        
+        // TTL for safety (24 hours)
+        \Illuminate\Support\Facades\Redis::expire($redisKeyProcessed, 86400);
+        \Illuminate\Support\Facades\Redis::expire($redisKeyFailed, 86400);
     }
 
     public function failed(Throwable $exception)
@@ -96,41 +109,9 @@ class GenerateSkuBatchJob implements ShouldQueue
         if ($this->jobLogId) {
             $jobLog = JobLog::find($this->jobLogId);
             if ($jobLog) {
-                $jobLog->error('Batch Failed', $exception->getMessage());
                 $jobLog->markAsFailed("Batch job failed: " . $exception->getMessage());
             }
         }
-    }
-
-    private function getNextGlobalCounter(): int
-    {
-        return DB::transaction(function () {
-            $row = DB::table('sku_counters')
-                ->lockForUpdate()
-                ->where('shop_id', $this->shopId)
-                ->whereNull('product_id')
-                ->first();
-
-            $start = $this->settings['auto_start'] ?? 1;
-
-            if (!$row) {
-                DB::table('sku_counters')->insert([
-                    'shop_id' => $this->shopId,
-                    'product_id' => null,
-                    'counter' => $start,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-                return $start;
-            }
-
-            $next = $row->counter + 1;
-            DB::table('sku_counters')
-                ->where('id', $row->id)
-                ->update(['counter' => $next, 'updated_at' => now()]);
-
-            return $next;
-        });
     }
 
     private function generateSku(int $counter): string

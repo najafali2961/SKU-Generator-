@@ -79,7 +79,7 @@ class SkuController extends Controller
 
         GenerateSkuJob::dispatch($shop->id, $request->all(), $jobLog->id);
 
-        return redirect()->route('jobs.show', $jobLog)
+        return redirect()->route('jobs.show', $jobLog->id)
             ->with('success', 'SKU generation started! Redirecting to progress page...');
     }
 

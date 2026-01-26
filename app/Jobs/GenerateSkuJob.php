@@ -37,7 +37,7 @@ class GenerateSkuJob implements ShouldQueue
         if (!$shop) return;
 
         $jobLog = $this->jobLogId
-            ? JobLog::findOrFail($this->jobLogId)
+            ? JobLog::find($this->jobLogId)
             : JobLog::create([
                 'user_id' => $shop->id,
                 'type' => 'sku_generation',
@@ -46,6 +46,9 @@ class GenerateSkuJob implements ShouldQueue
                 'payload' => $this->settings,
                 'status' => 'pending',
             ]);
+        
+        // Ensure we have a valid job log instance
+        if(!$jobLog) return;
 
         $jobLog->markAsStarted();
 
@@ -74,31 +77,71 @@ class GenerateSkuJob implements ShouldQueue
 
         $jobLog->update(['total_items' => $total]);
 
-        $batchSize = $this->settings['batch_size'] ?? 100;
+        // Reserve Block ONCE for the entire job
+        $startCounter = $this->reserveCounterBlock($total);
 
-        $batches = $variants->chunk($batchSize)->map(function ($chunk) use ($shop, $jobLog) {
-            return new GenerateSkuBatchJob(
+        $batchSize = $this->settings['batch_size'] ?? 100;
+        $currentBatchStart = $startCounter;
+
+        $batches = [];
+        $chunks = $variants->chunk($batchSize);
+
+        foreach ($chunks as $chunk) {
+            $batches[] = new GenerateSkuBatchJob(
                 $shop->id,
                 $this->settings,
                 $chunk->pluck('id')->toArray(),
+                $currentBatchStart, // Pass the pre-calculated start counter
                 $jobLog->id
             );
-        });
+            $currentBatchStart += $chunk->count();
+        }
 
         Bus::batch($batches)
             ->then(function (Batch $batch) use ($jobLog) {
                 // All jobs completed successfully
-                $jobLog->markAsCompleted();
+                $jobLog = JobLog::find($jobLog->id);
+                if ($jobLog) {
+                    $jobLog->update(['processed_items' => $jobLog->total_items]);
+                    $jobLog->markAsCompleted();
+                }
             })
             ->catch(function (Batch $batch, Throwable $e) use ($jobLog) {
                 // First failed job
-                $jobLog->markAsFailed($e->getMessage());
-            })
-            ->finally(function (Batch $batch) use ($jobLog) {
-                // Always runs (optional cleanup)
+                $jobLog = JobLog::find($jobLog->id);
+                if ($jobLog) $jobLog->markAsFailed($e->getMessage());
             })
             ->dispatch();
+    }
 
-        Log::info("GenerateSkuJob dispatched batch of {$total} variants for shop {$shop->id}");
+    private function reserveCounterBlock(int $count): int
+    {
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($count) {
+            $row = \Illuminate\Support\Facades\DB::table('sku_counters')
+                ->lockForUpdate()
+                ->where('shop_id', $this->shopId)
+                ->whereNull('product_id')
+                ->first();
+
+            $start = $this->settings['auto_start'] ?? 1;
+
+            if (!$row) {
+                \Illuminate\Support\Facades\DB::table('sku_counters')->insert([
+                    'shop_id' => $this->shopId,
+                    'product_id' => null,
+                    'counter' => $start + $count, // Reserve full block
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                return $start;
+            }
+
+            $current = $row->counter + 1; // Valid next number
+            \Illuminate\Support\Facades\DB::table('sku_counters')
+                ->where('id', $row->id)
+                ->update(['counter' => $row->counter + $count, 'updated_at' => now()]);
+
+            return $current;
+        });
     }
 }

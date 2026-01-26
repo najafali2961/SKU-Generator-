@@ -60,11 +60,30 @@ class JobController extends Controller
             ->take(100)
             ->get();
 
+        // READ PROGRESS FROM REDIS (High Speed, No Locks)
+        $redisKeyProcessed = "job_progress_{$jobLog->id}";
+        $redisKeyFailed    = "job_failed_{$jobLog->id}";
+        
+        // Get live values from Redis if available, otherwise fallback to DB
+        $liveProcessed = (int) \Illuminate\Support\Facades\Redis::get($redisKeyProcessed);
+        $liveFailed    = (int) \Illuminate\Support\Facades\Redis::get($redisKeyFailed);
+
+        // If job is running, Redis is the source of truth for "processed". 
+        // If job is done, DB (which should be updated at the very end) is source, 
+        // BUT we must ensure the final sync happened.
+        // For now, let's max() them to be safe.
+        $processed = max($jobLog->processed_items, $liveProcessed);
+        $failed    = max($jobLog->failed_items, $liveFailed);
+        
+        // Calculate percentage dynamically
+        $total = $jobLog->total_items > 0 ? $jobLog->total_items : 1;
+        $pct = min(100, (int) round(($processed / $total) * 100));
+
         return response()->json([
-            'progress_percentage' => $jobLog->progress_percentage,
-            'processed_items'     => $jobLog->processed_items,
+            'progress_percentage' => $pct,
+            'processed_items'     => $processed,
             'total_items'         => $jobLog->total_items ?? 0,
-            'failed_items'        => $jobLog->failed_items ?? 0,
+            'failed_items'        => $failed,
             'status'              => $jobLog->status,
             'error_message'       => $jobLog->error_message,
             'started_at'          => $jobLog->started_at?->toDateTimeString(),

@@ -25,6 +25,7 @@ class ProductsCreateJob implements ShouldQueue
     {
         $this->shopDomain = $shopDomain;
         $this->data = $data;
+        $this->onQueue('webhooks');
     }
 
     public function handle()

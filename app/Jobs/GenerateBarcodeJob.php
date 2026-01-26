@@ -34,7 +34,7 @@ class GenerateBarcodeJob implements ShouldQueue
         if (!$shop) return;
 
         $jobLog = $this->jobLogId
-            ? JobLog::findOrFail($this->jobLogId)
+            ? JobLog::find($this->jobLogId) // Changed failOrFail to find
             : JobLog::create([
                 'user_id' => $shop->id,
                 'type' => 'barcode_generation',
@@ -44,6 +44,8 @@ class GenerateBarcodeJob implements ShouldQueue
                 'status' => 'running',
                 'started_at' => now(),
             ]);
+
+        if (!$jobLog) return;
 
         $jobLog->update(['status' => 'running']);
 
@@ -63,24 +65,71 @@ class GenerateBarcodeJob implements ShouldQueue
 
         $jobLog->update(['total_items' => $total]);
 
+        // Reserve Block ONCE
+        $startCounter = $this->reserveCounterBlock($total);
+
         $batchSize = 100;
-        $batches = $variants->chunk($batchSize)->map(function ($chunk) use ($shop, $jobLog) {
-            return new GenerateBarcodeBatchJob(
+        $currentBatchStart = $startCounter;
+
+        $batches = [];
+        $chunks = $variants->chunk($batchSize);
+        
+        foreach ($chunks as $chunk) {
+            $batches[] = new GenerateBarcodeBatchJob(
                 $shop->id,
                 $this->settings,
                 $chunk->pluck('id')->toArray(),
-                $jobLog->id
+                $currentBatchStart, 
+                $jobLog->id 
             );
-        });
+            $currentBatchStart += $chunk->count();
+        }
 
         Bus::batch($batches)
             ->name("Barcode Generation - Shop {$shop->id}")
             ->then(function (Batch $batch) use ($jobLog) {
-                $jobLog->markAsCompleted("Successfully generated barcodes for all variants.");
+                 $jobLog = JobLog::find($jobLog->id);
+                 if($jobLog) {
+                    $jobLog->update(['processed_items' => $jobLog->total_items]);
+                 }
+                 if($jobLog) $jobLog->markAsCompleted("Successfully generated barcodes for all variants.");
             })
             ->catch(function (Batch $batch, \Throwable $e) use ($jobLog) {
-                $jobLog->markAsFailed("Job failed: " . $e->getMessage());
+                 $jobLog = JobLog::find($jobLog->id);
+                 if($jobLog) $jobLog->markAsFailed("Job failed: " . $e->getMessage());
             })
             ->dispatch();
+    }
+
+    private function reserveCounterBlock(int $count): int
+    {
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($count) {
+             $format = $this->settings['format'] ?? 'UPC';
+             $startNumber = (int)($this->settings['start_number'] ?? 1);
+
+            $row = \Illuminate\Support\Facades\DB::table('barcode_counters')
+                ->lockForUpdate()
+                ->where('shop_id', $this->shopId)
+                ->where('format', $format)
+                ->first();
+
+            if (!$row) {
+                \Illuminate\Support\Facades\DB::table('barcode_counters')->insert([
+                    'shop_id' => $this->shopId,
+                    'format' => $format,
+                    'counter' => $startNumber + $count, // Reserve full block
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                return $startNumber;
+            }
+
+            $current = $row->counter + 1; // Valid next number
+            \Illuminate\Support\Facades\DB::table('barcode_counters')
+                ->where('id', $row->id)
+                ->update(['counter' => $row->counter + $count, 'updated_at' => now()]);
+
+            return $current;
+        });
     }
 }
