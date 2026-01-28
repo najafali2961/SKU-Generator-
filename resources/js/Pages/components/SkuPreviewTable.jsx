@@ -63,17 +63,11 @@ export default function SkuPreviewTable({
     const [selectedVariant, setSelectedVariant] = React.useState(null);
     const [tagsInput, setTagsInput] = React.useState("");
 
-    const DUPLICATES_PER_PAGE = 5;
+    const DUPLICATES_PER_PAGE = 8;
     const PRODUCTS_PER_PAGE = 8;
 
-    // Calculate pagination for duplicates
-    const totalDuplicatePages = Math.ceil(
-        duplicateGroups.length / DUPLICATES_PER_PAGE,
-    );
-    const paginatedGroups = duplicateGroups.slice(
-        (duplicatePage - 1) * DUPLICATES_PER_PAGE,
-        duplicatePage * DUPLICATES_PER_PAGE,
-    );
+    // Server paginates duplicate groups
+    const paginatedGroups = duplicateGroups;
 
     // ✅ TAB CONFIGURATION - USE STATS FROM BACKEND FOR EXACT COUNTS
     const tabs = [
@@ -467,13 +461,8 @@ export default function SkuPreviewTable({
         </IndexTable.Row>
     );
 
-    // Calculate pagination slices
-    const ITEMS_PER_PAGE = 8;
-
-    // Slice preview for non-duplicate tabs
-    const start = (page - 1) * ITEMS_PER_PAGE;
-    const end = start + ITEMS_PER_PAGE;
-    const visiblePreview = preview.slice(start, end);
+    // Data is now paginated on the server
+    const visiblePreview = preview;
 
     // Determine what to show in the table
     const rowMarkup =
@@ -508,11 +497,11 @@ export default function SkuPreviewTable({
     // Calculate total pages for current tab
     const totalPages =
         activeTab === "duplicates"
-            ? totalDuplicatePages
+            ? Math.ceil(total / DUPLICATES_PER_PAGE)
             : Math.ceil(total / PRODUCTS_PER_PAGE);
+
     const currentPage = activeTab === "duplicates" ? duplicatePage : page;
-    const itemCount =
-        activeTab === "duplicates" ? duplicateGroups.length : total;
+    const itemCount = total; // Total is now consistently passed from backend (Total Groups or Total Variants)
 
     return (
         <>

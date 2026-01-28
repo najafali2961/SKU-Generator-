@@ -601,12 +601,15 @@ class PrinterController extends Controller
             $baseQuery = $this->buildFilteredQuery($request, $user);
 
             // ✅ GET ALL VARIANTS FOR STATS BEFORE FILTERING BY TAB
-            $allVariants = clone $baseQuery;
-            $totalAll = $allVariants->count();
+            $totalAll = $baseQuery->count();
 
-            // Count missing and with barcodes
-            $allVariantsList = $allVariants->get();
-            $missingBarcodes = $allVariantsList->filter(fn($v) => empty(trim($v->barcode ?? '')))->count();
+            // Count missing and with barcodes (DB Level)
+            $missingBarcodes = $baseQuery->clone()
+                ->where(function ($q) {
+                    $q->whereNull('barcode')->orWhere('barcode', '');
+                })
+                ->count();
+                
             $withBarcodes = $totalAll - $missingBarcodes;
 
             // Filter by tab

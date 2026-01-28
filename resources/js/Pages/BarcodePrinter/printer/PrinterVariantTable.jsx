@@ -333,13 +333,11 @@ export default function PrinterVariantTable({
         );
     };
 
-    const ITEMS_PER_PAGE = 8;
+    const ITEMS_PER_PAGE = 8; // Should match server request if possible, or use total/per_page from response
     const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
 
-    // Slice variants for current page
-    const start = (page - 1) * ITEMS_PER_PAGE;
-    const end = start + ITEMS_PER_PAGE;
-    const visibleVariants = variants.slice(start, end);
+    // Server side pagination
+    const visibleVariants = variants;
 
     const rowMarkup =
         variants.length === 0 ? (
@@ -745,19 +743,8 @@ export default function PrinterVariantTable({
                                 });
                             } else if (selectionType === "page") {
                                 // Select visible items on current page
-                                // Note: variants prop usually contains all filtered items depending on parent logic.
-                                // Ideally we slice here if we are paginating client-side,
-                                // but for now we follow the existing pattern of using 'variants' as the visible set
-                                // OR if 'variants' is ALL items, we should slice it.
-                                // Given totalPages math (ceil(total/8)), it implies client-side pagination IS expected but MISSING.
-
-                                // Let's slice based on current page to get visible IDs
-                                const ITEMS_PER_PAGE = 8;
-                                const start = (page - 1) * ITEMS_PER_PAGE;
-                                const end = start + ITEMS_PER_PAGE;
-                                const visibleIds = variants
-                                    .slice(start, end)
-                                    .map((v) => v.id);
+                                // Note: variants prop is now the paginated list from server
+                                const visibleIds = variants.map((v) => v.id);
 
                                 setSelected((prev) => {
                                     const next = new Set(prev);

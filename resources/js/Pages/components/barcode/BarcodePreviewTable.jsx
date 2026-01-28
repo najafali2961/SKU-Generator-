@@ -68,14 +68,12 @@ export default function BarcodePreviewTable({
         }));
     }, [duplicateGroups]);
 
-    const DUPLICATES_PER_PAGE = 10;
-    const totalDuplicatePages = Math.ceil(
-        duplicateGroupList.length / DUPLICATES_PER_PAGE,
-    );
-    const paginatedGroups = duplicateGroupList.slice(
-        (duplicatePage - 1) * DUPLICATES_PER_PAGE,
-        duplicatePage * DUPLICATES_PER_PAGE,
-    );
+    const DUPLICATES_PER_PAGE = 8;
+    // Backend now returns 'total' as the count of groups when tab is 'duplicates'
+    // So we use 'total' directly.
+    const totalDuplicatePages = Math.ceil(total / DUPLICATES_PER_PAGE);
+    // Server already paginates, so we show the list directly
+    const paginatedGroups = duplicateGroupList;
 
     const tabs = [
         { id: "all", content: `All Variants (${stats.total})` },
@@ -456,11 +454,8 @@ export default function BarcodePreviewTable({
         </IndexTable.Row>
     );
 
-    // Calculate pagination slices
-    const ITEMS_PER_PAGE = 8;
-    const start = (page - 1) * ITEMS_PER_PAGE;
-    const end = start + ITEMS_PER_PAGE;
-    const visibleBarcodes = barcodes.slice(start, end);
+    // Data is now paginated on the server, so we display the passed barcodes directly
+    const visibleBarcodes = barcodes;
 
     const rowMarkup =
         activeTab === "duplicates" ? (
@@ -517,16 +512,11 @@ export default function BarcodePreviewTable({
 
                 <IndexTable
                     resourceName={{ singular: "variant", plural: "variants" }}
-                    itemCount={
-                        activeTab === "duplicates"
-                            ? duplicateGroupList.length
-                            : total
-                    }
+                    itemCount={total}
                     selectedItemsCount={
                         selected.size ===
                         (activeTab === "duplicates"
-                            ? duplicateGroupList.flatMap((g) => g.variants)
-                                  .length
+                            ? stats.duplicates // stats.duplicates is total VARIANT count of duplicates
                             : total)
                             ? "All"
                             : selected.size
@@ -603,15 +593,6 @@ export default function BarcodePreviewTable({
                         {
                             content: "Clear Selection",
                             onAction: () => setSelected(new Set()),
-                        },
-                        activeTab === "duplicates" && {
-                            content: `Select All Duplicates (${stats.duplicates})`,
-                            onAction: () => {
-                                const ids = duplicateGroupList.flatMap((g) =>
-                                    g.variants.map((v) => v.id),
-                                );
-                                setSelected(new Set(ids));
-                            },
                         },
                     ].filter(Boolean)}
                     promotedBulkActions={[
