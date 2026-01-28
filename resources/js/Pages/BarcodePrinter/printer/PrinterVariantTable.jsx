@@ -99,7 +99,8 @@ export default function PrinterVariantTable({
     if (selectedCollectionIds.length > 0) {
         const names = selectedCollectionIds
             .map(
-                (id) => initialCollections.find((c) => c.id === id)?.title || id
+                (id) =>
+                    initialCollections.find((c) => c.id === id)?.title || id,
             )
             .join(", ");
         appliedFilters.push({
@@ -313,7 +314,7 @@ export default function PrinterVariantTable({
                                 height="1"
                                 fill="black"
                             />
-                        )
+                        ),
                 )}
                 {Array.from({ length: modules - 16 }).map(
                     (_, i) =>
@@ -326,11 +327,19 @@ export default function PrinterVariantTable({
                                 height="1"
                                 fill="black"
                             />
-                        )
+                        ),
                 )}
             </svg>
         );
     };
+
+    const ITEMS_PER_PAGE = 8;
+    const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
+
+    // Slice variants for current page
+    const start = (page - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const visibleVariants = variants.slice(start, end);
 
     const rowMarkup =
         variants.length === 0 ? (
@@ -344,7 +353,7 @@ export default function PrinterVariantTable({
                 </IndexTable.Cell>
             </IndexTable.Row>
         ) : (
-            variants.map((variant) => (
+            visibleVariants.map((variant) => (
                 <IndexTable.Row
                     key={variant.id}
                     id={variant.id}
@@ -425,8 +434,6 @@ export default function PrinterVariantTable({
                 </IndexTable.Row>
             ))
         );
-
-    const totalPages = Math.ceil(total / 8);
 
     return (
         <>
@@ -561,7 +568,7 @@ export default function PrinterVariantTable({
                                                         size={
                                                             Math.min(
                                                                 config.barcode_width,
-                                                                config.barcode_height
+                                                                config.barcode_height,
                                                             ) * 3.78
                                                         }
                                                         value="SAMPLE-QR-CODE"
@@ -618,9 +625,9 @@ export default function PrinterVariantTable({
                                                             "ean13"
                                                                 ? "1234567890123"
                                                                 : config.barcode_type ===
-                                                                  "upca"
-                                                                ? "123456789012"
-                                                                : "ABC123XYZ"}
+                                                                    "upca"
+                                                                  ? "123456789012"
+                                                                  : "ABC123XYZ"}
                                                         </div>
                                                     )}
                                                 </>
@@ -718,10 +725,52 @@ export default function PrinterVariantTable({
                         selectedItemsCount={
                             selected.size === total ? "All" : selected.size
                         }
-                        onSelectionChange={(selectionType, toggle) => {
+                        onSelectionChange={(
+                            selectionType,
+                            toggle,
+                            selection,
+                        ) => {
                             if (selectionType === "all") {
                                 const ids = variants.map((v) => v.id);
                                 setSelected(toggle ? new Set(ids) : new Set());
+                            } else if (selectionType === "single") {
+                                setSelected((prev) => {
+                                    const next = new Set(prev);
+                                    if (toggle) {
+                                        next.add(selection);
+                                    } else {
+                                        next.delete(selection);
+                                    }
+                                    return next;
+                                });
+                            } else if (selectionType === "page") {
+                                // Select visible items on current page
+                                // Note: variants prop usually contains all filtered items depending on parent logic.
+                                // Ideally we slice here if we are paginating client-side,
+                                // but for now we follow the existing pattern of using 'variants' as the visible set
+                                // OR if 'variants' is ALL items, we should slice it.
+                                // Given totalPages math (ceil(total/8)), it implies client-side pagination IS expected but MISSING.
+
+                                // Let's slice based on current page to get visible IDs
+                                const ITEMS_PER_PAGE = 8;
+                                const start = (page - 1) * ITEMS_PER_PAGE;
+                                const end = start + ITEMS_PER_PAGE;
+                                const visibleIds = variants
+                                    .slice(start, end)
+                                    .map((v) => v.id);
+
+                                setSelected((prev) => {
+                                    const next = new Set(prev);
+                                    const allSelected = visibleIds.every((id) =>
+                                        next.has(id),
+                                    );
+                                    visibleIds.forEach((id) =>
+                                        allSelected
+                                            ? next.delete(id)
+                                            : next.add(id),
+                                    );
+                                    return next;
+                                });
                             }
                         }}
                         hasZebraStriping

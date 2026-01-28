@@ -68,11 +68,11 @@ export default function SkuPreviewTable({
 
     // Calculate pagination for duplicates
     const totalDuplicatePages = Math.ceil(
-        duplicateGroups.length / DUPLICATES_PER_PAGE
+        duplicateGroups.length / DUPLICATES_PER_PAGE,
     );
     const paginatedGroups = duplicateGroups.slice(
         (duplicatePage - 1) * DUPLICATES_PER_PAGE,
-        duplicatePage * DUPLICATES_PER_PAGE
+        duplicatePage * DUPLICATES_PER_PAGE,
     );
 
     // ✅ TAB CONFIGURATION - USE STATS FROM BACKEND FOR EXACT COUNTS
@@ -124,7 +124,8 @@ export default function SkuPreviewTable({
     if (selectedCollectionIds.length > 0) {
         const names = selectedCollectionIds
             .map(
-                (id) => initialCollections.find((c) => c.id === id)?.title || id
+                (id) =>
+                    initialCollections.find((c) => c.id === id)?.title || id,
             )
             .join(", ");
         appliedFilters.push({
@@ -373,8 +374,8 @@ export default function SkuPreviewTable({
                                     onClick={() =>
                                         setSelected(
                                             new Set(
-                                                group.variants.map((v) => v.id)
-                                            )
+                                                group.variants.map((v) => v.id),
+                                            ),
                                         )
                                     }
                                 >
@@ -386,8 +387,8 @@ export default function SkuPreviewTable({
                                     onClick={() => {
                                         setSelected(
                                             new Set(
-                                                group.variants.map((v) => v.id)
-                                            )
+                                                group.variants.map((v) => v.id),
+                                            ),
                                         );
                                         applySKUs("selected");
                                     }}
@@ -466,6 +467,14 @@ export default function SkuPreviewTable({
         </IndexTable.Row>
     );
 
+    // Calculate pagination slices
+    const ITEMS_PER_PAGE = 8;
+
+    // Slice preview for non-duplicate tabs
+    const start = (page - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const visiblePreview = preview.slice(start, end);
+
     // Determine what to show in the table
     const rowMarkup =
         activeTab === "duplicates" ? (
@@ -493,7 +502,7 @@ export default function SkuPreviewTable({
                 </IndexTable.Cell>
             </IndexTable.Row>
         ) : (
-            preview.map(renderRow)
+            visiblePreview.map(renderRow)
         );
 
     // Calculate total pages for current tab
@@ -544,25 +553,40 @@ export default function SkuPreviewTable({
                             const ids =
                                 activeTab === "duplicates"
                                     ? duplicateGroups.flatMap((g) =>
-                                          g.variants.map((v) => v.id)
+                                          g.variants.map((v) => v.id),
                                       )
                                     : preview.map((p) => p.id);
                             setSelected(toggle ? new Set(ids) : new Set());
                         } else if (selectionType === "single") {
-                            toggleRowSelection(selection);
+                            setSelected((prev) => {
+                                const next = new Set(prev);
+                                if (toggle) {
+                                    next.add(selection);
+                                } else {
+                                    next.delete(selection);
+                                }
+                                return next;
+                            });
                         } else if (selectionType === "page") {
                             // Select all visible on current page
                             const ids =
                                 activeTab === "duplicates"
                                     ? paginatedGroups.flatMap((g) =>
-                                          g.variants.map((v) => v.id)
+                                          g.variants.map((v) => v.id),
                                       )
                                     : preview.map((p) => p.id); // Valid for current page in 'all'/'missing' tabs
 
                             setSelected((prev) => {
                                 const next = new Set(prev);
+                                // Check if all these IDs are already in set to decide intent
+                                const allSelected = ids.every((id) =>
+                                    next.has(id),
+                                );
+
                                 ids.forEach((id) =>
-                                    toggle ? next.add(id) : next.delete(id)
+                                    allSelected
+                                        ? next.delete(id)
+                                        : next.add(id),
                                 );
                                 return next;
                             });
@@ -586,7 +610,7 @@ export default function SkuPreviewTable({
                                 const ids =
                                     activeTab === "duplicates"
                                         ? paginatedGroups.flatMap((g) =>
-                                              g.variants.map((v) => v.id)
+                                              g.variants.map((v) => v.id),
                                           )
                                         : preview.map((p) => p.id);
                                 setSelected((prev) => {
@@ -604,7 +628,7 @@ export default function SkuPreviewTable({
                             content: `Select All Duplicates (${stats.duplicates})`,
                             onAction: () => {
                                 const ids = duplicateGroups.flatMap((g) =>
-                                    g.variants.map((v) => v.id)
+                                    g.variants.map((v) => v.id),
                                 );
                                 setSelected(new Set(ids));
                             },
@@ -617,7 +641,7 @@ export default function SkuPreviewTable({
                                 const ids =
                                     activeTab === "duplicates"
                                         ? paginatedGroups.flatMap((g) =>
-                                              g.variants.map((v) => v.id)
+                                              g.variants.map((v) => v.id),
                                           )
                                         : preview.map((p) => p.id);
                                 setSelected((prev) => {
@@ -686,17 +710,17 @@ export default function SkuPreviewTable({
                                         isApplyDisabled(
                                             selected.size > 0
                                                 ? "selected"
-                                                : "all"
+                                                : "all",
                                         )
                                     }
                                 >
                                     {selected.size > 0
                                         ? `Generate SKUs for ${selected.size} Selected Items`
                                         : activeTab === "duplicates"
-                                        ? `Fix All ${stats.duplicates} Duplicate SKUs`
-                                        : activeTab === "missing"
-                                        ? `Fix All ${stats.missing} Missing SKUs`
-                                        : `Generate SKUs for All ${stats.total} Variants`}
+                                          ? `Fix All ${stats.duplicates} Duplicate SKUs`
+                                          : activeTab === "missing"
+                                            ? `Fix All ${stats.missing} Missing SKUs`
+                                            : `Generate SKUs for All ${stats.total} Variants`}
                                 </Button>
                             </BlockStack>
                         </Box>

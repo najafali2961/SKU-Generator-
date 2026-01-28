@@ -70,11 +70,11 @@ export default function BarcodePreviewTable({
 
     const DUPLICATES_PER_PAGE = 10;
     const totalDuplicatePages = Math.ceil(
-        duplicateGroupList.length / DUPLICATES_PER_PAGE
+        duplicateGroupList.length / DUPLICATES_PER_PAGE,
     );
     const paginatedGroups = duplicateGroupList.slice(
         (duplicatePage - 1) * DUPLICATES_PER_PAGE,
-        duplicatePage * DUPLICATES_PER_PAGE
+        duplicatePage * DUPLICATES_PER_PAGE,
     );
 
     const tabs = [
@@ -125,7 +125,8 @@ export default function BarcodePreviewTable({
     if (selectedCollectionIds.length > 0) {
         const names = selectedCollectionIds
             .map(
-                (id) => initialCollections.find((c) => c.id === id)?.title || id
+                (id) =>
+                    initialCollections.find((c) => c.id === id)?.title || id,
             )
             .join(", ");
         appliedFilters.push({
@@ -370,8 +371,8 @@ export default function BarcodePreviewTable({
                                     onClick={() =>
                                         setSelected(
                                             new Set(
-                                                group.variants.map((v) => v.id)
-                                            )
+                                                group.variants.map((v) => v.id),
+                                            ),
                                         )
                                     }
                                 >
@@ -383,8 +384,8 @@ export default function BarcodePreviewTable({
                                     onClick={() => {
                                         setSelected(
                                             new Set(
-                                                group.variants.map((v) => v.id)
-                                            )
+                                                group.variants.map((v) => v.id),
+                                            ),
                                         );
                                         applyBarcodes("selected");
                                     }}
@@ -455,6 +456,12 @@ export default function BarcodePreviewTable({
         </IndexTable.Row>
     );
 
+    // Calculate pagination slices
+    const ITEMS_PER_PAGE = 8;
+    const start = (page - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const visibleBarcodes = barcodes.slice(start, end);
+
     const rowMarkup =
         activeTab === "duplicates" ? (
             duplicateGroupList.length === 0 ? (
@@ -477,7 +484,7 @@ export default function BarcodePreviewTable({
                 </IndexTable.Cell>
             </IndexTable.Row>
         ) : (
-            barcodes.map(renderRow)
+            visibleBarcodes.map(renderRow)
         );
 
     return (
@@ -529,26 +536,41 @@ export default function BarcodePreviewTable({
                             const ids =
                                 activeTab === "duplicates"
                                     ? duplicateGroupList.flatMap((g) =>
-                                          g.variants.map((v) => v.id)
+                                          g.variants.map((v) => v.id),
                                       )
                                     : barcodes.map((b) => b.id);
                             setSelected(toggle ? new Set(ids) : new Set());
                         } else if (selectionType === "single") {
                             // selection is the ID
-                            toggleRowSelection(selection);
+                            setSelected((prev) => {
+                                const next = new Set(prev);
+                                if (toggle) {
+                                    next.add(selection);
+                                } else {
+                                    next.delete(selection);
+                                }
+                                return next;
+                            });
                         } else if (selectionType === "page") {
                             // Select visible items on current page
                             const ids =
                                 activeTab === "duplicates"
                                     ? paginatedGroups.flatMap((g) =>
-                                          g.variants.map((v) => v.id)
+                                          g.variants.map((v) => v.id),
                                       )
                                     : barcodes.map((b) => b.id);
 
                             setSelected((prev) => {
                                 const next = new Set(prev);
+                                // Check if all these IDs are already in set to decide intent
+                                const allSelected = ids.every((id) =>
+                                    next.has(id),
+                                );
+
                                 ids.forEach((id) =>
-                                    toggle ? next.add(id) : next.delete(id)
+                                    allSelected
+                                        ? next.delete(id)
+                                        : next.add(id),
                                 );
                                 return next;
                             });
@@ -568,7 +590,7 @@ export default function BarcodePreviewTable({
                                 const ids =
                                     activeTab === "duplicates"
                                         ? paginatedGroups.flatMap((g) =>
-                                              g.variants.map((v) => v.id)
+                                              g.variants.map((v) => v.id),
                                           )
                                         : barcodes.map((b) => b.id);
                                 setSelected((prev) => {
@@ -586,7 +608,7 @@ export default function BarcodePreviewTable({
                             content: `Select All Duplicates (${stats.duplicates})`,
                             onAction: () => {
                                 const ids = duplicateGroupList.flatMap((g) =>
-                                    g.variants.map((v) => v.id)
+                                    g.variants.map((v) => v.id),
                                 );
                                 setSelected(new Set(ids));
                             },
@@ -599,7 +621,7 @@ export default function BarcodePreviewTable({
                                 const ids =
                                     activeTab === "duplicates"
                                         ? paginatedGroups.flatMap((g) =>
-                                              g.variants.map((v) => v.id)
+                                              g.variants.map((v) => v.id),
                                           )
                                         : barcodes.map((b) => b.id);
                                 setSelected((prev) => {
@@ -659,7 +681,7 @@ export default function BarcodePreviewTable({
                                             }
                                             onNext={() => setPage((p) => p + 1)}
                                             label={`${page} of ${Math.ceil(
-                                                total / 8
+                                                total / 8,
                                             )}`}
                                         />
                                     </Box>
@@ -686,17 +708,17 @@ export default function BarcodePreviewTable({
                                         isApplyDisabled(
                                             selected.size > 0
                                                 ? "selected"
-                                                : "all"
+                                                : "all",
                                         )
                                     }
                                 >
                                     {selected.size > 0
                                         ? `Generate Barcodes for ${selected.size} Selected Items`
                                         : activeTab === "duplicates"
-                                        ? `Fix All ${stats.duplicates} Duplicate Barcodes`
-                                        : activeTab === "missing"
-                                        ? `Fix All ${stats.missing} Missing Barcodes`
-                                        : `Generate Barcodes for All ${stats.total} Variants`}
+                                          ? `Fix All ${stats.duplicates} Duplicate Barcodes`
+                                          : activeTab === "missing"
+                                            ? `Fix All ${stats.missing} Missing Barcodes`
+                                            : `Generate Barcodes for All ${stats.total} Variants`}
                                 </Button>
                             </BlockStack>
                         </Box>
@@ -769,7 +791,7 @@ export default function BarcodePreviewTable({
                                         >
                                             $
                                             {Number(
-                                                selectedVariant.price || 0
+                                                selectedVariant.price || 0,
                                             ).toFixed(2)}
                                         </Text>
 
