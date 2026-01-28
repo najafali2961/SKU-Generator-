@@ -56,8 +56,7 @@ class GenerateBarcodeJob implements ShouldQueue
             $query->whereIn('id', $this->settings['selected_variant_ids']);
         }
 
-        $variants = $query->get();
-        $total = $variants->count();
+        $total = $query->count();
 
         if ($total === 0) {
             $jobLog->markAsCompleted("No variants matched the criteria.");
@@ -76,13 +75,15 @@ class GenerateBarcodeJob implements ShouldQueue
         $currentBatchStart = $startCounter;
 
         $batches = [];
-        $chunks = $variants->chunk($batchSize);
+        // Optimize: Pluck IDs directly
+        $allVariantIds = $query->pluck('id');
+        $chunks = $allVariantIds->chunk($batchSize);
         
         foreach ($chunks as $chunk) {
             $batches[] = new GenerateBarcodeBatchJob(
                 $shop->id,
                 $this->settings,
-                $chunk->pluck('id')->toArray(),
+                $chunk->toArray(),
                 $currentBatchStart, 
                 $jobLog->id 
             );

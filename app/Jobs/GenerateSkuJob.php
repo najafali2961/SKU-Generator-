@@ -68,8 +68,7 @@ class GenerateSkuJob implements ShouldQueue
             $query->whereHas('product', fn($p) => $p->where('product_type', $this->settings['type']));
         }
 
-        $variants = $query->get();
-        $total = $variants->count();
+        $total = $query->count();
 
         if ($total === 0) {
             $jobLog->markAsCompleted();
@@ -88,13 +87,15 @@ class GenerateSkuJob implements ShouldQueue
         $currentBatchStart = $startCounter;
 
         $batches = [];
-        $chunks = $variants->chunk($batchSize);
+        // Optimize: Pluck IDs directly to save memory
+        $allVariantIds = $query->pluck('id');
+        $chunks = $allVariantIds->chunk($batchSize);
 
         foreach ($chunks as $chunk) {
             $batches[] = new GenerateSkuBatchJob(
                 $shop->id,
                 $this->settings,
-                $chunk->pluck('id')->toArray(),
+                $chunk->toArray(),
                 $currentBatchStart, // Pass the pre-calculated start counter
                 $jobLog->id
             );
