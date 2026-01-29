@@ -14,15 +14,30 @@ class UsersByPlanChart extends ChartWidget
     protected function getData(): array
     {
         $plans = Plan::withCount('users')->get();
+        $freemiumCount = \App\Models\User::whereNull('plan_id')->count();
+
+        $labels = $plans->pluck('name')->toArray();
+        $data = $plans->pluck('users_count')->toArray();
+
+        // Add Freemium to the beginning
+        array_unshift($labels, 'Freemium');
+        array_unshift($data, $freemiumCount);
 
         return [
             'datasets' => [
                 [
                     'label' => 'Users',
-                    'data' => $plans->pluck('users_count')->toArray(),
+                    'data' => $data,
+                    'backgroundColor' => [
+                        '#9ca3af', // gray-400 (Freemium)
+                        '#3b82f6', // blue-500
+                        '#10b981', // emerald-500
+                        '#f59e0b', // amber-500
+                        '#ef4444', // red-500
+                    ],
                 ],
             ],
-            'labels' => $plans->pluck('name')->toArray(),
+            'labels' => $labels,
         ];
     }
 

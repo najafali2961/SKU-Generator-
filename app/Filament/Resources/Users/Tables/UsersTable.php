@@ -55,6 +55,13 @@ class UsersTable
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-            ]);
+
+                TextColumn::make('deleted_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false)
+                    ->color('danger'),
+            ])
+            ->recordClasses(fn ($record) => $record->deleted_at ? 'bg-danger-50 dark:bg-danger-900/10' : null);
     }
 }
