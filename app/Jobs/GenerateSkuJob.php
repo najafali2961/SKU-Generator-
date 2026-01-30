@@ -131,25 +131,24 @@ class GenerateSkuJob implements ShouldQueue
             $currentBatchStart += $chunk->count();
         }
 
-        $jobLogId = $jobLog->id;
-        $shopId = $shop->id;
+
 
         Bus::batch($batches)
-            ->name("SKU Generation - Shop {$shopId}")
-            ->then(function (Batch $batch) use ($jobLogId) {
-                Log::info("SKU Batch: Callback Started", ['job_log_id' => $jobLogId]);
+            ->name("SKU Generation - Shop {$shop->id}")
+            ->then(function (Batch $batch) use ($jobLog) {
+                Log::info("SKU Batch: Callback Started", ['job_log_id' => $jobLog->id]);
                 
                 // All jobs completed successfully
-                $jobLog = JobLog::find($jobLogId);
+                $jobLog = JobLog::find($jobLog->id);
                 
                 if (!$jobLog) {
-                    Log::error("SKU Job Completion: JobLog not found", ['id' => $jobLogId]);
+                    Log::error("SKU Job Completion: JobLog not found", ['id' => $jobLog->id]);
                     return;
                 }
 
                 // Get accurate counts from Redis
-                $redisKeyProcessed = "job_progress_{$jobLogId}";
-                $redisKeyFailed    = "job_failed_{$jobLogId}";
+                $redisKeyProcessed = "job_progress_{$jobLog->id}";
+                $redisKeyFailed    = "job_failed_{$jobLog->id}";
                 $processed = (int) \Illuminate\Support\Facades\Redis::get($redisKeyProcessed);
                 $failed    = (int) \Illuminate\Support\Facades\Redis::get($redisKeyFailed);
 
@@ -163,9 +162,9 @@ class GenerateSkuJob implements ShouldQueue
                 
                 $jobLog->markAsCompleted();
             })
-            ->catch(function (Batch $batch, Throwable $e) use ($jobLogId) {
+            ->catch(function (Batch $batch, Throwable $e) use ($jobLog) {
                 // First failed job
-                $jobLog = JobLog::find($jobLogId);
+                $jobLog = JobLog::find($jobLog->id);
                 if ($jobLog) $jobLog->markAsFailed($e->getMessage());
                 
                 Log::error("SKU Batch Job Failed Entirely", ['error' => $e->getMessage()]);
