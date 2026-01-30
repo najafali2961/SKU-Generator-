@@ -115,6 +115,7 @@ export default function PrinterSidebar({
 
             // Apply all settings from preset
             Object.entries(preset.settings).forEach(([key, value]) => {
+                if (key === "qr_data_source" && !value) return; // Don't overwrite with null
                 handleChange(key, value);
             });
         } catch (error) {
@@ -1087,9 +1088,9 @@ export default function PrinterSidebar({
                             <BlockStack gap="300">
                                 <Checkbox
                                     label="Product Title"
-                                    checked={config.show_title}
+                                    checked={config.show_product_title}
                                     onChange={(v) =>
-                                        handleChange("show_title", v)
+                                        handleChange("show_product_title", v)
                                     }
                                 />
                                 <Checkbox

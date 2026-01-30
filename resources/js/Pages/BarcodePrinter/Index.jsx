@@ -116,7 +116,7 @@ export default function BarcodePrinterIndex({
         show_barcode_value: setting?.show_barcode_value !== false,
 
         // Attributes to Show
-        show_title: setting?.show_product_title !== false,
+        show_product_title: setting?.show_product_title !== false,
         show_sku: setting?.show_sku !== false,
         show_price: setting?.show_price === true,
         show_variant: setting?.show_variant !== false,
@@ -172,7 +172,7 @@ export default function BarcodePrinterIndex({
                 `Failed to load variants: ${
                     error.response?.data?.message || error.message
                 }`,
-                true
+                true,
             );
         } finally {
             setLoading(false);
@@ -273,7 +273,7 @@ export default function BarcodePrinterIndex({
                 // Save config first
                 await axios.post(
                     `/barcode-printer/update-setting/${setting.id}`,
-                    config
+                    config,
                 );
 
                 const res = await axios.post(
@@ -282,9 +282,9 @@ export default function BarcodePrinterIndex({
                         setting_id: setting.id,
                         variant_ids: variantIds,
                         quantity_per_variant: parseInt(
-                            config.quantity_per_variant
+                            config.quantity_per_variant,
                         ),
-                    }
+                    },
                 );
 
                 if (res.data.success) {
@@ -296,7 +296,7 @@ export default function BarcodePrinterIndex({
                 console.error("Job start failed:", error);
                 showToast(
                     error.response?.data?.message || "Failed to start job",
-                    true
+                    true,
                 );
                 setPrinting(false);
             }
@@ -309,7 +309,7 @@ export default function BarcodePrinterIndex({
 
             await axios.post(
                 `/barcode-printer/update-setting/${setting.id}`,
-                config
+                config,
             );
 
             await new Promise((resolve) => setTimeout(resolve, 300));
@@ -321,7 +321,7 @@ export default function BarcodePrinterIndex({
                     variant_ids: variantIds,
                     quantity_per_variant: parseInt(config.quantity_per_variant),
                 },
-                { responseType: "blob" }
+                { responseType: "blob" },
             );
 
             const url = window.URL.createObjectURL(new Blob([res.data]));

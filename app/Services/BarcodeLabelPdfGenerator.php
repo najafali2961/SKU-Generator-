@@ -460,15 +460,24 @@ class BarcodeLabelPdfGenerator
         do {
             $maxCols++;
             $requiredWidth = ($labelWidth * $maxCols) + ($hGap * ($maxCols - 1));
-        } while ($requiredWidth <= $availableWidth);
+        } while ($requiredWidth <= $availableWidth + 0.1); // Add epsilon
         $maxCols = max(1, $maxCols - 1);
 
         $maxRows = 0;
         do {
             $maxRows++;
             $requiredHeight = ($labelHeight * $maxRows) + ($vGap * ($maxRows - 1));
-        } while ($requiredHeight <= $availableHeight);
+        } while ($requiredHeight <= $availableHeight + 0.1); // Add epsilon
         $maxRows = max(1, $maxRows - 1);
+
+        Log::info('PDF Grid Calculation', [
+            'paper_dim' => [$effectiveWidth, $effectiveHeight],
+            'avail_dim' => [$availableWidth, $availableHeight],
+            'label_dim' => [$labelWidth, $labelHeight],
+            'margins' => [$marginLeft, $marginRight, $marginTop, $marginBottom],
+            'gap' => [$hGap, $vGap],
+            'calc_max' => [$maxCols, $maxRows]
+        ]);
 
         return [
             'max_cols' => $maxCols,
@@ -730,7 +739,7 @@ HTML;
         $html = "<div class='label'>";
 
         // Use custom text layout if configured
-        $textLayout = $s->text_layout ?? $this->getDefaultTextLayout();
+        $textLayout = $s->text_layout;
 
         // HEADER - Use text layout configuration
         $html .= "<div class='label-header'>";

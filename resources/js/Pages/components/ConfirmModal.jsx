@@ -1,5 +1,12 @@
 import React from "react";
-import { Modal, TextContainer } from "@shopify/polaris";
+import {
+    Modal,
+    TextContainer,
+    Banner,
+    BlockStack,
+    Text,
+    Box,
+} from "@shopify/polaris";
 
 const ConfirmModal = ({
     isOpen,
@@ -29,9 +36,20 @@ const ConfirmModal = ({
             ]}
         >
             <Modal.Section>
-                <TextContainer>
-                    <p className="whitespace-pre-wrap">{message}</p>
-                </TextContainer>
+                <BlockStack gap="400">
+                    <Banner tone="warning">
+                        <Text as="p" fontWeight="semibold">
+                            This action cannot be reverted once the job has
+                            started.
+                        </Text>
+                    </Banner>
+
+                    <Box paddingBlockStart="200">
+                        <Text variant="bodyLg" as="p">
+                            {message}
+                        </Text>
+                    </Box>
+                </BlockStack>
             </Modal.Section>
         </Modal>
     );
