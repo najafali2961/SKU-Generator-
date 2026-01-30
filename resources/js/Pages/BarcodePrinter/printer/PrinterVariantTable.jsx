@@ -22,6 +22,7 @@ import {
     Tag,
 } from "@shopify/polaris";
 import { ArrowRightIcon, PrintIcon } from "@shopify/polaris-icons";
+import ConfirmModal from "../../components/ConfirmModal";
 
 export default function PrinterVariantTable({
     variants,
@@ -54,6 +55,8 @@ export default function PrinterVariantTable({
     const [selectedVariant, setSelectedVariant] = useState(null);
     const [showPreview, setShowPreview] = useState(true);
     const [tagsInput, setTagsInput] = useState("");
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+    const [confirmScope, setConfirmScope] = useState(null);
 
     const tabs = [
         { id: "all", content: `All Variants (${stats.all})` },
@@ -822,11 +825,12 @@ export default function PrinterVariantTable({
                                         loading={printing}
                                         icon={PrintIcon}
                                         onClick={() => {
-                                            if (selected.size > 0) {
-                                                generatePDF("selected");
-                                            } else {
-                                                generatePDF("all");
-                                            }
+                                            const scope =
+                                                selected.size > 0
+                                                    ? "selected"
+                                                    : "all";
+                                            setConfirmScope(scope);
+                                            setIsConfirmOpen(true);
                                         }}
                                         disabled={
                                             (selected.size === 0 &&
@@ -845,6 +849,20 @@ export default function PrinterVariantTable({
                     )}
                 </Card>
             </BlockStack>
+
+            <ConfirmModal
+                isOpen={isConfirmOpen}
+                onClose={() => setIsConfirmOpen(false)}
+                onConfirm={() => {
+                    setIsConfirmOpen(false);
+                    if (confirmScope) {
+                        generatePDF(confirmScope);
+                    }
+                }}
+                title="Confirm Print Job"
+                message={`Are you sure you want to print labels for ${confirmScope === "selected" ? selected.size : total} variants?`}
+                confirmText="Print Labels"
+            />
 
             {/* VARIANT DETAILS MODAL */}
             {selectedVariant && (

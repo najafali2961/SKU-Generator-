@@ -98,13 +98,18 @@ export default function PrinterSidebar({
         </button>
     );
 
+    // Printer Selection State
+    const [selectedPrinterId, setSelectedPrinterId] = useState("");
+
     // Load Printer Preset
     const loadPrinterPreset = async (presetId) => {
+        setSelectedPrinterId(presetId); // Update local state for UI
+
         if (!presetId || presetId === "custom") return;
 
         try {
             const preset = printerPresets.find(
-                (p) => p.id === parseInt(presetId)
+                (p) => p.id === parseInt(presetId),
             );
             if (!preset) return;
 
@@ -166,11 +171,11 @@ export default function PrinterSidebar({
 
             const maxCols = Math.floor(
                 (availableWidth + config.label_spacing_horizontal) /
-                    labelPlusGapWidth
+                    labelPlusGapWidth,
             );
             const maxRows = Math.floor(
                 (availableHeight + config.label_spacing_vertical) /
-                    labelPlusGapHeight
+                    labelPlusGapHeight,
             );
 
             const totalLabelsPerPage =
@@ -223,7 +228,7 @@ export default function PrinterSidebar({
                             display: "grid",
                             gridTemplateColumns: `repeat(${Math.min(
                                 config.labels_per_row,
-                                6
+                                6,
                             )}, 1fr)`,
                             gap: "2px",
                             marginTop: "8px",
@@ -265,7 +270,7 @@ export default function PrinterSidebar({
                     description: templateDescription,
                     settings: config,
                     is_default: setAsDefault,
-                }
+                },
             );
 
             if (response.data.success) {
@@ -289,14 +294,14 @@ export default function PrinterSidebar({
     const handleLoadTemplate = async (template) => {
         try {
             const response = await axios.get(
-                `/barcode-printer/load-template/${template.id}`
+                `/barcode-printer/load-template/${template.id}`,
             );
 
             if (response.data.success) {
                 Object.entries(response.data.settings).forEach(
                     ([key, value]) => {
                         handleChange(key, value);
-                    }
+                    },
                 );
             }
         } catch (error) {
@@ -320,7 +325,7 @@ export default function PrinterSidebar({
                     description: templateDescription,
                     settings: config,
                     is_default: setAsDefault,
-                }
+                },
             );
 
             if (response.data.success) {
@@ -350,7 +355,7 @@ export default function PrinterSidebar({
         setSaving(true);
         try {
             const response = await axios.delete(
-                `/barcode-printer/delete-template/${selectedTemplate.id}`
+                `/barcode-printer/delete-template/${selectedTemplate.id}`,
             );
 
             if (response.data.success) {
@@ -372,7 +377,7 @@ export default function PrinterSidebar({
     const handleSetDefaultTemplate = async (templateId) => {
         try {
             const response = await axios.post(
-                `/barcode-printer/set-default-template/${templateId}`
+                `/barcode-printer/set-default-template/${templateId}`,
             );
 
             if (response.data.success) {
@@ -412,12 +417,12 @@ export default function PrinterSidebar({
                         <Select
                             label="Select Your Printer Model"
                             placeholder="Choose a printer..."
-                            value=""
+                            value={selectedPrinterId}
                             onChange={(presetId) => loadPrinterPreset(presetId)}
                             options={[
                                 {
                                     label: "--- Thermal Printers ---",
-                                    value: "",
+                                    value: "header-thermal",
                                     disabled: true,
                                 },
                                 ...printerPresets
@@ -428,7 +433,7 @@ export default function PrinterSidebar({
                                     })),
                                 {
                                     label: "--- Sheet Label Printers ---",
-                                    value: "",
+                                    value: "header-laser",
                                     disabled: true,
                                 },
                                 ...printerPresets
@@ -439,7 +444,7 @@ export default function PrinterSidebar({
                                     })),
                                 {
                                     label: "--- Custom ---",
-                                    value: "",
+                                    value: "header-custom",
                                     disabled: true,
                                 },
                                 { label: "  Custom Setup", value: "custom" },
@@ -534,7 +539,7 @@ export default function PrinterSidebar({
                                                                     }
                                                                     onClick={() =>
                                                                         handleSetDefaultTemplate(
-                                                                            template.id
+                                                                            template.id,
                                                                         )
                                                                     }
                                                                 />
@@ -546,7 +551,7 @@ export default function PrinterSidebar({
                                                                 icon={EditIcon}
                                                                 onClick={() =>
                                                                     openEditModal(
-                                                                        template
+                                                                        template,
                                                                     )
                                                                 }
                                                             />
@@ -560,7 +565,7 @@ export default function PrinterSidebar({
                                                                 tone="critical"
                                                                 onClick={() =>
                                                                     openDeleteModal(
-                                                                        template
+                                                                        template,
                                                                     )
                                                                 }
                                                             />
@@ -582,7 +587,7 @@ export default function PrinterSidebar({
                                                     size="slim"
                                                     onClick={() =>
                                                         handleLoadTemplate(
-                                                            template
+                                                            template,
                                                         )
                                                     }
                                                 >
@@ -637,11 +642,11 @@ export default function PrinterSidebar({
                                             if (sizes[v]) {
                                                 handleChange(
                                                     "paper_width",
-                                                    sizes[v].width
+                                                    sizes[v].width,
                                                 );
                                                 handleChange(
                                                     "paper_height",
-                                                    sizes[v].height
+                                                    sizes[v].height,
                                                 );
                                             }
                                         }}
@@ -734,7 +739,7 @@ export default function PrinterSidebar({
                                             onChange={(v) =>
                                                 handleChange(
                                                     "margin_bottom",
-                                                    +v
+                                                    +v,
                                                 )
                                             }
                                             autoComplete="off"
@@ -820,12 +825,12 @@ export default function PrinterSidebar({
                                             min="1"
                                             max="10"
                                             value={String(
-                                                config.labels_per_row
+                                                config.labels_per_row,
                                             )}
                                             onChange={(v) =>
                                                 handleChange(
                                                     "labels_per_row",
-                                                    +v
+                                                    +v,
                                                 )
                                             }
                                             autoComplete="off"
@@ -836,12 +841,12 @@ export default function PrinterSidebar({
                                             min="1"
                                             max="20"
                                             value={String(
-                                                config.labels_per_column
+                                                config.labels_per_column,
                                             )}
                                             onChange={(v) =>
                                                 handleChange(
                                                     "labels_per_column",
-                                                    +v
+                                                    +v,
                                                 )
                                             }
                                             autoComplete="off"
@@ -853,12 +858,12 @@ export default function PrinterSidebar({
                                             label="Horizontal Gap (mm)"
                                             type="number"
                                             value={String(
-                                                config.label_spacing_horizontal
+                                                config.label_spacing_horizontal,
                                             )}
                                             onChange={(v) =>
                                                 handleChange(
                                                     "label_spacing_horizontal",
-                                                    +v
+                                                    +v,
                                                 )
                                             }
                                             autoComplete="off"
@@ -867,12 +872,12 @@ export default function PrinterSidebar({
                                             label="Vertical Gap (mm)"
                                             type="number"
                                             value={String(
-                                                config.label_spacing_vertical
+                                                config.label_spacing_vertical,
                                             )}
                                             onChange={(v) =>
                                                 handleChange(
                                                     "label_spacing_vertical",
-                                                    +v
+                                                    +v,
                                                 )
                                             }
                                             autoComplete="off"
@@ -950,7 +955,7 @@ export default function PrinterSidebar({
                                                 onChange={(v) =>
                                                     handleChange(
                                                         "qr_data_source",
-                                                        v
+                                                        v,
                                                     )
                                                 }
                                                 options={[
@@ -989,7 +994,7 @@ export default function PrinterSidebar({
                                                     onChange={(v) =>
                                                         handleChange(
                                                             "qr_custom_format",
-                                                            v
+                                                            v,
                                                         )
                                                     }
                                                     multiline={2}
@@ -1009,7 +1014,7 @@ export default function PrinterSidebar({
                                             onChange={(v) =>
                                                 handleChange(
                                                     "barcode_width",
-                                                    +v
+                                                    +v,
                                                 )
                                             }
                                             autoComplete="off"
@@ -1018,12 +1023,12 @@ export default function PrinterSidebar({
                                             label="Barcode Height (mm)"
                                             type="number"
                                             value={String(
-                                                config.barcode_height
+                                                config.barcode_height,
                                             )}
                                             onChange={(v) =>
                                                 handleChange(
                                                     "barcode_height",
-                                                    +v
+                                                    +v,
                                                 )
                                             }
                                             autoComplete="off"
@@ -1055,7 +1060,7 @@ export default function PrinterSidebar({
                                         onChange={(v) =>
                                             handleChange(
                                                 "show_barcode_value",
-                                                v
+                                                v,
                                             )
                                         }
                                     />
@@ -1180,12 +1185,12 @@ export default function PrinterSidebar({
                                             label="Title Size (pt)"
                                             type="number"
                                             value={String(
-                                                config.title_font_size
+                                                config.title_font_size,
                                             )}
                                             onChange={(v) =>
                                                 handleChange(
                                                     "title_font_size",
-                                                    +v
+                                                    +v,
                                                 )
                                             }
                                             autoComplete="off"
@@ -1228,7 +1233,7 @@ export default function PrinterSidebar({
                             onChange={(v) =>
                                 handleChange(
                                     "quantity_per_variant",
-                                    Math.max(1, +v)
+                                    Math.max(1, +v),
                                 )
                             }
                             helpText="How many labels to print for each variant"
