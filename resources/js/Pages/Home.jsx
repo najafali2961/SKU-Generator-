@@ -37,14 +37,14 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
     const missingSkuPercent =
         data.total_variants > 0
             ? Math.round(
-                  (data.variants_missing_sku / data.total_variants) * 100
+                  (data.variants_missing_sku / data.total_variants) * 100,
               )
             : 0;
 
     const missingBarcodePercent =
         data.total_variants > 0
             ? Math.round(
-                  (data.variants_missing_barcode / data.total_variants) * 100
+                  (data.variants_missing_barcode / data.total_variants) * 100,
               )
             : 0;
 
@@ -103,20 +103,12 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                             <InlineStack gap="300">
                                 <Button
                                     size="large"
-                                    icon={<Icon source={PhoneIcon} />}
-                                    tone="invert"
-                                    url="/support"
-                                >
-                                    Support
-                                </Button>
-                                <Button
-                                    size="large"
                                     variant="primary"
                                     icon={<Icon source={StarFilledIcon} />}
                                     onClick={() =>
                                         window.open(
                                             "https://apps.shopify.com/airo-sku-barcode-generator",
-                                            "_blank"
+                                            "_blank",
                                         )
                                     }
                                 >
@@ -209,7 +201,7 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                                             <Badge
                                                 {...getBadgeProps(
                                                     data.variants_missing_sku,
-                                                    missingSkuPercent
+                                                    missingSkuPercent,
                                                 )}
                                             />
                                         </InlineStack>
@@ -256,7 +248,7 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                                             <Badge
                                                 {...getBadgeProps(
                                                     data.variants_missing_barcode,
-                                                    missingBarcodePercent
+                                                    missingBarcodePercent,
                                                 )}
                                             />
                                         </InlineStack>

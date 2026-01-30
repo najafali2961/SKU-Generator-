@@ -11,19 +11,24 @@ import {
 import { CreditCardIcon } from "@shopify/polaris-icons";
 
 export default function CreditsSpeedometerCard({ credits = {} }) {
+    const isUnlimited =
+        credits.unlimited ||
+        (credits.plan_name &&
+            credits.plan_name.toLowerCase().includes("unlimited"));
+
     const creditsData = {
         plan_name: credits.plan_name || "Freemium",
         available: credits.available || 0,
         used: credits.used || 0,
         total: credits.total || 0,
-        unlimited: credits.unlimited || false,
+        unlimited: isUnlimited,
     };
 
     const remainingPercent = creditsData.unlimited
         ? 100
         : creditsData.total === 0
-        ? 0
-        : Math.round((creditsData.available / creditsData.total) * 100);
+          ? 0
+          : Math.round((creditsData.available / creditsData.total) * 100);
 
     const size = 90;
     const strokeWidth = 8;
@@ -77,7 +82,9 @@ export default function CreditsSpeedometerCard({ credits = {} }) {
                     />
                     <BlockStack gap="200">
                         <Text variant="headingLg" fontWeight="bold">
-                            {creditsData.available.toLocaleString()}
+                            {creditsData.unlimited
+                                ? "Infinity"
+                                : creditsData.available.toLocaleString()}
                         </Text>
                         <Text variant="bodySm" tone="subdued">
                             Remaining
@@ -92,7 +99,9 @@ export default function CreditsSpeedometerCard({ credits = {} }) {
                     />
                     <BlockStack gap="200">
                         <Text variant="headingLg" fontWeight="bold">
-                            {creditsData.total.toLocaleString()}
+                            {creditsData.unlimited
+                                ? "Infinity"
+                                : creditsData.total.toLocaleString()}
                         </Text>
                         <Text variant="bodySm" tone="subdued">
                             Total
