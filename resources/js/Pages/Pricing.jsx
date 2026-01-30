@@ -81,7 +81,7 @@ export default function Pricing({
             const response = await axios.post(`/pricing/select/${planId}`);
 
             if (response.data.success && response.data.redirectUrl) {
-                window.open(response.data.redirectUrl);
+                window.top.location.href = response.data.redirectUrl;
             } else {
                 console.error("No redirect URL received");
                 setIsLoading(null);
@@ -130,7 +130,7 @@ export default function Pricing({
             const monthlyPlan = plans.find(
                 (p) =>
                     p.interval === "EVERY_30_DAYS" &&
-                    p.name === visiblePlans[0].name
+                    p.name === visiblePlans[0].name,
             );
             const annualPlan = visiblePlans[0];
 
@@ -295,7 +295,7 @@ export default function Pricing({
                                                                 >
                                                                     /
                                                                     {getIntervalLabel(
-                                                                        plan.interval
+                                                                        plan.interval,
                                                                     )}
                                                                 </Text>
                                                             </InlineStack>
@@ -363,7 +363,7 @@ export default function Pricing({
                                                             fullWidth
                                                             onClick={() =>
                                                                 handleSubscribePlan(
-                                                                    plan.id
+                                                                    plan.id,
                                                                 )
                                                             }
                                                             loading={
@@ -376,7 +376,7 @@ export default function Pricing({
                                                             }
                                                         >
                                                             {getButtonText(
-                                                                plan
+                                                                plan,
                                                             )}
                                                         </Button>
 
@@ -388,7 +388,7 @@ export default function Pricing({
                                                                 plan.features.map(
                                                                     (
                                                                         feature,
-                                                                        idx
+                                                                        idx,
                                                                     ) => (
                                                                         <InlineStack
                                                                             key={
@@ -413,7 +413,7 @@ export default function Pricing({
                                                                                 }
                                                                             </Text>
                                                                         </InlineStack>
-                                                                    )
+                                                                    ),
                                                                 )
                                                             ) : (
                                                                 <Text
