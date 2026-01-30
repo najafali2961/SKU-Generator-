@@ -86,8 +86,18 @@ class GenerateBarcodeBatchJob implements ShouldQueue
                 $success = $shopify->updateVariantBarcodes((int)$productId, $barcodeMap);
 
                 if ($success) {
-                    usleep(200000); // 0.2s Throttle
+                    usleep(100000); // 0.1s Throttle (Reduced)
                     
+                    // OPTIMISTIC LOCAL UPDATE
+                    // Immediately update local DB so UI reflects changes without waiting for webhooks
+                    foreach ($barcodeMap as $variantId => $newBarcode) {
+                        try {
+                            Variant::where('id', $variantId)->update(['barcode' => $newBarcode]);
+                        } catch (\Exception $e) {
+                             // Ignore local update errors, webhook will fix eventually
+                        }
+                    }
+
                     // Increment processed count in Redis for live UI updates
                     if (count($barcodeMap) > 0) {
                          \Illuminate\Support\Facades\Redis::incrby($redisKeyProcessed, count($barcodeMap));

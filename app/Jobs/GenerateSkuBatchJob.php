@@ -86,14 +86,30 @@ class GenerateSkuBatchJob implements ShouldQueue
 
             if (!empty($skuMap)) {
                 try {
-                    $shopify->updateVariantSkus((int)$productId, $skuMap);
-                    usleep(200000); // 0.2s Throttle
+                $success = $shopify->updateVariantSkus((int)$productId, $skuMap);
+                
+                if ($success) {
+                    usleep(100000); // 0.1s Throttle (Reduced)
+
+                    // OPTIMISTIC LOCAL UPDATE
+                    // Immediately update local DB so UI reflects changes without waiting for webhooks
+                    foreach ($skuMap as $variantId => $newSku) {
+                        try {
+                            Variant::where('id', $variantId)->update(['sku' => $newSku]);
+                        } catch (\Exception $e) {
+                            // Ignore local update errors, webhook will fix eventually
+                        }
+                    }
                     
                     // Atomic increment for the whole product batch
                     if ($batchProcessed > 0) {
                         \Illuminate\Support\Facades\Redis::incrby($redisKeyProcessed, $batchProcessed);
                         $processed += $batchProcessed;
                     }
+                } else {
+                     // Shopify returned false (User Errors)
+                     throw new \Exception("Shopify rejected the SKU update for Product {$productId}");
+                }
                 } catch (\Exception $e) {
                     // Failed to sync
                     $failed += count($skuMap);

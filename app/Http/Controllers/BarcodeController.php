@@ -192,7 +192,7 @@ class BarcodeController extends Controller
         $tab = $request->input('tab', 'all');
 
         // 1. Base Query (Filters applied)
-        Log::info('Barcode Preview Request:', $request->all());
+      
         $baseQuery = $this->buildFilteredQuery($request, $shop);
         
         if ($request->boolean('get_all_ids')) {
