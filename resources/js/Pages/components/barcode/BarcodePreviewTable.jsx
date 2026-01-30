@@ -685,7 +685,10 @@ export default function BarcodePreviewTable({
                                     }}
                                     disabled={
                                         (selected.size === 0 &&
-                                            barcodes.length === 0) ||
+                                            (activeTab === "duplicates"
+                                                ? duplicateGroupList.length ===
+                                                  0
+                                                : barcodes.length === 0)) ||
                                         isApplyDisabled(
                                             selected.size > 0
                                                 ? "selected"

@@ -54,6 +54,63 @@ class GenerateBarcodeJob implements ShouldQueue
 
         if (!empty($this->settings['selected_variant_ids'])) {
             $query->whereIn('id', $this->settings['selected_variant_ids']);
+        } else {
+            // Apply Scope based on Active Tab if no specific IDs selected
+            $tab = $this->settings['active_tab'] ?? 'all';
+
+            if ($tab === 'missing') {
+                $query->where(function($q) {
+                    $q->whereNull('barcode')
+                      ->orWhere('barcode', '')
+                      ->orWhere('barcode', '-');
+                });
+            } elseif ($tab === 'duplicates') {
+                // Subquery for duplicate barcodes
+                $dupBarcodes = \App\Models\Variant::whereHas('product', fn($q) => $q->where('user_id', $shop->id))
+                    ->select('barcode')
+                    ->whereNotNull('barcode')
+                    ->where('barcode', '<>', '')
+                    ->where('barcode', '<>', '-')
+                    ->groupBy('barcode')
+                    ->havingRaw('count(*) > 1');
+
+                $query->whereIn('barcode', $dupBarcodes);
+            }
+            
+            // Apply Filters (only if not selecting specific IDs)
+            if (!empty($this->settings['vendor'])) {
+                $query->whereHas('product', fn($p) => $p->where('vendor', $this->settings['vendor']));
+            }
+            if (!empty($this->settings['type'])) {
+                $query->whereHas('product', fn($p) => $p->where('product_type', $this->settings['type']));
+            }
+            if (!empty($this->settings['search'])) {
+                $term = trim($this->settings['search']);
+                $query->where(function ($q) use ($term) {
+                    $q->where('barcode', 'like', "%{$term}%")
+                      ->orWhere('sku', 'like', "%{$term}%")
+                      ->orWhere('title', 'like', "%{$term}%")
+                      ->orWhereHas('product', function ($pq) use ($term) {
+                          $pq->where('title', 'like', "%{$term}%");
+                      });
+                });
+            }
+            if (!empty($this->settings['collections'])) {
+                $cIds = array_filter($this->settings['collections']);
+                if (count($cIds) > 0) {
+                     $query->whereHas('product.collections', fn($q) => $q->whereIn('collection_id', $cIds));
+                }
+            }
+             if (!empty($this->settings['tags'])) {
+                $tags = $this->settings['tags'];
+                if (is_string($tags)) $tags = explode(',', $tags);
+                $tags = array_filter($tags);
+                if (count($tags) > 0) {
+                    $query->whereHas('product', function($q) use ($tags) {
+                        foreach($tags as $t) $q->where('tags', 'LIKE', '%'.trim($t).'%');
+                    });
+                }
+            }
         }
 
         $total = $query->count();

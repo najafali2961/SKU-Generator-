@@ -37,10 +37,25 @@ class SkuController extends Controller
         /** @var \App\Models\User $shop */
         $shop = Auth::user();
 
+        $title = 'SKU Generation';
+        if ($request->input('apply_scope') === 'all') {
+             switch ($request->input('active_tab')) {
+                case 'duplicates':
+                    $title = 'Fix Duplicate SKUs';
+                    break;
+                case 'missing':
+                    $title = 'Generate Missing SKUs';
+                    break;
+                default:
+                    $title = 'Generate SKUs (All)';
+                    break;
+            }
+        }
+
         $jobLog = JobLog::create([
             'user_id' => $shop->id,
             'type' => 'sku_generation',
-            'title' => 'SKU Generation Job',
+            'title' => $title,
             'description' => 'Generating SKUs for selected variants...',
             'payload' => $request->all(),
             'status' => 'pending',
@@ -78,7 +93,7 @@ class SkuController extends Controller
             ])->with('error', 'Credit deduction failed.');
         }
 
-        GenerateSkuJob::dispatch($shop->id, $request->all(), $jobLog->id);
+        GenerateSkuJob::dispatch($shop->id, array_merge($request->all(), ['active_tab' => $request->input('active_tab', 'all')]), $jobLog->id);
 
         return redirect()->route('jobs.show', $jobLog->id)
             ->with('success', 'SKU generation started! Redirecting to progress page...');
@@ -266,8 +281,25 @@ class SkuController extends Controller
         }
 
         if ($request->boolean('get_all_ids')) {
+            $idsQuery = $baseQuery->clone();
+            
+            if ($tab === 'missing') {
+                $idsQuery->where(function($q) {
+                    $q->whereNull('sku')->orWhere('sku', '');
+                });
+            } elseif ($tab === 'duplicates') {
+                $dupSkus = $baseQuery->clone()
+                    ->select('sku')
+                    ->whereNotNull('sku')
+                    ->where('sku', '<>', '')
+                    ->groupBy('sku')
+                    ->havingRaw('count(*) > 1');
+                
+                $idsQuery->whereIn('sku', $dupSkus);
+            }
+
             return response()->json([
-                'all_variant_ids' => $baseQuery->pluck('variants.id')->toArray(), // Specify variants.id to avoid ambiguity
+                'all_variant_ids' => $idsQuery->pluck('variants.id')->toArray(), 
             ]);
         }
 
@@ -341,6 +373,18 @@ class SkuController extends Controller
                     }
                 });
             }
+        }
+
+        // Apply Search Filter
+        if ($request->filled('search')) {
+            $term = trim($request->search);
+            $query->where(function ($q) use ($term) {
+                $q->where('sku', 'like', "%{$term}%")
+                  ->orWhere('title', 'like', "%{$term}%") // Variant Title
+                  ->orWhereHas('product', function ($pq) use ($term) {
+                      $pq->where('title', 'like', "%{$term}%");
+                  });
+            });
         }
 
         return $query;

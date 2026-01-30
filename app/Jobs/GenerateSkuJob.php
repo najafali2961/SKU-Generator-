@@ -57,6 +57,25 @@ class GenerateSkuJob implements ShouldQueue
 
         if (!empty($this->settings['selected_variant_ids'])) {
             $query->whereIn('id', $this->settings['selected_variant_ids']);
+        } else {
+            // Scope Logic
+            $tab = $this->settings['active_tab'] ?? 'all';
+            
+            if ($tab === 'missing') {
+                $query->where(function($q) {
+                    $q->whereNull('sku')->orWhere('sku', '');
+                });
+            } elseif ($tab === 'duplicates') {
+                 // Identify duplicate SKUs
+                 $dupSkus = \App\Models\Variant::whereHas('product', fn($q) => $q->where('user_id', $shop->id))
+                    ->select('sku')
+                    ->whereNotNull('sku')
+                    ->where('sku', '<>', '')
+                    ->groupBy('sku')
+                    ->havingRaw('count(*) > 1');
+
+                 $query->whereIn('sku', $dupSkus);
+            }
         }
         if (!empty($this->settings['only_missing'])) {
             $query->whereNull('sku');
@@ -66,6 +85,16 @@ class GenerateSkuJob implements ShouldQueue
         }
         if (!empty($this->settings['type'])) {
             $query->whereHas('product', fn($p) => $p->where('product_type', $this->settings['type']));
+        }
+        if (!empty($this->settings['search'])) {
+            $term = trim($this->settings['search']);
+            $query->where(function ($q) use ($term) {
+                $q->where('sku', 'like', "%{$term}%")
+                  ->orWhere('title', 'like', "%{$term}%")
+                  ->orWhereHas('product', function ($pq) use ($term) {
+                      $pq->where('title', 'like', "%{$term}%");
+                  });
+            });
         }
 
         $total = $query->count();

@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class BarcodeController extends Controller
 {
@@ -166,6 +167,19 @@ class BarcodeController extends Controller
             }
         }
 
+        // Apply Search Filter
+        if ($request->filled('search')) {
+            $term = trim($request->search);
+            $query->where(function ($q) use ($term) {
+                $q->where('barcode', 'like', "%{$term}%")
+                  ->orWhere('sku', 'like', "%{$term}%")
+                  ->orWhere('title', 'like', "%{$term}%")
+                  ->orWhereHas('product', function ($pq) use ($term) {
+                      $pq->where('title', 'like', "%{$term}%");
+                  });
+            });
+        }
+
         return $query;
     }
 
@@ -178,7 +192,34 @@ class BarcodeController extends Controller
         $tab = $request->input('tab', 'all');
 
         // 1. Base Query (Filters applied)
+        Log::info('Barcode Preview Request:', $request->all());
         $baseQuery = $this->buildFilteredQuery($request, $shop);
+        
+        if ($request->boolean('get_all_ids')) {
+            $idsQuery = $baseQuery->clone();
+            
+            if ($tab === 'missing') {
+                $idsQuery->where(function($q) {
+                    $q->whereNull('barcode')
+                        ->orWhere('barcode', '')
+                        ->orWhere('barcode', '-');
+                });
+            } elseif ($tab === 'duplicates') {
+                $dupBarcodes = $baseQuery->clone()
+                    ->select('barcode')
+                    ->whereNotNull('barcode')
+                    ->where('barcode', '<>', '')
+                    ->where('barcode', '<>', '-')
+                    ->groupBy('barcode')
+                    ->havingRaw('count(*) > 1');
+                
+                $idsQuery->whereIn('barcode', $dupBarcodes);
+            }
+
+            return response()->json([
+                'all_variant_ids' => $idsQuery->pluck('variants.id')->toArray(),
+            ]);
+        }
         
         // 2. Efficient Totals (DB Level)
         $totalVariants = $baseQuery->count();
@@ -436,10 +477,27 @@ class BarcodeController extends Controller
             ])->with('error', 'Credit deduction failed.');
         }
 
+        $title = 'Barcode Generation';
+        $itemCount = $itemCount; // Variable available from above
+
+        if ($applyScope === 'all') {
+            switch ($request->input('active_tab')) {
+                case 'duplicates':
+                    $title = 'Fix Duplicate Barcodes';
+                    break;
+                case 'missing':
+                    $title = 'Generate Missing Barcodes';
+                    break;
+                default:
+                    $title = 'Generate Barcodes (All)';
+                    break;
+            }
+        }
+
         $jobLog = JobLog::create([
             'user_id' => $shop->id,
             'type' => 'barcode_generation',
-            'title' => 'Barcode Generation',
+            'title' => $title,
             'description' => "Generating barcodes for {$itemCount} variant(s)...",
             'payload' => $request->all(),
             'status' => 'pending',
@@ -467,6 +525,7 @@ class BarcodeController extends Controller
                 'collections' => $request->input('collections', []),
                 'tags' => $request->input('tags', ''),
                 'apply_scope' => $applyScope,
+                'active_tab' => $request->input('active_tab', 'all'), // Pass active tab
                 'selected_variant_ids' => $applyScope === 'selected' ? $selectedIds : [],
             ],
             $jobLog->id

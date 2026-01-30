@@ -72,7 +72,7 @@ class GenerateSkuBatchJob implements ShouldQueue
 
             foreach ($productVariants as $variant) {
                 try {
-                    $sku = $this->generateSku($currentCounter);
+                    $sku = $this->generateSku($currentCounter, $variant);
                     $currentCounter++; 
 
                     $skuMap[$variant->id] = $sku;
@@ -80,6 +80,7 @@ class GenerateSkuBatchJob implements ShouldQueue
                 } catch (\Exception $e) {
                     $failed++;
                     \Illuminate\Support\Facades\Redis::incr($redisKeyFailed);
+                    $this->logWarning($jobLog, "Failed to generate SKU for variant {$variant->id}: " . $e->getMessage());
                 }
             }
 
@@ -91,11 +92,13 @@ class GenerateSkuBatchJob implements ShouldQueue
                     // Atomic increment for the whole product batch
                     if ($batchProcessed > 0) {
                         \Illuminate\Support\Facades\Redis::incrby($redisKeyProcessed, $batchProcessed);
+                        $processed += $batchProcessed;
                     }
                 } catch (\Exception $e) {
                     // Failed to sync
                     $failed += count($skuMap);
                     \Illuminate\Support\Facades\Redis::incrby($redisKeyFailed, count($skuMap));
+                    $this->logWarning($jobLog, "Failed to sync SKUs for product {$productId}: " . $e->getMessage());
                 }
             }
         }
@@ -103,6 +106,33 @@ class GenerateSkuBatchJob implements ShouldQueue
         // TTL for safety (24 hours)
         \Illuminate\Support\Facades\Redis::expire($redisKeyProcessed, 86400);
         \Illuminate\Support\Facades\Redis::expire($redisKeyFailed, 86400);
+
+        // Detailed Logging
+        if ($processed > 0) {
+            $jobLog->activityLogs()->create([
+                'level' => 'success',
+                'title' => 'Batch Processed',
+                'message' => "Successfully generated and synced SKUs for {$processed} variants.",
+                'logged_at' => now(),
+            ]);
+        }
+        if ($failed > 0) {
+             $jobLog->activityLogs()->create([
+                'level' => 'error',
+                'title' => 'Batch Errors',
+                'message' => "Failed to process {$failed} variants in this batch.",
+                'logged_at' => now(),
+            ]);
+        }
+    }
+
+    private function logWarning($jobLog, $message) {
+        $jobLog->activityLogs()->create([
+            'level' => 'warning',
+            'title' => 'Processing Warning',
+            'message' => $message,
+            'logged_at' => now(),
+        ]);
     }
 
     public function failed(Throwable $exception)
@@ -111,22 +141,71 @@ class GenerateSkuBatchJob implements ShouldQueue
             $jobLog = JobLog::find($this->jobLogId);
             if ($jobLog) {
                 $jobLog->markAsFailed("Batch job failed: " . $exception->getMessage());
+                $jobLog->activityLogs()->create([
+                    'level' => 'error',
+                    'title' => 'Critical Batch Failure',
+                    'message' => $exception->getMessage(),
+                    'logged_at' => now(),
+                ]);
             }
         }
     }
 
-    private function generateSku(int $counter): string
+    private function generateSku(int $counter, Variant $variant): string
     {
         $s = $this->settings;
         $start = $s['auto_start'] ?? 1;
         $padLength = max(strlen((string)$start), 4);
         $num = str_pad($counter, $padLength, '0', STR_PAD_LEFT);
 
-        $sku = ($s['prefix'] ?? '') . ($s['delimiter'] ?? '') . $num;
+        // Dynamic Source Logic
+        $dynamicPart = '';
+        if (!empty($s['source_field']) && $s['source_field'] !== 'none') {
+            $text = match ($s['source_field']) {
+                'product_title', 'title' => $variant->product->title ?? '',
+                'variant_title' => $variant->title ?? '',
+                'vendor_name', 'vendor' => $variant->product->vendor ?? '',
+                'product_type', 'type' => $variant->product->product_type ?? '',
+                default => '',
+            };
 
-        if (!empty($s['suffix'])) {
-            $sku .= ($s['delimiter'] ?? '') . $s['suffix'];
+            // Clean text (alphanumeric only)
+            $text = preg_replace('/[^a-zA-Z0-9]/', '', $text);
+            
+            // Extract letters
+            $len = (int)($s['source_len'] ?? 2);
+            // Assuming 'first letters' is the standard behavior or based on `source_taking_method` 
+            // but for now `substr` covers "First letters"
+            $dynamicPart = strtoupper(substr($text, 0, $len));
         }
+
+        $delimiter = $s['delimiter'] ?? '-';
+        $prefix = $s['prefix'] ?? '';
+        $suffix = $s['suffix'] ?? '';
+        
+        // Assemble
+        // Logic: Prefix + [Dynamic] + Number + Suffix
+        // Placement determines if Dynamic is before or after Number
+        
+        $mainPart = '';
+        $placement = $s['source_placement'] ?? 'before'; // 'before' (Before Number) or 'after'
+        
+        if (!empty($dynamicPart)) {
+            if ($placement === 'before') {
+                $mainPart = $dynamicPart . $delimiter . $num;
+            } else {
+                $mainPart = $num . $delimiter . $dynamicPart;
+            }
+        } else {
+            $mainPart = $num;
+        }
+
+        $parts = [];
+        if (!empty($prefix)) $parts[] = $prefix;
+        $parts[] = $mainPart;
+        if (!empty($suffix)) $parts[] = $suffix;
+
+        $sku = implode($delimiter, $parts);
 
         if (!empty($s['remove_spaces'])) {
             $sku = str_replace(' ', '', $sku);

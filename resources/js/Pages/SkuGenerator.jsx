@@ -6,6 +6,7 @@ import SkuHeader from "./components/SkuHeader";
 import SkuSidebar from "./components/SkuSidebar";
 import SkuPreviewTable from "./components/SkuPreviewTable";
 import CreditWarning from "./components/CreditWarning";
+import ConfirmModal from "./components/ConfirmModal";
 
 const DEBOUNCE_DELAY = 500;
 
@@ -50,6 +51,12 @@ export default function SkuGenerator({
     const [loading, setLoading] = useState(true);
     const [applying, setApplying] = useState(false);
     const [progress, setProgress] = useState(0);
+    const [confirmModal, setConfirmModal] = useState({
+        open: false,
+        title: "",
+        message: "",
+        onConfirm: () => {},
+    });
     const [queryValue, setQueryValue] = useState("");
     // Filters
     const [selectedCollectionIds, setSelectedCollectionIds] = useState([]);
@@ -195,7 +202,7 @@ export default function SkuGenerator({
             "SelectedReq:",
             selectedReq,
             "AllReq:",
-            allReq
+            allReq,
         );
         return show;
     };
@@ -220,53 +227,73 @@ export default function SkuGenerator({
                     `Items to process: ${requirements.itemCount}\n` +
                     `Credits required: ${requirements.requiredCredits}\n` +
                     `Credits available: ${requirements.available}\n\n` +
-                    `Maximum items you can process: ${requirements.maxAllowed}`
+                    `Maximum items you can process: ${requirements.maxAllowed}`,
             );
             return;
         }
+
+        // Logic to get IDs if needed
         let ids = [];
+        let count = requirements.itemCount;
 
         if (scope === "selected") {
             ids = Array.from(selected);
+            count = ids.length;
         } else if (scope === "visible") {
             ids = visibleIds;
-        } else if (scope === "all") {
-            setApplying(true);
-            setProgress(0);
+            count = ids.length;
+        }
 
-            try {
-                const res = await axios.post("/sku-generator/preview", {
+        // Confirm Modal
+        setConfirmModal({
+            open: true,
+            title: `Generate SKUs?`,
+            message: `You are about to generate SKUs for ${count} variant(s). This will deduct ${requirements.requiredCredits} credits.\n\nScope: ${scope === "all" ? (activeTab === "duplicates" ? "All Duplicates" : activeTab === "missing" ? "All Missing" : "All Variants") : scope === "visible" ? "Visible Page" : "Selected Variants"}\n\nDo you want to proceed?`,
+            onConfirm: async () => {
+                setConfirmModal((prev) => ({ ...prev, open: false }));
+
+                // Moved logic here
+                if (scope === "all") {
+                    setApplying(true);
+                    setProgress(0);
+
+                    try {
+                        const res = await axios.post("/sku-generator/preview", {
+                            ...form,
+                            search: queryValue.trim(),
+                            page: 1,
+                            tab: activeTab,
+                            collections: selectedCollectionIds,
+                            vendor: selectedVendors[0] || null,
+                            type: selectedTypes[0] || null,
+                            tags: selectedTags,
+                            get_all_ids: true,
+                        });
+
+                        ids = res.data.all_variant_ids || [];
+                    } catch (err) {
+                        console.error("Failed to get all IDs:", err);
+                        setApplying(false);
+                        return;
+                    }
+                }
+
+                router.post("/sku-generator/apply", {
                     ...form,
                     search: queryValue.trim(),
-                    page: 1,
-                    tab: activeTab,
                     collections: selectedCollectionIds,
                     vendor: selectedVendors[0] || null,
                     type: selectedTypes[0] || null,
                     tags: selectedTags,
-                    get_all_ids: true,
+                    apply_scope: scope,
+                    active_tab: activeTab,
+                    selected_variant_ids: ids,
                 });
 
-                ids = res.data.all_variant_ids || [];
-            } catch (err) {
-                console.error("Failed to get all IDs:", err);
-                return;
-            }
-        }
-
-        router.post("/sku-generator/apply", {
-            ...form,
-            search: queryValue.trim(),
-            collections: selectedCollectionIds,
-            vendor: selectedVendors[0] || null,
-            type: selectedTypes[0] || null,
-            tags: selectedTags,
-            apply_scope: scope,
-            selected_variant_ids: ids,
+                setApplying(true);
+                setProgress(0);
+            },
         });
-
-        setApplying(true);
-        setProgress(0);
     };
 
     const handleTabChange = (tab) => {
@@ -347,8 +374,8 @@ export default function SkuGenerator({
                                     activeTab === "missing"
                                         ? stats.missing
                                         : activeTab === "duplicates"
-                                        ? stats.duplicates
-                                        : stats.total
+                                          ? stats.duplicates
+                                          : stats.total
                                 }
                                 availableCredits={creditInfo.available}
                                 costPerItem={creditInfo.cost_per_sku}
@@ -388,6 +415,18 @@ export default function SkuGenerator({
                             setSelectedTags={setSelectedTags}
                         />
                     </div>
+                    <ConfirmModal
+                        isOpen={confirmModal.open}
+                        title={confirmModal.title}
+                        message={confirmModal.message}
+                        onClose={() =>
+                            setConfirmModal((prev) => ({
+                                ...prev,
+                                open: false,
+                            }))
+                        }
+                        onConfirm={confirmModal.onConfirm}
+                    />
                 </div>
             </div>
         </div>

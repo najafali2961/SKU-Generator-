@@ -7,6 +7,7 @@ import BarcodeSidebar from "./components/barcode/BarcodeSidebar";
 import BarcodePreviewTable from "./components/barcode/BarcodePreviewTable";
 import BarcodeImportModal from "./components/barcode/BarcodeImportModal";
 import CreditWarning from "./components/CreditWarning";
+import ConfirmModal from "./components/ConfirmModal";
 
 const DEBOUNCE_MS = 500;
 
@@ -47,6 +48,12 @@ export default function BarcodeGenerator({
     const [activeTab, setActiveTab] = useState("all");
     const [loading, setLoading] = useState(false);
     const [applying, setApplying] = useState(false);
+    const [confirmModal, setConfirmModal] = useState({
+        open: false,
+        title: "",
+        message: "",
+        onConfirm: () => {},
+    });
 
     const [selectedCollectionIds, setSelectedCollectionIds] = useState([]);
     const [selectedVendors, setSelectedVendors] = useState([]);
@@ -187,52 +194,63 @@ export default function BarcodeGenerator({
                     `Items to process: ${requirements.itemCount}\n` +
                     `Credits required: ${requirements.requiredCredits}\n` +
                     `Credits available: ${requirements.available}\n\n` +
-                    `Maximum items you can process: ${requirements.maxAllowed}`
+                    `Maximum items you can process: ${requirements.maxAllowed}`,
             );
             return;
         }
 
         const ids = scope === "selected" ? Array.from(selected) : [];
+        const count = ids.length > 0 ? ids.length : requirements.itemCount;
 
-        console.log("🚀 Applying barcodes with settings:", {
-            scope,
-            format: form.format,
-            allow_qr_text: form.allow_qr_text,
-            qr_text: form.qr_text,
-            prefix: form.prefix,
-            start_number: form.start_number,
-            selected_count: ids.length,
-        });
+        setConfirmModal({
+            open: true,
+            title: `Generate Barcodes?`,
+            message: `You are about to generate barcodes for ${count} variant(s). This will deduct ${requirements.requiredCredits} credits.\n\nScope: ${scope === "all" ? (activeTab === "duplicates" ? "All Duplicates" : activeTab === "missing" ? "All Missing" : "All Variants") : "Selected Variants"}\n\nDo you want to proceed?`,
+            onConfirm: () => {
+                setConfirmModal((prev) => ({ ...prev, open: false }));
+                setApplying(true);
 
-        setApplying(true);
+                console.log("🚀 Applying barcodes with settings:", {
+                    scope,
+                    active_tab: activeTab,
+                    format: form.format,
+                    allow_qr_text: form.allow_qr_text,
+                    qr_text: form.qr_text,
+                    prefix: form.prefix,
+                    start_number: form.start_number,
+                    selected_count: ids.length,
+                });
 
-        router.post(
-            "/barcode-generator/apply",
-            {
-                ...form,
-                apply_scope: scope,
-                selected_variant_ids: ids.length > 0 ? ids : undefined,
-                collections: selectedCollectionIds,
-                vendor: selectedVendors[0] || null,
-                type: selectedTypes[0] || null,
-                tags: selectedTags,
+                router.post(
+                    "/barcode-generator/apply",
+                    {
+                        ...form,
+                        apply_scope: scope,
+                        active_tab: activeTab,
+                        selected_variant_ids: ids.length > 0 ? ids : undefined,
+                        collections: selectedCollectionIds,
+                        vendor: selectedVendors[0] || null,
+                        type: selectedTypes[0] || null,
+                        tags: selectedTags,
+                    },
+                    {
+                        onFinish: () => {
+                            setSelected(new Set());
+                            setApplying(false);
+                        },
+                        onError: (err) => {
+                            setApplying(false);
+                            console.error("Apply failed:", err);
+                            if (err.credits) {
+                                alert(`Credit Error: ${err.credits}`);
+                            } else {
+                                alert("Apply failed: " + JSON.stringify(err));
+                            }
+                        },
+                    },
+                );
             },
-            {
-                onFinish: () => {
-                    setSelected(new Set());
-                    setApplying(false);
-                },
-                onError: (err) => {
-                    setApplying(false);
-                    console.error("Apply failed:", err);
-                    if (err.credits) {
-                        alert(`Credit Error: ${err.credits}`);
-                    } else {
-                        alert("Apply failed: " + JSON.stringify(err));
-                    }
-                },
-            }
-        );
+        });
     };
 
     // Determine if we should show credit warning
@@ -322,8 +340,8 @@ export default function BarcodeGenerator({
                                     activeTab === "missing"
                                         ? stats.missing
                                         : activeTab === "duplicates"
-                                        ? stats.duplicates
-                                        : stats.total
+                                          ? stats.duplicates
+                                          : stats.total
                                 }
                                 availableCredits={creditInfo.available}
                                 costPerItem={creditInfo.cost_per_barcode}
@@ -372,6 +390,19 @@ export default function BarcodeGenerator({
                             onClose={() => setImportModalOpen(false)}
                         />
                     )}
+
+                    <ConfirmModal
+                        isOpen={confirmModal.open}
+                        title={confirmModal.title}
+                        message={confirmModal.message}
+                        onClose={() =>
+                            setConfirmModal((prev) => ({
+                                ...prev,
+                                open: false,
+                            }))
+                        }
+                        onConfirm={confirmModal.onConfirm}
+                    />
                 </div>
             </div>
         </div>

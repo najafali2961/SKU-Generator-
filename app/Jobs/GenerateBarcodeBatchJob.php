@@ -73,10 +73,11 @@ class GenerateBarcodeBatchJob implements ShouldQueue
 
                 // Collect for bulk Shopify sync
                 $productsToSync[$variant->product_id][$variant->id] = $newBarcode;
-                $processed++;
+                // processed count is incremented after sync
             } catch (\Exception $e) {
                 $failed++;
-                 \Illuminate\Support\Facades\Redis::incr($redisKeyFailed);
+                \Illuminate\Support\Facades\Redis::incr($redisKeyFailed);
+                $this->logWarning($jobLog, "Failed to generate barcode for variant {$variant->id}: " . $e->getMessage());
             }
         }
 
@@ -90,14 +91,17 @@ class GenerateBarcodeBatchJob implements ShouldQueue
                     // Increment processed count in Redis for live UI updates
                     if (count($barcodeMap) > 0) {
                          \Illuminate\Support\Facades\Redis::incrby($redisKeyProcessed, count($barcodeMap));
+                         $processed += count($barcodeMap);
                     }
                 } else {
                      $failed += count($barcodeMap); // Silent fail count
                      \Illuminate\Support\Facades\Redis::incrby($redisKeyFailed, count($barcodeMap));
+                     $this->logWarning($jobLog, "Shopify update returned false for product {$productId}");
                 }
             } catch (\Exception $e) {
                 $failed += count($barcodeMap);
                 \Illuminate\Support\Facades\Redis::incrby($redisKeyFailed, count($barcodeMap));
+                $this->logWarning($jobLog, "Failed to sync barcodes for product {$productId}: " . $e->getMessage());
             }
         }
         
@@ -105,8 +109,32 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         \Illuminate\Support\Facades\Redis::expire($redisKeyProcessed, 86400);
         \Illuminate\Support\Facades\Redis::expire($redisKeyFailed, 86400);
 
-        // Progress updates removed to prevent DB row locking.
-        // Final status will be updated in the parent job.
+        // Detailed Logging
+        if ($processed > 0) {
+            $jobLog->activityLogs()->create([
+                'level' => 'success',
+                'title' => 'Batch Processed',
+                'message' => "Successfully generated and synced barcodes for {$processed} variants.",
+                'logged_at' => now(),
+            ]);
+        }
+        if ($failed > 0) {
+             $jobLog->activityLogs()->create([
+                'level' => 'error',
+                'title' => 'Batch Errors',
+                'message' => "Failed to process {$failed} variants in this batch.",
+                'logged_at' => now(),
+            ]);
+        }
+    }
+
+    private function logWarning($jobLog, $message) {
+        $jobLog->activityLogs()->create([
+            'level' => 'warning',
+            'title' => 'Processing Warning',
+            'message' => $message,
+            'logged_at' => now(),
+        ]);
     }
 
     public function failed(Throwable $exception)

@@ -40,7 +40,7 @@ class JobLog extends Model
             'status' => 'running',
             'started_at' => now(),
         ]);
-        $this->info('Job Started', 'SKU generation job has begun');
+        $this->info('Job Started', "Job '{$this->title}' has begun");
     }
 
     public function markAsCompleted(): void
