@@ -167,7 +167,7 @@ class GenerateBarcodeJob implements ShouldQueue
                  if($jobLog) {
                     $jobLog->update(['processed_items' => $jobLog->total_items]);
                  }
-                 if($jobLog) $jobLog->markAsCompleted("Successfully generated barcodes for all variants.");
+                 if($jobLog) $jobLog->markAsCompleted(); // Fixed: remove argument
             })
             ->catch(function (Batch $batch, \Throwable $e) use ($jobLog) {
                  $jobLog = JobLog::find($jobLog->id);

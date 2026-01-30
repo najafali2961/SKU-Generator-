@@ -132,10 +132,16 @@ class GenerateSkuJob implements ShouldQueue
         }
 
         Bus::batch($batches)
+            ->name("SKU Generation - Shop {$shop->id}")
             ->then(function (Batch $batch) use ($jobLog) {
                 // All jobs completed successfully
                 $jobLog = JobLog::find($jobLog->id);
                 
+                if (!$jobLog) {
+                    Log::error("SKU Job Completion: JobLog not found");
+                    return;
+                }
+
                 // Get accurate counts from Redis
                 $redisKeyProcessed = "job_progress_{$jobLog->id}";
                 $redisKeyFailed    = "job_failed_{$jobLog->id}";
@@ -143,15 +149,15 @@ class GenerateSkuJob implements ShouldQueue
                 $failed    = (int) \Illuminate\Support\Facades\Redis::get($redisKeyFailed);
 
                 // LOG FINISH
-                Log::info("{$processed} successfully mutations run and sync with shopify admin", ['shop_id' => $jobLog->user_id]);
+                Log::info("SKU Batch Success: {$processed} processed", ['shop_id' => $jobLog->user_id]);
                 if ($failed > 0) {
-                    Log::info("{$failed} have errors etc.", ['shop_id' => $jobLog->user_id]);
+                    Log::info("SKU Batch Errors: {$failed} failed", ['shop_id' => $jobLog->user_id]);
                 }
 
-                if ($jobLog) {
-                    $jobLog->update(['processed_items' => $jobLog->total_items]);
-                    $jobLog->markAsCompleted();
-                }
+                $jobLog->update(['processed_items' => $jobLog->total_items]);
+                
+                // Call markAsCompleted without arguments as per Model definition
+                $jobLog->markAsCompleted();
             })
             ->catch(function (Batch $batch, Throwable $e) use ($jobLog) {
                 // First failed job
