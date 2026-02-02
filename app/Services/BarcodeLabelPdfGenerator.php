@@ -495,10 +495,12 @@ class BarcodeLabelPdfGenerator
         $hGap = floatval($s->label_spacing_horizontal ?? 5) * self::MM_TO_PT;
         $vGap = floatval($s->label_spacing_vertical ?? 5) * self::MM_TO_PT;
 
-        $marginTop = floatval($s->page_margin_top ?? 10) * self::MM_TO_PT;
-        $marginRight = floatval($s->page_margin_right ?? 10) * self::MM_TO_PT;
-        $marginBottom = floatval($s->page_margin_bottom ?? 10) * self::MM_TO_PT;
-        $marginLeft = floatval($s->page_margin_left ?? 10) * self::MM_TO_PT;
+        // Fix: Frontend sends 'margin_top', backend might expect 'page_margin_top'
+        // We check both, preferring the shorter 'margin_*' keys if available.
+        $marginTop = floatval($s->margin_top ?? $s->page_margin_top ?? 10) * self::MM_TO_PT;
+        $marginRight = floatval($s->margin_right ?? $s->page_margin_right ?? 10) * self::MM_TO_PT;
+        $marginBottom = floatval($s->margin_bottom ?? $s->page_margin_bottom ?? 10) * self::MM_TO_PT;
+        $marginLeft = floatval($s->margin_left ?? $s->page_margin_left ?? 10) * self::MM_TO_PT;
 
         $barcodeWidth = floatval($s->barcode_width ?? 60) * self::MM_TO_PT;
         $barcodeHeight = floatval($s->barcode_height ?? 20) * self::MM_TO_PT;
@@ -506,37 +508,28 @@ class BarcodeLabelPdfGenerator
         // For QR codes, use the smaller dimension
         $qrSize = min($barcodeWidth, $barcodeHeight);
 
-        // Calculate max grid and clamp user inputs
+        // Calculate max grid just for logging/warning, but TRUST THE USER
         $grid = $this->calculateMaxGrid();
         $maxCols = $grid['max_cols'];
         $maxRows = $grid['max_rows'];
 
-        $userCols = (int)($s->labels_per_row ?? $maxCols);
-        $userRows = (int)($s->labels_per_column ?? $maxRows);
+        $userCols = (int)($s->labels_per_row ?? 0);
+        $userRows = (int)($s->labels_per_column ?? 0);
 
-        $cols = min($userCols, $maxCols);
-        $rows = min($userRows, $maxRows);
+        // TRUST: If user specified columns/rows, use them. Otherwise fallback to calc.
+        $cols = $userCols > 0 ? $userCols : $maxCols;
+        $rows = $userRows > 0 ? $userRows : $maxRows;
 
         $cols = max(1, $cols);
         $rows = max(1, $rows);
 
         if ($userCols > $maxCols || $userRows > $maxRows) {
-            Log::warning('Label grid clamped to fit page', [
+            Log::warning('Label grid exceeds calculated max (Trusting User)', [
                 'requested' => "{$userCols}x{$userRows}",
-                'clamped' => "{$cols}x{$rows}",
+                'calculated_max' => "{$maxCols}x{$maxRows}",
                 'paper_size' => "{$s->paper_width}x{$s->paper_height} mm",
-                'orientation' => $s->paper_orientation,
-                'label_size' => "{$s->label_width}x{$s->label_height} mm",
             ]);
         }
-
-        Log::info('PDF Build HTML', [
-             'max_grid' => "{$maxCols}x{$maxRows}",
-             'user_grid' => "{$userCols}x{$userRows}", 
-             'effective_grid' => "{$cols}x{$rows}",
-             'label_size_pt' => "{$labelWidth}x{$labelHeight}",
-             'gaps_pt' => "{$hGap}x{$vGap}",
-        ]);
 
         $labelsPerPage = $cols * $rows;
 
@@ -751,9 +744,9 @@ HTML;
 
                 $html .= "</tr>";
                 
-                // Add vertical spacer row if not last row
-                if ($rowIndex < count($gridRows) - 1) {
-                    $html .= "<tr style='height: {$vGap}pt;'><td colspan='" . ($cols * 2 - 1) . "'></td></tr>";
+                // Add vertical spacer row if not last row and gap > 0
+                if ($rowIndex < count($gridRows) - 1 && $vGap > 0.1) {
+                    $html .= "<tr style='height: {$vGap}pt; line-height: 0;'><td colspan='" . ($cols * 2 - 1) . "' style='padding:0; height:{$vGap}pt;'></td></tr>";
                 }
             }
             
@@ -764,6 +757,7 @@ HTML;
         
         return $html;
     }
+    
 
     protected function buildLabelHtml($label)
     {
