@@ -23,6 +23,42 @@ import {
 } from "@shopify/polaris";
 import { ArrowRightIcon, PrintIcon } from "@shopify/polaris-icons";
 import ConfirmModal from "../../components/ConfirmModal";
+import { analyzeLayout } from "./utils/LayoutOptimizer";
+
+// New Feedback Component
+// New Feedback Component - Compact Badge Version
+const OptimizationBadge = ({ result }) => {
+    const { status, issues } = result;
+
+    if (status === "PERFECT") {
+        return (
+            <Badge tone="success" progress="complete">
+                Layout Optimized
+            </Badge>
+        );
+    }
+
+    if (status === "GOOD") {
+        return <Badge tone="info">Valid Layout</Badge>;
+    }
+
+    // WARNING or ERROR
+    const isError = status === "ERROR";
+    const tone = isError ? "critical" : "warning";
+    const label = isError ? "Layout Error" : "Optimization Tip";
+    const message = issues.length > 0 ? issues[0].message : "";
+
+    return (
+        <InlineStack gap="200" blockAlign="center">
+            <Badge tone={tone}>{label}</Badge>
+            {message && (
+                <Text tone={tone} variant="bodySm">
+                    {message}
+                </Text>
+            )}
+        </InlineStack>
+    );
+};
 
 export default function PrinterVariantTable({
     variants,
@@ -58,6 +94,9 @@ export default function PrinterVariantTable({
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [confirmScope, setConfirmScope] = useState(null);
     const [previewTab, setPreviewTab] = useState(0);
+
+    // Run analysis
+    const analysis = analyzeLayout(config);
 
     const LabelRenderer = ({ config, QRCodePreview, isPageItem = false }) => (
         <div
@@ -623,6 +662,33 @@ export default function PrinterVariantTable({
             ))
         );
 
+    // --- TRUST HEADER (Compact) ---
+    const PreviewTrustBadge = ({ config }) => {
+        const mode =
+            config.currentPrinterType ||
+            (config.labels_per_row === 1 && config.labels_per_column === 1
+                ? "thermal"
+                : "sheet");
+
+        // Infer mode from config if not explicit, for better accuracy
+        const isThermal =
+            config.labels_per_row === 1 && config.labels_per_column === 1;
+
+        if (isThermal) {
+            return (
+                <Badge tone="info" icon={PrintIcon}>
+                    Thermal Label (1/page)
+                </Badge>
+            );
+        } else {
+            return (
+                <Badge tone="new" icon={PrintIcon}>
+                    Sheet Mode (A4/Letter)
+                </Badge>
+            );
+        }
+    };
+
     return (
         <>
             <BlockStack gap="400">
@@ -645,6 +711,10 @@ export default function PrinterVariantTable({
                                     </Button>
                                 </InlineStack>
 
+                                <InlineStack align="start" gap="200">
+                                    <PreviewTrustBadge config={config} />
+                                    <OptimizationBadge result={analysis} />
+                                </InlineStack>
                                 <Tabs
                                     tabs={[
                                         {

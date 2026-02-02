@@ -100,6 +100,7 @@ export default function PrinterSidebar({
 
     // Printer Selection State
     const [selectedPrinterId, setSelectedPrinterId] = useState("");
+    const [currentPrinterType, setCurrentPrinterType] = useState("thermal"); // Default to thermal for safety
 
     // Load Printer Preset
     const loadPrinterPreset = async (presetId) => {
@@ -113,11 +114,27 @@ export default function PrinterSidebar({
             );
             if (!preset) return;
 
+            // Set Printer Type to control UI visibility
+            setCurrentPrinterType(preset.type);
+
             // Apply all settings from preset
             Object.entries(preset.settings).forEach(([key, value]) => {
                 if (key === "qr_data_source" && !value) return; // Don't overwrite with null
                 handleChange(key, value);
             });
+
+            // FORCE THERMAL DEFAULTS
+            if (preset.type === "thermal") {
+                handleChange("labels_per_row", 1);
+                handleChange("labels_per_column", 1);
+                handleChange("label_spacing_horizontal", 0);
+                handleChange("label_spacing_vertical", 0);
+                handleChange("margin_top", 0);
+                handleChange("margin_right", 0);
+                handleChange("margin_bottom", 0);
+                handleChange("margin_left", 0);
+                handleChange("paper_size", "custom");
+            }
         } catch (error) {
             console.error("Failed to load preset:", error);
             alert("Failed to load printer preset");
@@ -506,349 +523,117 @@ export default function PrinterSidebar({
                 </Box>
             </Card>
 
-            {/* PAPER SETUP */}
+            {/* 3. PHYSICAL LABEL DIMENSIONS */}
+            {/* Kept visible because even thermal users need to know/check the size */}
             <Card>
                 <Box padding="400">
                     <BlockStack gap="400">
-                        <SectionHeader title="📄 Paper Setup" section="paper" />
-
-                        <Collapsible
-                            open={expandedSections.paper}
-                            id="paper-section"
-                        >
-                            <BlockStack gap="400">
-                                <FormLayout>
-                                    <Select
-                                        label="Paper Size"
-                                        value={config.paper_size}
-                                        onChange={(v) => {
-                                            handleChange("paper_size", v);
-                                            const sizes = {
-                                                a4: { width: 210, height: 297 },
-                                                letter: {
-                                                    width: 215.9,
-                                                    height: 279.4,
-                                                },
-                                                "4x6": {
-                                                    width: 101.6,
-                                                    height: 152.4,
-                                                },
-                                                "3x5": {
-                                                    width: 76.2,
-                                                    height: 127,
-                                                },
-                                                "2x3": {
-                                                    width: 50.8,
-                                                    height: 76.2,
-                                                },
-                                            };
-                                            if (sizes[v]) {
-                                                handleChange(
-                                                    "paper_width",
-                                                    sizes[v].width,
-                                                );
-                                                handleChange(
-                                                    "paper_height",
-                                                    sizes[v].height,
-                                                );
-                                            }
-                                        }}
-                                        options={[
-                                            {
-                                                label: "A4 (210 × 297mm)",
-                                                value: "a4",
-                                            },
-                                            {
-                                                label: 'Letter (8.5 × 11")',
-                                                value: "letter",
-                                            },
-                                            {
-                                                label: "4×6 Shipping Label",
-                                                value: "4x6",
-                                            },
-                                            {
-                                                label: "3×5 Index Card",
-                                                value: "3x5",
-                                            },
-                                            {
-                                                label: "2×3 Label",
-                                                value: "2x3",
-                                            },
-                                            {
-                                                label: "Custom",
-                                                value: "custom",
-                                            },
-                                        ]}
-                                    />
-
-                                    <FormLayout.Group>
-                                        <TextField
-                                            label="Width (mm)"
-                                            type="number"
-                                            value={String(config.paper_width)}
-                                            onChange={(v) =>
-                                                handleChange("paper_width", +v)
-                                            }
-                                            autoComplete="off"
-                                        />
-                                        <TextField
-                                            label="Height (mm)"
-                                            type="number"
-                                            value={String(config.paper_height)}
-                                            onChange={(v) =>
-                                                handleChange("paper_height", +v)
-                                            }
-                                            autoComplete="off"
-                                        />
-                                    </FormLayout.Group>
-
-                                    <Select
-                                        label="Orientation"
-                                        value={config.paper_orientation}
-                                        onChange={(v) =>
-                                            handleChange("paper_orientation", v)
-                                        }
-                                        options={[
-                                            {
-                                                label: "Portrait ⬍",
-                                                value: "portrait",
-                                            },
-                                            {
-                                                label: "Landscape ⬌",
-                                                value: "landscape",
-                                            },
-                                        ]}
-                                    />
-
-                                    <Divider />
-
-                                    <Text variant="headingSm">
-                                        Page Margins (mm)
-                                    </Text>
-                                    <FormLayout.Group condensed>
-                                        <TextField
-                                            label="Top"
-                                            type="number"
-                                            value={String(config.margin_top)}
-                                            onChange={(v) =>
-                                                handleChange("margin_top", +v)
-                                            }
-                                            autoComplete="off"
-                                        />
-                                        <TextField
-                                            label="Bottom"
-                                            type="number"
-                                            value={String(config.margin_bottom)}
-                                            onChange={(v) =>
-                                                handleChange(
-                                                    "margin_bottom",
-                                                    +v,
-                                                )
-                                            }
-                                            autoComplete="off"
-                                        />
-                                    </FormLayout.Group>
-                                    <FormLayout.Group condensed>
-                                        <TextField
-                                            label="Left"
-                                            type="number"
-                                            value={String(config.margin_left)}
-                                            onChange={(v) =>
-                                                handleChange("margin_left", +v)
-                                            }
-                                            autoComplete="off"
-                                        />
-                                        <TextField
-                                            label="Right"
-                                            type="number"
-                                            value={String(config.margin_right)}
-                                            onChange={(v) =>
-                                                handleChange("margin_right", +v)
-                                            }
-                                            autoComplete="off"
-                                        />
-                                    </FormLayout.Group>
-                                </FormLayout>
-                            </BlockStack>
-                        </Collapsible>
-                    </BlockStack>
-                </Box>
-            </Card>
-
-            {/* LABEL LAYOUT */}
-            <Card>
-                <Box padding="400">
-                    <BlockStack gap="400">
-                        <SectionHeader
-                            title="📐 Label Layout"
-                            section="label"
-                        />
-
+                        <SectionHeader title="📏 Label Size" section="label" />
                         <Collapsible
                             open={expandedSections.label}
                             id="label-section"
                         >
-                            <BlockStack gap="400">
-                                <FormLayout>
+                            <FormLayout>
+                                <FormLayout.Group>
                                     <TextField
-                                        label="Label Name"
-                                        value={config.label_name}
+                                        label="Width (mm)"
+                                        type="number"
+                                        value={String(config.label_width)}
                                         onChange={(v) =>
-                                            handleChange("label_name", v)
+                                            handleChange("label_width", +v)
                                         }
                                         autoComplete="off"
-                                        helpText="For your reference"
+                                        helpText={
+                                            currentPrinterType === "thermal"
+                                                ? "Width of your label roll"
+                                                : null
+                                        }
                                     />
-
-                                    <FormLayout.Group>
-                                        <TextField
-                                            label="Label Width (mm)"
-                                            type="number"
-                                            value={String(config.label_width)}
-                                            onChange={(v) =>
-                                                handleChange("label_width", +v)
-                                            }
-                                            autoComplete="off"
-                                        />
-                                        <TextField
-                                            label="Label Height (mm)"
-                                            type="number"
-                                            value={String(config.label_height)}
-                                            onChange={(v) =>
-                                                handleChange("label_height", +v)
-                                            }
-                                            autoComplete="off"
-                                        />
-                                    </FormLayout.Group>
-
-                                    <FormLayout.Group>
-                                        <TextField
-                                            label="Labels per Row"
-                                            type="number"
-                                            min="1"
-                                            max="10"
-                                            value={String(
-                                                config.labels_per_row,
-                                            )}
-                                            onChange={(v) =>
-                                                handleChange(
-                                                    "labels_per_row",
-                                                    +v,
-                                                )
-                                            }
-                                            autoComplete="off"
-                                        />
-                                        <TextField
-                                            label="Labels per Column"
-                                            type="number"
-                                            min="1"
-                                            max="20"
-                                            value={String(
-                                                config.labels_per_column,
-                                            )}
-                                            onChange={(v) =>
-                                                handleChange(
-                                                    "labels_per_column",
-                                                    +v,
-                                                )
-                                            }
-                                            autoComplete="off"
-                                        />
-                                    </FormLayout.Group>
-
-                                    <FormLayout.Group>
-                                        <TextField
-                                            label="Horizontal Gap (mm)"
-                                            type="number"
-                                            value={String(
-                                                config.label_spacing_horizontal,
-                                            )}
-                                            onChange={(v) =>
-                                                handleChange(
-                                                    "label_spacing_horizontal",
-                                                    +v,
-                                                )
-                                            }
-                                            autoComplete="off"
-                                        />
-                                        <TextField
-                                            label="Vertical Gap (mm)"
-                                            type="number"
-                                            value={String(
-                                                config.label_spacing_vertical,
-                                            )}
-                                            onChange={(v) =>
-                                                handleChange(
-                                                    "label_spacing_vertical",
-                                                    +v,
-                                                )
-                                            }
-                                            autoComplete="off"
-                                        />
-                                    </FormLayout.Group>
-
-                                    <Button
-                                        fullWidth
-                                        size="slim"
-                                        onClick={autoSizeLabelContent}
-                                    >
-                                        🎯 Auto-Size Content
-                                    </Button>
-                                </FormLayout>
-                            </BlockStack>
+                                    <TextField
+                                        label="Height (mm)"
+                                        type="number"
+                                        value={String(config.label_height)}
+                                        onChange={(v) =>
+                                            handleChange("label_height", +v)
+                                        }
+                                        autoComplete="off"
+                                        helpText={
+                                            currentPrinterType === "thermal"
+                                                ? "Height of one label"
+                                                : null
+                                        }
+                                    />
+                                </FormLayout.Group>
+                                <Button
+                                    fullWidth
+                                    size="slim"
+                                    onClick={autoSizeLabelContent}
+                                >
+                                    🎯 Auto-Size Content
+                                </Button>
+                            </FormLayout>
                         </Collapsible>
                     </BlockStack>
                 </Box>
             </Card>
 
-            {/* BARCODE SETTINGS */}
+            {/* 4. CONTENT & DESIGN (Promoted Up) */}
             <Card>
                 <Box padding="400">
                     <BlockStack gap="400">
                         <SectionHeader
-                            title="📊 Barcode Settings"
+                            title="🎨 Content & Design"
                             section="barcode"
                         />
+                        {/* Re-using barcode section toggle for the whole group for now, or could split */}
 
                         <Collapsible
                             open={expandedSections.barcode}
-                            id="barcode-section"
+                            id="content-group"
                         >
-                            <BlockStack gap="400">
-                                <FormLayout>
-                                    <Select
-                                        label="Barcode Format"
-                                        value={config.barcode_type}
-                                        onChange={(v) =>
-                                            handleChange("barcode_type", v)
-                                        }
-                                        options={[
-                                            {
-                                                label: "CODE 128 (Recommended)",
-                                                value: "code128",
-                                            },
-                                            { label: "EAN-13", value: "ean13" },
-                                            { label: "EAN-8", value: "ean8" },
-                                            { label: "UPC-A", value: "upca" },
-                                            {
-                                                label: "CODE 39",
-                                                value: "code39",
-                                            },
-                                            { label: "QR Code", value: "qr" },
-                                            {
-                                                label: "Data Matrix",
-                                                value: "datamatrix",
-                                            },
-                                        ]}
-                                    />
+                            <BlockStack gap="500">
+                                {/* BARCODE */}
+                                <BlockStack gap="200">
+                                    <Text variant="headingSm" tone="subdued">
+                                        Barcode
+                                    </Text>
+                                    <FormLayout>
+                                        <Select
+                                            label="Format"
+                                            value={config.barcode_type}
+                                            onChange={(v) =>
+                                                handleChange("barcode_type", v)
+                                            }
+                                            options={[
+                                                {
+                                                    label: "CODE 128 (Standard)",
+                                                    value: "code128",
+                                                },
+                                                {
+                                                    label: "EAN-13 (Retail)",
+                                                    value: "ean13",
+                                                },
+                                                {
+                                                    label: "UPC-A",
+                                                    value: "upca",
+                                                },
+                                                {
+                                                    label: "QR Code",
+                                                    value: "qr",
+                                                },
+                                                {
+                                                    label: "Data Matrix",
+                                                    value: "datamatrix",
+                                                },
+                                            ]}
+                                        />
 
-                                    {/* QR DATA SOURCE - NEW FEATURE */}
-                                    {(config.barcode_type === "qr" ||
-                                        config.barcode_type ===
-                                            "datamatrix") && (
-                                        <>
+                                        {/* QR DATA SOURCE */}
+                                        {(config.barcode_type === "qr" ||
+                                            config.barcode_type ===
+                                                "datamatrix") && (
                                             <Select
-                                                label="QR Code Data Source"
+                                                label="QR Data"
                                                 value={
                                                     config.qr_data_source ||
                                                     "barcode"
@@ -869,253 +654,412 @@ export default function PrinterSidebar({
                                                         value: "sku",
                                                     },
                                                     {
-                                                        label: "Variant ID",
-                                                        value: "variant_id",
-                                                    },
-                                                    {
-                                                        label: "Product Shopify URL",
+                                                        label: "Product URL",
                                                         value: "product_url",
                                                     },
                                                     {
-                                                        label: "Custom Format",
+                                                        label: "Custom",
                                                         value: "custom",
                                                     },
                                                 ]}
-                                                helpText="Choose what data the QR code should contain"
                                             />
+                                        )}
+                                        {config.qr_data_source === "custom" && (
+                                            <TextField
+                                                label="Custom Data"
+                                                value={
+                                                    config.qr_custom_format ||
+                                                    ""
+                                                }
+                                                onChange={(v) =>
+                                                    handleChange(
+                                                        "qr_custom_format",
+                                                        v,
+                                                    )
+                                                }
+                                                autoComplete="off"
+                                            />
+                                        )}
 
-                                            {config.qr_data_source ===
-                                                "custom" && (
-                                                <TextField
-                                                    label="Custom QR Format"
-                                                    value={
-                                                        config.qr_custom_format ||
-                                                        ""
-                                                    }
+                                        <Checkbox
+                                            label="Show value below barcode"
+                                            checked={config.show_barcode_value}
+                                            onChange={(v) =>
+                                                handleChange(
+                                                    "show_barcode_value",
+                                                    v,
+                                                )
+                                            }
+                                        />
+                                    </FormLayout>
+                                </BlockStack>
+
+                                <Divider />
+
+                                {/* ATTRIBUTES */}
+                                <BlockStack gap="200">
+                                    <Text variant="headingSm" tone="subdued">
+                                        Text Attributes
+                                    </Text>
+                                    <BlockStack gap="200">
+                                        <InlineStack gap="400" wrap={true}>
+                                            <Checkbox
+                                                label="Title"
+                                                checked={
+                                                    config.show_product_title
+                                                }
+                                                onChange={(v) =>
+                                                    handleChange(
+                                                        "show_product_title",
+                                                        v,
+                                                    )
+                                                }
+                                            />
+                                            <Checkbox
+                                                label="SKU"
+                                                checked={config.show_sku}
+                                                onChange={(v) =>
+                                                    handleChange("show_sku", v)
+                                                }
+                                            />
+                                            <Checkbox
+                                                label="Price"
+                                                checked={config.show_price}
+                                                onChange={(v) =>
+                                                    handleChange(
+                                                        "show_price",
+                                                        v,
+                                                    )
+                                                }
+                                            />
+                                        </InlineStack>
+                                        <InlineStack gap="400" wrap={true}>
+                                            <Checkbox
+                                                label="Variant"
+                                                checked={config.show_variant}
+                                                onChange={(v) =>
+                                                    handleChange(
+                                                        "show_variant",
+                                                        v,
+                                                    )
+                                                }
+                                            />
+                                            <Checkbox
+                                                label="Vendor"
+                                                checked={config.show_vendor}
+                                                onChange={(v) =>
+                                                    handleChange(
+                                                        "show_vendor",
+                                                        v,
+                                                    )
+                                                }
+                                            />
+                                        </InlineStack>
+                                    </BlockStack>
+                                </BlockStack>
+
+                                <Divider />
+
+                                {/* TYPOGRAPHY */}
+                                <BlockStack gap="200">
+                                    <Text variant="headingSm" tone="subdued">
+                                        Typography
+                                    </Text>
+                                    <FormLayout>
+                                        <FormLayout.Group>
+                                            <Select
+                                                label="Font"
+                                                value={config.font_family}
+                                                onChange={(v) =>
+                                                    handleChange(
+                                                        "font_family",
+                                                        v,
+                                                    )
+                                                }
+                                                options={[
+                                                    {
+                                                        label: "Arial",
+                                                        value: "Arial",
+                                                    },
+                                                    {
+                                                        label: "Courier",
+                                                        value: "Courier",
+                                                    },
+                                                ]}
+                                            />
+                                            <TextField
+                                                label="Size (pt)"
+                                                type="number"
+                                                value={String(config.font_size)}
+                                                onChange={(v) =>
+                                                    handleChange(
+                                                        "font_size",
+                                                        +v,
+                                                    )
+                                                }
+                                                autoComplete="off"
+                                            />
+                                        </FormLayout.Group>
+                                        <Checkbox
+                                            label="Bold Title"
+                                            checked={config.title_bold}
+                                            onChange={(v) =>
+                                                handleChange("title_bold", v)
+                                            }
+                                        />
+                                    </FormLayout>
+                                </BlockStack>
+                            </BlockStack>
+                        </Collapsible>
+                    </BlockStack>
+                </Box>
+            </Card>
+
+            {/* 5. ADVANCED / TECHNICAL SETTINGS (Collapsed) */}
+            <Card>
+                <Box padding="400">
+                    <BlockStack gap="400">
+                        <button
+                            type="button"
+                            onClick={() => toggleSection("paper")} // Re-using 'paper' key for advanced
+                            style={{
+                                width: "100%",
+                                background: "none",
+                                border: "none",
+                                padding: 0,
+                                cursor: "pointer",
+                                textAlign: "left",
+                            }}
+                        >
+                            <InlineStack
+                                align="space-between"
+                                blockAlign="center"
+                            >
+                                <InlineStack gap="200">
+                                    <Icon source={EditIcon} tone="subdued" />
+                                    <Text variant="headingSm" tone="subdued">
+                                        Advanced Layout Settings
+                                    </Text>
+                                </InlineStack>
+                                <Box>
+                                    {expandedSections.paper ? (
+                                        <ChevronUpIcon />
+                                    ) : (
+                                        <ChevronDownIcon />
+                                    )}
+                                </Box>
+                            </InlineStack>
+                        </button>
+
+                        <Collapsible
+                            open={expandedSections.paper}
+                            id="advanced-section"
+                        >
+                            <Box paddingBlockStart="400">
+                                <BlockStack gap="500">
+                                    <Text tone="caution" variant="bodySm">
+                                        ⚠️ Changing these settings may break the
+                                        layout. Only use for custom setups.
+                                    </Text>
+
+                                    {/* SHEET PRINTER ONLY: PAPER SIZE */}
+                                    {currentPrinterType !== "thermal" && (
+                                        <BlockStack gap="300">
+                                            <Text variant="headingSm">
+                                                📄 Sheet / Page Setup
+                                            </Text>
+                                            <FormLayout>
+                                                <Select
+                                                    label="Sheet Size"
+                                                    value={config.paper_size}
                                                     onChange={(v) =>
                                                         handleChange(
-                                                            "qr_custom_format",
+                                                            "paper_size",
                                                             v,
                                                         )
                                                     }
-                                                    multiline={2}
-                                                    placeholder="e.g., SKU:{sku}|PRICE:{price}"
-                                                    helpText="Use {sku}, {barcode}, {price}, {title}, {variant_id}"
-                                                    autoComplete="off"
+                                                    options={[
+                                                        {
+                                                            label: "A4",
+                                                            value: "a4",
+                                                        },
+                                                        {
+                                                            label: "Letter",
+                                                            value: "letter",
+                                                        },
+                                                        {
+                                                            label: "Custom",
+                                                            value: "custom",
+                                                        },
+                                                    ]}
                                                 />
-                                            )}
-                                        </>
+                                                <FormLayout.Group>
+                                                    <TextField
+                                                        label="Page W (mm)"
+                                                        type="number"
+                                                        value={String(
+                                                            config.paper_width,
+                                                        )}
+                                                        onChange={(v) =>
+                                                            handleChange(
+                                                                "paper_width",
+                                                                +v,
+                                                            )
+                                                        }
+                                                        autoComplete="off"
+                                                    />
+                                                    <TextField
+                                                        label="Page H (mm)"
+                                                        type="number"
+                                                        value={String(
+                                                            config.paper_height,
+                                                        )}
+                                                        onChange={(v) =>
+                                                            handleChange(
+                                                                "paper_height",
+                                                                +v,
+                                                            )
+                                                        }
+                                                        autoComplete="off"
+                                                    />
+                                                </FormLayout.Group>
+                                                <Text
+                                                    variant="bodySm"
+                                                    tone="subdued"
+                                                >
+                                                    Margins
+                                                </Text>
+                                                <FormLayout.Group condensed>
+                                                    <TextField
+                                                        label="Top"
+                                                        type="number"
+                                                        value={String(
+                                                            config.margin_top,
+                                                        )}
+                                                        onChange={(v) =>
+                                                            handleChange(
+                                                                "margin_top",
+                                                                +v,
+                                                            )
+                                                        }
+                                                        autoComplete="off"
+                                                    />
+                                                    <TextField
+                                                        label="Left"
+                                                        type="number"
+                                                        value={String(
+                                                            config.margin_left,
+                                                        )}
+                                                        onChange={(v) =>
+                                                            handleChange(
+                                                                "margin_left",
+                                                                +v,
+                                                            )
+                                                        }
+                                                        autoComplete="off"
+                                                    />
+                                                </FormLayout.Group>
+                                            </FormLayout>
+                                        </BlockStack>
                                     )}
 
-                                    <FormLayout.Group>
-                                        <TextField
-                                            label="Barcode Width (mm)"
-                                            type="number"
-                                            value={String(config.barcode_width)}
-                                            onChange={(v) =>
-                                                handleChange(
-                                                    "barcode_width",
-                                                    +v,
-                                                )
-                                            }
-                                            autoComplete="off"
-                                        />
-                                        <TextField
-                                            label="Barcode Height (mm)"
-                                            type="number"
-                                            value={String(
-                                                config.barcode_height,
-                                            )}
-                                            onChange={(v) =>
-                                                handleChange(
-                                                    "barcode_height",
-                                                    +v,
-                                                )
-                                            }
-                                            autoComplete="off"
-                                        />
-                                    </FormLayout.Group>
+                                    {/* SHEET PRINTER ONLY: GRID (Rows/Cols) */}
+                                    {currentPrinterType !== "thermal" && (
+                                        <BlockStack gap="300">
+                                            <Divider />
+                                            <Text variant="headingSm">
+                                                ▦ Grid Layout
+                                            </Text>
+                                            <FormLayout>
+                                                <FormLayout.Group>
+                                                    <TextField
+                                                        label="Rows"
+                                                        type="number"
+                                                        value={String(
+                                                            config.labels_per_column,
+                                                        )}
+                                                        onChange={(v) =>
+                                                            handleChange(
+                                                                "labels_per_column",
+                                                                +v,
+                                                            )
+                                                        }
+                                                        autoComplete="off"
+                                                    />
+                                                    <TextField
+                                                        label="Columns"
+                                                        type="number"
+                                                        value={String(
+                                                            config.labels_per_row,
+                                                        )}
+                                                        onChange={(v) =>
+                                                            handleChange(
+                                                                "labels_per_row",
+                                                                +v,
+                                                            )
+                                                        }
+                                                        autoComplete="off"
+                                                    />
+                                                </FormLayout.Group>
+                                                <FormLayout.Group>
+                                                    <TextField
+                                                        label="Gap H (mm)"
+                                                        type="number"
+                                                        value={String(
+                                                            config.label_spacing_horizontal,
+                                                        )}
+                                                        onChange={(v) =>
+                                                            handleChange(
+                                                                "label_spacing_horizontal",
+                                                                +v,
+                                                            )
+                                                        }
+                                                        autoComplete="off"
+                                                    />
+                                                    <TextField
+                                                        label="Gap V (mm)"
+                                                        type="number"
+                                                        value={String(
+                                                            config.label_spacing_vertical,
+                                                        )}
+                                                        onChange={(v) =>
+                                                            handleChange(
+                                                                "label_spacing_vertical",
+                                                                +v,
+                                                            )
+                                                        }
+                                                        autoComplete="off"
+                                                    />
+                                                </FormLayout.Group>
+                                            </FormLayout>
+                                        </BlockStack>
+                                    )}
 
-                                    <Select
-                                        label="Barcode Position"
-                                        value={config.barcode_position}
-                                        onChange={(v) =>
-                                            handleChange("barcode_position", v)
-                                        }
-                                        options={[
-                                            { label: "Top", value: "top" },
-                                            {
-                                                label: "Center",
-                                                value: "center",
-                                            },
-                                            {
-                                                label: "Bottom",
-                                                value: "bottom",
-                                            },
-                                        ]}
-                                    />
-
-                                    <Checkbox
-                                        label="Show barcode value below"
-                                        checked={config.show_barcode_value}
-                                        onChange={(v) =>
-                                            handleChange(
-                                                "show_barcode_value",
-                                                v,
-                                            )
-                                        }
-                                    />
-                                </FormLayout>
-                            </BlockStack>
-                        </Collapsible>
-                    </BlockStack>
-                </Box>
-            </Card>
-
-            {/* ATTRIBUTES TO SHOW */}
-            <Card>
-                <Box padding="400">
-                    <BlockStack gap="400">
-                        <SectionHeader
-                            title="✓ Attributes to Show"
-                            section="attributes"
-                        />
-
-                        <Collapsible
-                            open={expandedSections.attributes}
-                            id="attributes-section"
-                        >
-                            <BlockStack gap="300">
-                                <Checkbox
-                                    label="Product Title"
-                                    checked={config.show_product_title}
-                                    onChange={(v) =>
-                                        handleChange("show_product_title", v)
-                                    }
-                                />
-                                <Checkbox
-                                    label="SKU"
-                                    checked={config.show_sku}
-                                    onChange={(v) =>
-                                        handleChange("show_sku", v)
-                                    }
-                                />
-                                <Checkbox
-                                    label="Price"
-                                    checked={config.show_price}
-                                    onChange={(v) =>
-                                        handleChange("show_price", v)
-                                    }
-                                />
-                                <Checkbox
-                                    label="Variant Options"
-                                    checked={config.show_variant}
-                                    onChange={(v) =>
-                                        handleChange("show_variant", v)
-                                    }
-                                />
-                                <Checkbox
-                                    label="Vendor"
-                                    checked={config.show_vendor}
-                                    onChange={(v) =>
-                                        handleChange("show_vendor", v)
-                                    }
-                                />
-                                <Checkbox
-                                    label="Product Type"
-                                    checked={config.show_product_type}
-                                    onChange={(v) =>
-                                        handleChange("show_product_type", v)
-                                    }
-                                />
-                            </BlockStack>
-                        </Collapsible>
-                    </BlockStack>
-                </Box>
-            </Card>
-
-            {/* TYPOGRAPHY */}
-            <Card>
-                <Box padding="400">
-                    <BlockStack gap="400">
-                        <SectionHeader
-                            title="Aa Typography"
-                            section="typography"
-                        />
-
-                        <Collapsible
-                            open={expandedSections.typography}
-                            id="typography-section"
-                        >
-                            <BlockStack gap="400">
-                                <FormLayout>
-                                    <Select
-                                        label="Font Family"
-                                        value={config.font_family}
-                                        onChange={(v) =>
-                                            handleChange("font_family", v)
-                                        }
-                                        options={[
-                                            { label: "Arial", value: "Arial" },
-                                            {
-                                                label: "Helvetica",
-                                                value: "Helvetica",
-                                            },
-                                            {
-                                                label: "Times New Roman",
-                                                value: "Times",
-                                            },
-                                            {
-                                                label: "Courier",
-                                                value: "Courier",
-                                            },
-                                        ]}
-                                    />
-
-                                    <FormLayout.Group>
-                                        <TextField
-                                            label="Base Font Size (pt)"
-                                            type="number"
-                                            value={String(config.font_size)}
-                                            onChange={(v) =>
-                                                handleChange("font_size", +v)
-                                            }
-                                            autoComplete="off"
-                                        />
-                                        <TextField
-                                            label="Title Size (pt)"
-                                            type="number"
-                                            value={String(
-                                                config.title_font_size,
-                                            )}
-                                            onChange={(v) =>
-                                                handleChange(
-                                                    "title_font_size",
-                                                    +v,
-                                                )
-                                            }
-                                            autoComplete="off"
-                                        />
-                                    </FormLayout.Group>
-
-                                    <TextField
-                                        label="Text Color"
-                                        type="color"
-                                        value={config.font_color}
-                                        onChange={(v) =>
-                                            handleChange("font_color", v)
-                                        }
-                                    />
-
-                                    <Checkbox
-                                        label="Bold product title"
-                                        checked={config.title_bold}
-                                        onChange={(v) =>
-                                            handleChange("title_bold", v)
-                                        }
-                                    />
-                                </FormLayout>
-                            </BlockStack>
+                                    {/* THERMAL ONLY MESSAGE */}
+                                    {currentPrinterType === "thermal" && (
+                                        <Box
+                                            background="bg-surface-secondary"
+                                            padding="300"
+                                            borderRadius="200"
+                                        >
+                                            <BlockStack gap="200">
+                                                <Text fontWeight="semibold">
+                                                    Thermal Printer Mode Active
+                                                </Text>
+                                                <Text variant="bodySm">
+                                                    Page size, margins, and grid
+                                                    settings are disabled
+                                                    because thermal printers
+                                                    print one label at a time.
+                                                    Modify the "Label Size"
+                                                    above if you need to change
+                                                    dimensions.
+                                                </Text>
+                                            </BlockStack>
+                                        </Box>
+                                    )}
+                                </BlockStack>
+                            </Box>
                         </Collapsible>
                     </BlockStack>
                 </Box>
