@@ -157,104 +157,6 @@ export default function PrinterSidebar({
         handleChange("barcode_height", Math.round(barcodeHeight));
     };
 
-    // Grid Calculator Component
-    const LabelGridCalculator = ({ config }) => {
-        const calculateFit = () => {
-            const availableWidth =
-                config.paper_width - config.margin_left - config.margin_right;
-            const availableHeight =
-                config.paper_height - config.margin_top - config.margin_bottom;
-
-            const labelPlusGapWidth =
-                config.label_width + config.label_spacing_horizontal;
-            const labelPlusGapHeight =
-                config.label_height + config.label_spacing_vertical;
-
-            const maxCols = Math.floor(
-                (availableWidth + config.label_spacing_horizontal) /
-                    labelPlusGapWidth,
-            );
-            const maxRows = Math.floor(
-                (availableHeight + config.label_spacing_vertical) /
-                    labelPlusGapHeight,
-            );
-
-            const totalLabelsPerPage =
-                config.labels_per_row * config.labels_per_column;
-            const willFit =
-                config.labels_per_row <= maxCols &&
-                config.labels_per_column <= maxRows;
-
-            return { maxCols, maxRows, totalLabelsPerPage, willFit };
-        };
-
-        const { maxCols, maxRows, totalLabelsPerPage, willFit } =
-            calculateFit();
-
-        return (
-            <Box
-                padding="300"
-                background={
-                    willFit
-                        ? "bg-surface-success-subdued"
-                        : "bg-surface-critical-subdued"
-                }
-                borderRadius="200"
-            >
-                <BlockStack gap="200">
-                    <InlineStack align="space-between">
-                        <Text variant="bodySm" fontWeight="semibold">
-                            Grid Layout
-                        </Text>
-                        {willFit ? (
-                            <Badge tone="success">✓ Will Fit</Badge>
-                        ) : (
-                            <Badge tone="critical">⚠ Too Large</Badge>
-                        )}
-                    </InlineStack>
-
-                    <Text variant="bodySm" tone="subdued">
-                        {config.labels_per_row} × {config.labels_per_column} ={" "}
-                        {totalLabelsPerPage} labels/page
-                    </Text>
-
-                    {!willFit && (
-                        <Text variant="bodySm" tone="critical">
-                            Maximum that will fit: {maxCols} × {maxRows}
-                        </Text>
-                    )}
-
-                    <div
-                        style={{
-                            display: "grid",
-                            gridTemplateColumns: `repeat(${Math.min(
-                                config.labels_per_row,
-                                6,
-                            )}, 1fr)`,
-                            gap: "2px",
-                            marginTop: "8px",
-                        }}
-                    >
-                        {Array.from({
-                            length: Math.min(totalLabelsPerPage, 24),
-                        }).map((_, i) => (
-                            <div
-                                key={i}
-                                style={{
-                                    aspectRatio: `${config.label_width}/${config.label_height}`,
-                                    border: "1px solid currentColor",
-                                    borderRadius: "2px",
-                                    opacity: willFit ? 1 : 0.5,
-                                    minHeight: "8px",
-                                }}
-                            />
-                        ))}
-                    </div>
-                </BlockStack>
-            </Box>
-        );
-    };
-
     // Template Management Functions
     const handleSaveTemplate = async () => {
         if (!templateName.trim()) {
@@ -884,8 +786,6 @@ export default function PrinterSidebar({
                                             autoComplete="off"
                                         />
                                     </FormLayout.Group>
-
-                                    <LabelGridCalculator config={config} />
 
                                     <Button
                                         fullWidth

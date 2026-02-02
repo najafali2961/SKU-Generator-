@@ -530,6 +530,14 @@ class BarcodeLabelPdfGenerator
             ]);
         }
 
+        Log::info('PDF Build HTML', [
+             'max_grid' => "{$maxCols}x{$maxRows}",
+             'user_grid' => "{$userCols}x{$userRows}", 
+             'effective_grid' => "{$cols}x{$rows}",
+             'label_size_pt' => "{$labelWidth}x{$labelHeight}",
+             'gaps_pt' => "{$hGap}x{$vGap}",
+        ]);
+
         $labelsPerPage = $cols * $rows;
 
         $fontSize = max(6, (int)($s->font_size ?? 10));
@@ -576,41 +584,37 @@ class BarcodeLabelPdfGenerator
             page-break-after: avoid;
         }
 
-        .label-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: {$vGap}pt {$hGap}pt;
+        .label-grid-table {
+            border-collapse: collapse;
         }
 
-        .label {
+        .label-content {
             width: {$labelWidth}pt;
             height: {$labelHeight}pt;
             border: 0.5pt solid #cccccc;
             padding: {$labelPadding}pt;
             overflow: hidden;
-            display: flex;
-            flex-direction: column;
+            display: block;
             background: white;
+            position: relative;
         }
 
         .label-header {
-            flex-shrink: 0;
+            height: auto;
             margin-bottom: 2pt;
         }
 
         .label-body {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            min-height: 0;
-            overflow: hidden;
+            height: auto;
+            text-align: center;
+            min-height: 40%;
+            /* Vertical centering is hard without flexbox or table, relying on natural stacking */
         }
 
         .label-footer {
-            flex-shrink: 0;
+            height: auto;
             margin-top: 1pt;
+            flex-shrink: 0; 
         }
 
         .product-title {
@@ -713,30 +717,58 @@ HTML;
         $pages = array_chunk($labels, $labelsPerPage);
 
         foreach ($pages as $pageLabels) {
-            $html .= "<div class='page'><div class='label-grid'>";
+            $html .= "<div class='page'>";
+            
+            // Use a table for the grid to enforce layout strictly
+            // collapse: separate is needed for border-spacing if we used it, 
+            // but we are using spacer cells/rows.
+            $html .= "<table class='label-grid-table' style='width: auto; border-collapse: collapse; table-layout: fixed;'>";
+            
+            // Chunk into rows
+            $gridRows = array_chunk($pageLabels, $cols);
+            
+            foreach ($gridRows as $rowIndex => $rowLabels) {
+                $html .= "<tr>";
+                foreach ($rowLabels as $colIndex => $label) {
+                    $html .= "<td style='padding: 0; vertical-align: top;'>";
+                    $html .= $this->buildLabelHtml($label);
+                    $html .= "</td>";
+                    
+                    // Add horizontal spacer if not last column
+                    if ($colIndex < count($rowLabels) - 1) {
+                        $html .= "<td style='width: {$hGap}pt; padding: 0;'></td>";
+                    }
+                }
+                
+                // Fill empty cells if row is incomplete (for border consistency if needed, generally not needed for layout unless background)
+                $remainingCols = $cols - count($rowLabels);
+                if ($remainingCols > 0) {
+                     for ($i = 0; $i < $remainingCols; $i++) {
+                         $html .= "<td style='width: {$hGap}pt; padding: 0;'></td>"; // gap
+                         $html .= "<td style='width: {$labelWidth}pt; padding: 0;'></td>"; // empty label slot
+                     }
+                }
 
-            foreach ($pageLabels as $label) {
-                $html .= $this->buildLabelHtml($label);
+                $html .= "</tr>";
+                
+                // Add vertical spacer row if not last row
+                if ($rowIndex < count($gridRows) - 1) {
+                    $html .= "<tr style='height: {$vGap}pt;'><td colspan='" . ($cols * 2 - 1) . "'></td></tr>";
+                }
             }
-
-            // Fill remaining slots with empty labels if needed (for sheet alignment)
-            $remaining = $labelsPerPage - count($pageLabels);
-            for ($i = 0; $i < $remaining; $i++) {
-                $html .= "<div class='label' style='border: none;'></div>";
-            }
-
-            $html .= "</div></div>";
+            
+            $html .= "</table></div>";
         }
-
+        
         $html .= "</body></html>";
-
+        
         return $html;
     }
 
     protected function buildLabelHtml($label)
     {
         $s = $this->setting;
-        $html = "<div class='label'>";
+        $html = "<div class='label-content'>";
 
         // Use custom text layout if configured
         $textLayout = $s->text_layout;

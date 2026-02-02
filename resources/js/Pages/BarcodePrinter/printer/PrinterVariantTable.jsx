@@ -57,6 +57,193 @@ export default function PrinterVariantTable({
     const [tagsInput, setTagsInput] = useState("");
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [confirmScope, setConfirmScope] = useState(null);
+    const [previewTab, setPreviewTab] = useState(0);
+
+    const LabelRenderer = ({ config, QRCodePreview, isPageItem = false }) => (
+        <div
+            style={{
+                width: `${config.label_width}mm`,
+                height: `${config.label_height}mm`,
+                border: isPageItem ? "0.5pt solid #ddd" : "2px dashed #8c9196",
+                padding: "8px",
+                fontSize: `${config.font_size}px`,
+                fontFamily: config.font_family,
+                color: config.font_color,
+                background: "white",
+                margin: isPageItem ? 0 : "0 auto",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                boxShadow: isPageItem ? "none" : "0 2px 8px rgba(0,0,0,0.1)",
+                overflow: "hidden",
+                boxSizing: "border-box", // Ensure padding doesn't affect width
+            }}
+        >
+            <div>
+                {config.show_product_title && (
+                    <div
+                        style={{
+                            fontWeight: config.title_bold ? "bold" : "normal",
+                            fontSize: `${config.title_font_size}px`,
+                            marginBottom: "4px",
+                            lineHeight: "1.2",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                        }}
+                    >
+                        Sample Product Name
+                    </div>
+                )}
+
+                {config.show_variant && (
+                    <div
+                        style={{
+                            fontSize: `${config.font_size - 1}px`,
+                            opacity: 0.8,
+                            marginBottom: "2px",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                        }}
+                    >
+                        Size: M / Color: Blue
+                    </div>
+                )}
+
+                {config.show_sku && (
+                    <div
+                        style={{
+                            fontSize: `${config.font_size - 1}px`,
+                            opacity: 0.7,
+                            marginBottom: "2px",
+                            fontFamily: "monospace",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                        }}
+                    >
+                        SKU: ABC-123-XYZ
+                    </div>
+                )}
+
+                {config.show_price && (
+                    <div
+                        style={{
+                            fontWeight: "bold",
+                            fontSize: `${config.title_font_size}px`,
+                            marginTop: "4px",
+                        }}
+                    >
+                        $99.99
+                    </div>
+                )}
+            </div>
+
+            <div
+                style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                }}
+            >
+                {config.barcode_type === "qr" ||
+                config.barcode_type === "datamatrix" ? (
+                    <>
+                        <QRCodePreview
+                            size={
+                                Math.min(
+                                    config.barcode_width,
+                                    config.barcode_height,
+                                ) * 3.78
+                            }
+                            value="SAMPLE-QR-CODE"
+                        />
+                        {config.show_barcode_value && (
+                            <div
+                                style={{
+                                    fontFamily: "monospace",
+                                    fontSize: `${config.font_size - 2}px`,
+                                    marginTop: "3px",
+                                    letterSpacing: "1px",
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    maxWidth: "100%",
+                                }}
+                            >
+                                {config.barcode_type === "qr"
+                                    ? "QR CODE"
+                                    : "DATA MATRIX"}
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <>
+                        <div
+                            style={{
+                                width: `${config.barcode_width}mm`,
+                                height: `${config.barcode_height}mm`,
+                                background:
+                                    "repeating-linear-gradient(90deg, #000 0, #000 1.5px, white 1.5px, white 3px)",
+                                borderRadius: "1px",
+                            }}
+                        ></div>
+                        {config.show_barcode_value && (
+                            <div
+                                style={{
+                                    fontFamily: "monospace",
+                                    fontSize: `${config.font_size - 2}px`,
+                                    marginTop: "3px",
+                                    letterSpacing: "1px",
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    maxWidth: "100%",
+                                }}
+                            >
+                                {config.barcode_type === "ean13"
+                                    ? "1234567890123"
+                                    : config.barcode_type === "upca"
+                                      ? "123456789012"
+                                      : "ABC123XYZ"}
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+            {/* FOOTER - Vendor/Type */}
+            <div style={{ marginTop: "2px" }}>
+                {config.show_vendor && (
+                    <div
+                        style={{
+                            fontSize: `${config.font_size - 1}px`,
+                            opacity: 0.7,
+                            marginBottom: "1px",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                        }}
+                    >
+                        Vendor: Brand Co.
+                    </div>
+                )}
+                {config.show_product_type && (
+                    <div
+                        style={{
+                            fontSize: `${config.font_size - 1}px`,
+                            opacity: 0.7,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                        }}
+                    >
+                        Type: T-Shirt
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 
     const tabs = [
         { id: "all", content: `All Variants (${stats.all})` },
@@ -458,6 +645,19 @@ export default function PrinterVariantTable({
                                     </Button>
                                 </InlineStack>
 
+                                <Tabs
+                                    tabs={[
+                                        {
+                                            id: "single",
+                                            content: "Single Label",
+                                        },
+                                        { id: "page", content: "Page View" },
+                                    ]}
+                                    selected={previewTab}
+                                    onSelect={setPreviewTab}
+                                    fitted
+                                />
+
                                 <Box
                                     padding="600"
                                     background="bg-surface-secondary"
@@ -465,175 +665,134 @@ export default function PrinterVariantTable({
                                 >
                                     <div
                                         style={{
-                                            width: `${config.label_width}mm`,
-                                            height: `${config.label_height}mm`,
-                                            border: "2px dashed #8c9196",
-                                            padding: "8px",
-                                            fontSize: `${config.font_size}px`,
-                                            fontFamily: config.font_family,
-                                            color: config.font_color,
-                                            background: "white",
-                                            margin: "0 auto",
                                             display: "flex",
-                                            flexDirection: "column",
-                                            justifyContent: "space-between",
-                                            boxShadow:
-                                                "0 2px 8px rgba(0,0,0,0.1)",
+                                            justifyContent: "center",
+                                            overflow: "auto",
+                                            maxHeight: "600px",
                                         }}
                                     >
-                                        <div>
-                                            {config.show_title && (
-                                                <div
-                                                    style={{
-                                                        fontWeight:
-                                                            config.title_bold
-                                                                ? "bold"
-                                                                : "normal",
-                                                        fontSize: `${config.title_font_size}px`,
-                                                        marginBottom: "4px",
-                                                        lineHeight: "1.2",
-                                                    }}
-                                                >
-                                                    Sample Product Name
-                                                </div>
-                                            )}
+                                        {previewTab === 0 ? (
+                                            // SINGLE LABEL VIEW
+                                            <LabelRenderer
+                                                config={config}
+                                                QRCodePreview={QRCodePreview}
+                                            />
+                                        ) : (
+                                            // PAGE VIEW
+                                            <div
+                                                style={{
+                                                    width: "100%",
+                                                    display: "flex",
+                                                    justifyContent: "center",
+                                                    padding: "20px 0",
+                                                }}
+                                            >
+                                                {(() => {
+                                                    const pixelsPerMm = 3.78;
+                                                    const paperWidthPx =
+                                                        config.paper_width *
+                                                        pixelsPerMm;
+                                                    // Max width available in the card (approx 700px)
+                                                    const maxWidth = 700;
+                                                    // Calculate scale to fit, maxing out at 1 (don't scale up small labels)
+                                                    const scale =
+                                                        paperWidthPx > maxWidth
+                                                            ? maxWidth /
+                                                              paperWidthPx
+                                                            : 1;
 
-                                            {config.show_variant && (
-                                                <div
-                                                    style={{
-                                                        fontSize: `${
-                                                            config.font_size - 1
-                                                        }px`,
-                                                        opacity: 0.8,
-                                                        marginBottom: "2px",
-                                                    }}
-                                                >
-                                                    Size: M / Color: Blue
-                                                </div>
-                                            )}
-
-                                            {config.show_vendor && (
-                                                <div
-                                                    style={{
-                                                        fontSize: `${
-                                                            config.font_size - 1
-                                                        }px`,
-                                                        opacity: 0.7,
-                                                        marginBottom: "2px",
-                                                    }}
-                                                >
-                                                    Vendor: Brand Co.
-                                                </div>
-                                            )}
-
-                                            {config.show_sku && (
-                                                <div
-                                                    style={{
-                                                        fontSize: `${
-                                                            config.font_size - 1
-                                                        }px`,
-                                                        opacity: 0.7,
-                                                        marginBottom: "2px",
-                                                        fontFamily: "monospace",
-                                                    }}
-                                                >
-                                                    SKU: ABC-123-XYZ
-                                                </div>
-                                            )}
-
-                                            {config.show_price && (
-                                                <div
-                                                    style={{
-                                                        fontWeight: "bold",
-                                                        fontSize: `${config.title_font_size}px`,
-                                                        marginTop: "4px",
-                                                    }}
-                                                >
-                                                    $99.99
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                flexDirection: "column",
-                                                alignItems: "center",
-                                            }}
-                                        >
-                                            {config.barcode_type === "qr" ||
-                                            config.barcode_type ===
-                                                "datamatrix" ? (
-                                                <>
-                                                    <QRCodePreview
-                                                        size={
-                                                            Math.min(
-                                                                config.barcode_width,
-                                                                config.barcode_height,
-                                                            ) * 3.78
-                                                        }
-                                                        value="SAMPLE-QR-CODE"
-                                                    />
-                                                    {config.show_barcode_value && (
+                                                    return (
                                                         <div
                                                             style={{
-                                                                fontFamily:
-                                                                    "monospace",
-                                                                fontSize: `${
-                                                                    config.font_size -
-                                                                    2
-                                                                }px`,
-                                                                marginTop:
-                                                                    "3px",
-                                                                letterSpacing:
-                                                                    "1px",
+                                                                transform: `scale(${scale})`,
+                                                                transformOrigin:
+                                                                    "top center",
+                                                                // Use a negative margin only if we are significantly scaling down large pages
+                                                                // to reduce empty whitespace, but be careful with small pages.
+                                                                marginBottom:
+                                                                    scale < 0.8
+                                                                        ? `-${
+                                                                              (1 -
+                                                                                  scale) *
+                                                                              50
+                                                                          }%`
+                                                                        : "0px",
                                                             }}
                                                         >
-                                                            {config.barcode_type ===
-                                                            "qr"
-                                                                ? "QR CODE"
-                                                                : "DATA MATRIX"}
+                                                            <div
+                                                                style={{
+                                                                    width: `${config.paper_width}mm`,
+                                                                    height: `${config.paper_height}mm`,
+                                                                    backgroundColor:
+                                                                        "white",
+                                                                    paddingTop: `${config.margin_top}mm`,
+                                                                    paddingRight: `${config.margin_right}mm`,
+                                                                    paddingBottom: `${config.margin_bottom}mm`,
+                                                                    paddingLeft: `${config.margin_left}mm`,
+                                                                    boxShadow:
+                                                                        "0 4px 12px rgba(0,0,0,0.15)",
+                                                                    boxSizing:
+                                                                        "border-box",
+                                                                    display:
+                                                                        "flex",
+                                                                }}
+                                                            >
+                                                                <div
+                                                                    style={{
+                                                                        display:
+                                                                            "grid",
+                                                                        gridTemplateColumns: `repeat(${config.labels_per_row}, ${config.label_width}mm)`,
+                                                                        gridTemplateRows: `repeat(${config.labels_per_column}, ${config.label_height}mm)`,
+                                                                        gap: `${config.label_spacing_vertical}mm ${config.label_spacing_horizontal}mm`,
+                                                                        alignContent:
+                                                                            "start",
+                                                                        justifyContent:
+                                                                            "start",
+                                                                    }}
+                                                                >
+                                                                    {Array.from(
+                                                                        {
+                                                                            length:
+                                                                                config.labels_per_row *
+                                                                                config.labels_per_column,
+                                                                        },
+                                                                    ).map(
+                                                                        (
+                                                                            _,
+                                                                            i,
+                                                                        ) => (
+                                                                            <div
+                                                                                key={
+                                                                                    i
+                                                                                }
+                                                                                style={{
+                                                                                    width: "100%",
+                                                                                    height: "100%",
+                                                                                    overflow:
+                                                                                        "hidden",
+                                                                                }}
+                                                                            >
+                                                                                <LabelRenderer
+                                                                                    config={
+                                                                                        config
+                                                                                    }
+                                                                                    QRCodePreview={
+                                                                                        QRCodePreview
+                                                                                    }
+                                                                                    isPageItem={
+                                                                                        true
+                                                                                    }
+                                                                                />
+                                                                            </div>
+                                                                        ),
+                                                                    )}
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    )}
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <div
-                                                        style={{
-                                                            width: `${config.barcode_width}mm`,
-                                                            height: `${config.barcode_height}mm`,
-                                                            background:
-                                                                "repeating-linear-gradient(90deg, #000 0, #000 1.5px, white 1.5px, white 3px)",
-                                                            borderRadius: "1px",
-                                                        }}
-                                                    ></div>
-                                                    {config.show_barcode_value && (
-                                                        <div
-                                                            style={{
-                                                                fontFamily:
-                                                                    "monospace",
-                                                                fontSize: `${
-                                                                    config.font_size -
-                                                                    2
-                                                                }px`,
-                                                                marginTop:
-                                                                    "3px",
-                                                                letterSpacing:
-                                                                    "1px",
-                                                            }}
-                                                        >
-                                                            {config.barcode_type ===
-                                                            "ean13"
-                                                                ? "1234567890123"
-                                                                : config.barcode_type ===
-                                                                    "upca"
-                                                                  ? "123456789012"
-                                                                  : "ABC123XYZ"}
-                                                        </div>
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
                                     </div>
                                 </Box>
 
@@ -642,9 +801,9 @@ export default function PrinterVariantTable({
                                     tone="subdued"
                                     alignment="center"
                                 >
-                                    This is how your labels will look. Each row
-                                    below shows a live preview for that specific
-                                    variant.
+                                    {previewTab === 0
+                                        ? "This is how a single label will look."
+                                        : "This is how your full page will print. Ensure margins and gaps are correct."}
                                 </Text>
 
                                 <Box
@@ -681,6 +840,13 @@ export default function PrinterVariantTable({
                                                 Labels/Page:{" "}
                                                 {config.labels_per_row}×
                                                 {config.labels_per_column}
+                                            </Text>
+                                            <Text
+                                                variant="bodySm"
+                                                tone="subdued"
+                                            >
+                                                Paper: {config.paper_width}×
+                                                {config.paper_height}mm
                                             </Text>
                                         </InlineStack>
                                     </BlockStack>
