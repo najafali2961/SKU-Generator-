@@ -99,8 +99,66 @@ export default function PrinterSidebar({
     );
 
     // Printer Selection State
+    const [printerStep, setPrinterStep] = useState("type"); // type, brand, model
+    const [selectedType, setSelectedType] = useState("thermal"); // Default to thermal
+    const currentPrinterType = selectedType; // Alias for legacy references
+    const [selectedBrand, setSelectedBrand] = useState("");
     const [selectedPrinterId, setSelectedPrinterId] = useState("");
-    const [currentPrinterType, setCurrentPrinterType] = useState("thermal"); // Default to thermal for safety
+
+    // Reset selection when changing type
+    const handleTypeChange = (type) => {
+        setSelectedType(type);
+        // Sync with prop-derived state removed, using alias
+        setSelectedBrand("");
+        setSelectedPrinterId("");
+
+        // Enforce defaults immediately
+        if (type === "thermal") {
+            handleChange("labels_per_row", 1);
+            handleChange("labels_per_column", 1);
+            handleChange("paper_size", "custom");
+            // AUTO-SYNC: Set PDF Paper Size to match Label Size
+            handleChange("paper_width", config.label_width);
+            handleChange("paper_height", config.label_height);
+
+            // Also reset margins for thermal
+            handleChange("page_margin_top", 0);
+            handleChange("page_margin_right", 0);
+            handleChange("page_margin_bottom", 0);
+            handleChange("page_margin_left", 0);
+        }
+    };
+
+    // Helper: Normalize 'laser' -> 'sheet' for UI consistency if needed
+    const normalizeType = (t) => (t === "laser" ? "sheet" : t);
+
+    // Get unique brands for the selected type
+    const availableBrands = React.useMemo(() => {
+        const typeToMatch = selectedType === "sheet" ? "sheet" : "thermal";
+        // Note: Seeder uses 'sheet' (for generic) and 'thermal' (for rolls).
+        // If old seeds exist they might be 'laser', map them to sheet.
+        const brands = new Set(
+            printerPresets
+                .filter(
+                    (p) =>
+                        p.type === typeToMatch ||
+                        (typeToMatch === "sheet" && p.type === "laser"),
+                )
+                .map((p) => p.brand),
+        );
+        return [...brands].sort();
+    }, [printerPresets, selectedType]);
+
+    // Get models for selected brand
+    const availableModels = React.useMemo(() => {
+        const typeToMatch = selectedType === "sheet" ? "sheet" : "thermal";
+        return printerPresets.filter(
+            (p) =>
+                (p.type === typeToMatch ||
+                    (typeToMatch === "sheet" && p.type === "laser")) &&
+                p.brand === selectedBrand,
+        );
+    }, [printerPresets, selectedType, selectedBrand]);
 
     // Load Printer Preset
     const loadPrinterPreset = async (presetId) => {
@@ -115,7 +173,7 @@ export default function PrinterSidebar({
             if (!preset) return;
 
             // Set Printer Type to control UI visibility
-            setCurrentPrinterType(preset.type);
+            setSelectedType(normalizeType(preset.type));
 
             // Apply all settings from preset
             Object.entries(preset.settings).forEach(([key, value]) => {
@@ -334,41 +392,90 @@ export default function PrinterSidebar({
                             🖨️ Printer Setup
                         </Text>
 
+                        {/* STEP 1: PRINTER TYPE */}
+                        <BlockStack gap="200">
+                            <Text variant="bodyMd" fontWeight="semibold">
+                                1. How do you want to print labels?
+                            </Text>
+                            <BlockStack gap="300">
+                                <div
+                                    onClick={() => handleTypeChange("thermal")}
+                                    className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedType === "thermal" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-300 hover:border-gray-400"}`}
+                                >
+                                    <InlineStack gap="300" blockAlign="center">
+                                        <div className="text-2xl">🏷️</div>
+                                        <BlockStack gap="050">
+                                            <Text fontWeight="semibold">
+                                                Label Printer (Roll-based)
+                                            </Text>
+                                            <Text
+                                                variant="bodySm"
+                                                tone="subdued"
+                                            >
+                                                Zebra, Dymo, Rollo, Brother
+                                                (Thermal)
+                                            </Text>
+                                        </BlockStack>
+                                    </InlineStack>
+                                </div>
+                                <div
+                                    onClick={() => handleTypeChange("sheet")}
+                                    className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedType === "sheet" ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-gray-300 hover:border-gray-400"}`}
+                                >
+                                    <InlineStack gap="300" blockAlign="center">
+                                        <div className="text-2xl">📄</div>
+                                        <BlockStack gap="050">
+                                            <Text fontWeight="semibold">
+                                                Sheet Printer (A4 / Letter)
+                                            </Text>
+                                            <Text
+                                                variant="bodySm"
+                                                tone="subdued"
+                                            >
+                                                Standard Laser/Inkjet (Avery
+                                                Labels)
+                                            </Text>
+                                        </BlockStack>
+                                    </InlineStack>
+                                </div>
+                            </BlockStack>
+                        </BlockStack>
+
+                        <Divider />
+
+                        {/* STEP 2: BRAND SELECTION */}
                         <Select
-                            label="Select Your Printer Model"
-                            placeholder="Choose a printer..."
-                            value={selectedPrinterId}
-                            onChange={(presetId) => loadPrinterPreset(presetId)}
+                            label="2. Select Printer Brand"
+                            placeholder="Choose brand..."
+                            options={availableBrands.map((b) => ({
+                                label: b,
+                                value: b,
+                            }))}
+                            value={selectedBrand}
+                            onChange={(v) => {
+                                setSelectedBrand(v);
+                                setSelectedPrinterId(""); // Reset model when brand changes
+                            }}
+                            disabled={!selectedType}
+                        />
+
+                        {/* STEP 3: MODEL SELECTION */}
+                        <Select
+                            label="3. Select Printer Model"
+                            placeholder="Choose model..."
                             options={[
+                                ...availableModels.map((p) => ({
+                                    label: p.name,
+                                    value: p.id.toString(),
+                                })),
                                 {
-                                    label: "--- Thermal Printers ---",
-                                    value: "header-thermal",
-                                    disabled: true,
+                                    label: "Custom / Other Model",
+                                    value: "custom",
                                 },
-                                ...printerPresets
-                                    .filter((p) => p.type === "thermal")
-                                    .map((p) => ({
-                                        label: `  ${p.name}`,
-                                        value: p.id.toString(),
-                                    })),
-                                {
-                                    label: "--- Sheet Label Printers ---",
-                                    value: "header-laser",
-                                    disabled: true,
-                                },
-                                ...printerPresets
-                                    .filter((p) => p.type === "laser")
-                                    .map((p) => ({
-                                        label: `  ${p.name}`,
-                                        value: p.id.toString(),
-                                    })),
-                                {
-                                    label: "--- Custom ---",
-                                    value: "header-custom",
-                                    disabled: true,
-                                },
-                                { label: "  Custom Setup", value: "custom" },
                             ]}
+                            value={selectedPrinterId}
+                            onChange={(v) => loadPrinterPreset(v)}
+                            disabled={!selectedBrand}
                         />
                     </BlockStack>
                 </Box>
@@ -539,9 +646,13 @@ export default function PrinterSidebar({
                                         label="Width (mm)"
                                         type="number"
                                         value={String(config.label_width)}
-                                        onChange={(v) =>
-                                            handleChange("label_width", +v)
-                                        }
+                                        onChange={(v) => {
+                                            handleChange("label_width", +v);
+                                            // SYNC: Update paper width if thermal
+                                            if (selectedType === "thermal") {
+                                                handleChange("paper_width", +v);
+                                            }
+                                        }}
                                         autoComplete="off"
                                         helpText={
                                             currentPrinterType === "thermal"
@@ -553,9 +664,16 @@ export default function PrinterSidebar({
                                         label="Height (mm)"
                                         type="number"
                                         value={String(config.label_height)}
-                                        onChange={(v) =>
-                                            handleChange("label_height", +v)
-                                        }
+                                        onChange={(v) => {
+                                            handleChange("label_height", +v);
+                                            // SYNC: Update paper height if thermal
+                                            if (selectedType === "thermal") {
+                                                handleChange(
+                                                    "paper_height",
+                                                    +v,
+                                                );
+                                            }
+                                        }}
                                         autoComplete="off"
                                         helpText={
                                             currentPrinterType === "thermal"
@@ -665,20 +783,59 @@ export default function PrinterSidebar({
                                             />
                                         )}
                                         {config.qr_data_source === "custom" && (
-                                            <TextField
-                                                label="Custom Data"
-                                                value={
-                                                    config.qr_custom_format ||
-                                                    ""
-                                                }
-                                                onChange={(v) =>
-                                                    handleChange(
-                                                        "qr_custom_format",
-                                                        v,
-                                                    )
-                                                }
-                                                autoComplete="off"
-                                            />
+                                            <BlockStack gap="200">
+                                                <TextField
+                                                    label="Custom Data Pattern"
+                                                    value={
+                                                        config.qr_custom_format ||
+                                                        ""
+                                                    }
+                                                    onChange={(v) =>
+                                                        handleChange(
+                                                            "qr_custom_format",
+                                                            v,
+                                                        )
+                                                    }
+                                                    autoComplete="off"
+                                                    placeholder="e.g. {{sku}} - {{price}}"
+                                                    helpText="Combine text with variables."
+                                                />
+                                                <BlockStack gap="100">
+                                                    <Text
+                                                        variant="bodyXs"
+                                                        tone="subdued"
+                                                    >
+                                                        Available Variables:
+                                                    </Text>
+                                                    <InlineStack gap="200" wrap>
+                                                        {[
+                                                            "{{title}}",
+                                                            "{{sku}}",
+                                                            "{{barcode}}",
+                                                            "{{price}}",
+                                                            "{{vendor}}",
+                                                            "{{variant}}",
+                                                        ].map((tag) => (
+                                                            <div
+                                                                key={tag}
+                                                                className="px-2 py-1 bg-gray-100 rounded text-xs cursor-pointer hover:bg-gray-200 border border-gray-300"
+                                                                onClick={() =>
+                                                                    handleChange(
+                                                                        "qr_custom_format",
+                                                                        (config.qr_custom_format ||
+                                                                            "") +
+                                                                            " " +
+                                                                            tag,
+                                                                    )
+                                                                }
+                                                                title="Click to add"
+                                                            >
+                                                                {tag}
+                                                            </div>
+                                                        ))}
+                                                    </InlineStack>
+                                                </BlockStack>
+                                            </BlockStack>
                                         )}
 
                                         <Checkbox
@@ -934,11 +1091,11 @@ export default function PrinterSidebar({
                                                         label="Top"
                                                         type="number"
                                                         value={String(
-                                                            config.margin_top,
+                                                            config.page_margin_top,
                                                         )}
                                                         onChange={(v) =>
                                                             handleChange(
-                                                                "margin_top",
+                                                                "page_margin_top",
                                                                 +v,
                                                             )
                                                         }
@@ -948,11 +1105,41 @@ export default function PrinterSidebar({
                                                         label="Left"
                                                         type="number"
                                                         value={String(
-                                                            config.margin_left,
+                                                            config.page_margin_left,
                                                         )}
                                                         onChange={(v) =>
                                                             handleChange(
-                                                                "margin_left",
+                                                                "page_margin_left",
+                                                                +v,
+                                                            )
+                                                        }
+                                                        autoComplete="off"
+                                                    />
+                                                </FormLayout.Group>
+                                                <FormLayout.Group condensed>
+                                                    <TextField
+                                                        label="Right"
+                                                        type="number"
+                                                        value={String(
+                                                            config.page_margin_right,
+                                                        )}
+                                                        onChange={(v) =>
+                                                            handleChange(
+                                                                "page_margin_right",
+                                                                +v,
+                                                            )
+                                                        }
+                                                        autoComplete="off"
+                                                    />
+                                                    <TextField
+                                                        label="Bottom"
+                                                        type="number"
+                                                        value={String(
+                                                            config.page_margin_bottom,
+                                                        )}
+                                                        onChange={(v) =>
+                                                            handleChange(
+                                                                "page_margin_bottom",
                                                                 +v,
                                                             )
                                                         }

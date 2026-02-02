@@ -60,7 +60,7 @@ class BarcodeLabelPdfGenerator
     protected function prepareLabels($variantIds, $quantityPerVariant)
     {
         $variants = Variant::whereIn('id', $variantIds)
-            ->with('product')
+            ->with(['product.user'])
             ->get();
 
         if ($variants->isEmpty()) {
@@ -146,14 +146,24 @@ class BarcodeLabelPdfGenerator
     {
         $format = $this->setting->qr_custom_format ?? '{barcode}';
 
+        // Support both {tag} and {{tag}} formats
         $replacements = [
             '{sku}' => $variant->sku ?? '',
+            '{{sku}}' => $variant->sku ?? '',
             '{barcode}' => $variant->barcode ?? '',
+            '{{barcode}}' => $variant->barcode ?? '',
             '{price}' => $variant->price ?? '0.00',
+            '{{price}}' => $variant->price ?? '0.00',
             '{title}' => $variant->product->title ?? '',
+            '{{title}}' => $variant->product->title ?? '',
             '{variant_id}' => $variant->shopify_variant_id ?? '',
+            '{{variant_id}}' => $variant->shopify_variant_id ?? '',
             '{product_id}' => $variant->product->shopify_product_id ?? '',
+            '{{product_id}}' => $variant->product->shopify_product_id ?? '',
             '{vendor}' => $variant->product->vendor ?? '',
+            '{{vendor}}' => $variant->product->vendor ?? '',
+            '{variant}' => $this->getVariantTitle($variant),
+            '{{variant}}' => $this->getVariantTitle($variant),
         ];
 
         return str_replace(array_keys($replacements), array_values($replacements), $format);
@@ -374,6 +384,10 @@ class BarcodeLabelPdfGenerator
 
     protected function renderPdf($labels)
     {
+        // THERMAL FIX: If grid is 1x1, force paper size to match label size + margins
+        // This prevents "small label on A4 page" issues if user didn't update paper settings
+        $this->adjustPaperSizeForThermal();
+
         $html = $this->buildHtml($labels);
 
         $paperSize = [
@@ -396,6 +410,9 @@ class BarcodeLabelPdfGenerator
 
     protected function renderPdfRaw($labels)
     {
+        // THERMAL FIX: Same logic for Raw PDF
+        $this->adjustPaperSizeForThermal();
+
         $html = $this->buildHtml($labels);
 
         $paperSize = [
@@ -415,6 +432,33 @@ class BarcodeLabelPdfGenerator
             ->setOption('dpi', 300)
             ->setOption('defaultMediaType', 'print')
             ->output();
+    }
+
+    protected function adjustPaperSizeForThermal()
+    {
+        $cols = (int)($this->setting->labels_per_row ?? 1);
+        $rows = (int)($this->setting->labels_per_column ?? 1);
+
+        // Heuristic: If 1x1 grid, assume Thermal/Single Label mode
+        if ($cols === 1 && $rows === 1) {
+            $labelW = floatval($this->setting->label_width);
+            $labelH = floatval($this->setting->label_height);
+            
+            // Get effective margins
+            $mT = floatval($this->setting->margin_top ?? 0);
+            $mB = floatval($this->setting->margin_bottom ?? 0);
+            $mL = floatval($this->setting->margin_left ?? 0);
+            $mR = floatval($this->setting->margin_right ?? 0);
+
+            // Force Paper Size = Label Size + Margins
+            // This ensures the PDF page creates a canvas exactly the size of the sticker
+            // BUFFER: Add 1mm to width/height to prevent rounding overflows causing blank pages
+            $this->setting->paper_width = $labelW + $mL + $mR + 1.0;
+            $this->setting->paper_height = $labelH + $mT + $mB + 1.0;
+            
+            // Log this override for debugging
+            Log::info("Thermal Mode Detected: Auto-sized PDF page to {$this->setting->paper_width}x{$this->setting->paper_height}mm");
+        }
     }
 
     protected function calculateEffectiveDimensions()
@@ -489,6 +533,11 @@ class BarcodeLabelPdfGenerator
     {
         $s = $this->setting;
 
+        // Detect Thermal Mode for CSS adjustments
+        $cols = (int)($s->labels_per_row ?? 1);
+        $rows = (int)($s->labels_per_column ?? 1);
+        $isThermal = ($cols === 1 && $rows === 1);
+
         // Convert all measurements properly
         $labelWidth = floatval($s->label_width ?? 80) * self::MM_TO_PT;
         $labelHeight = floatval($s->label_height ?? 40) * self::MM_TO_PT;
@@ -541,6 +590,9 @@ class BarcodeLabelPdfGenerator
 
         $labelPadding = max(2, min(6, $labelHeight * 0.04));
 
+        // CSS: Hide border for thermal to prevent overflow/double-lines
+        $borderStyle = $isThermal ? 'none' : '0.5pt solid #cccccc';
+
         $html = <<<HTML
 <!DOCTYPE html>
 <html>
@@ -584,7 +636,7 @@ class BarcodeLabelPdfGenerator
         .label-content {
             width: {$labelWidth}pt;
             height: {$labelHeight}pt;
-            border: 0.5pt solid #cccccc;
+            border: {$borderStyle};
             padding: {$labelPadding}pt;
             overflow: hidden;
             display: block;

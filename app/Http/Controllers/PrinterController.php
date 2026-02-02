@@ -99,7 +99,7 @@ class PrinterController extends Controller
                 'barcode_format' => 'nullable|string',
 
                 // QR Code Settings (NEW)
-                'qr_data_source' => 'nullable|string|in:barcode,sku,variant_id,product_url,custom',
+                'qr_data_source' => 'nullable|string', // in:barcode,sku,variant_id,product_url,custom (Relaxed for custom)
                 'qr_custom_format' => 'nullable|string|max:500',
 
                 // Paper Setup
@@ -108,11 +108,17 @@ class PrinterController extends Controller
                 'paper_width' => 'nullable|numeric|min:10|max:1000',
                 'paper_height' => 'nullable|numeric|min:10|max:1000',
 
-                // Margins
+                // Margins (Backend expects page_margin_*)
                 'page_margin_top' => 'nullable|numeric|min:0|max:100',
                 'page_margin_bottom' => 'nullable|numeric|min:0|max:100',
                 'page_margin_left' => 'nullable|numeric|min:0|max:100',
                 'page_margin_right' => 'nullable|numeric|min:0|max:100',
+
+                // Also allow old frontend keys for backward compatibility/aliasing if needed, but preferred is page_margin_*
+                'margin_top' => 'nullable|numeric|min:0|max:100',
+                'margin_bottom' => 'nullable|numeric|min:0|max:100',
+                'margin_left' => 'nullable|numeric|min:0|max:100',
+                'margin_right' => 'nullable|numeric|min:0|max:100',
 
                 // Label Dimensions
                 'label_width' => 'nullable|numeric|min:10|max:500',
