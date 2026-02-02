@@ -198,7 +198,7 @@ class SkuController extends Controller
                     $newSku = $this->buildSku($request, $source, $num);
 
                     fputcsv($handle, [
-                        $variant->id,
+                        '="' . $variant->shopify_variant_id . '"',
                         $variant->product->title ?? '',
                         $variant->title ?? '',
                         $variant->sku,

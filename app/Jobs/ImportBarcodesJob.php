@@ -32,71 +32,79 @@ class ImportBarcodesJob implements ShouldQueue
 
     public function handle()
     {
+        /** @var User */
         $shop = User::find($this->shopId);
         if (!$shop) return;
 
         $jobLog = JobLog::findOrFail($this->jobLogId);
-        $jobLog->update(['status' => 'running']);
+        $jobLog->update([
+            'status' => 'running',
+            'total_items' => count($this->barcodeData),
+            'processed_items' => 0
+        ]);
 
         $total = count($this->barcodeData);
-        $variantIds = [];
+        
+        // 1. Map ShopifyVariantID -> NewBarcode
+        $barcodeMap = [];
+        foreach ($this->barcodeData as $item) {
+            $sid = strval($item['shopify_variant_id']);
+            $barcodeMap[$sid] = trim($item['barcode']);
+        }
 
-        // Step 1: Update database
-        DB::beginTransaction();
-        try {
-            foreach ($this->barcodeData as $item) {
-                $shopifyId = strval($item['shopify_variant_id']);
-                $newBarcode = trim($item['barcode']);
+        $shopifyVariantIds = array_keys($barcodeMap);
 
-                $variant = Variant::where('shopify_variant_id', $shopifyId)
-                    ->whereHas('product', fn($q) => $q->where('user_id', $shop->id))
-                    ->first();
+        // 2. Fetch local variants (READ ONLY)
+        // Only fetch fields we need: id, product_id, shopify_variant_id
+        $variants = Variant::whereIn('shopify_variant_id', $shopifyVariantIds)
+            ->whereHas('product', fn($q) => $q->where('user_id', $shop->id))
+            ->select(['id', 'product_id', 'shopify_variant_id'])
+            ->get();
 
-                if (!$variant) {
-                    Log::warning("Import: Variant not found - Shopify ID: $shopifyId");
-                    continue;
-                }
+        if ($variants->isEmpty()) {
+            $jobLog->markAsCompleted("No matching variants found in database.");
+            return;
+        }
 
-                $variant->update(['barcode' => $newBarcode]);
-                $variantIds[] = $variant->id;
+        // 3. Group by Product for Bulk API
+        // Structure: [productId => [variantId => barcode]]
+        $productsToSync = [];
+        
+        foreach ($variants as $variant) {
+            $sid = (string)$variant->shopify_variant_id;
+            if (isset($barcodeMap[$sid])) {
+                $productsToSync[$variant->product_id][$variant->id] = $barcodeMap[$sid];
             }
-
-            DB::commit();
-            Log::info("ImportBarcodesJob: Updated {$total} variants in database");
-        } catch (\Exception $e) {
-            DB::rollBack();
-            $jobLog->markAsFailed("Database update failed: " . $e->getMessage());
-            return;
         }
 
-        // Step 2: Sync to Shopify in batches
-        if (empty($variantIds)) {
-            $jobLog->markAsCompleted("No variants were updated.");
-            return;
-        }
-
-        $batchSize = 100;
-        $chunks = array_chunk($variantIds, $batchSize);
+        // 4. Batch Dispatch
+        // Chunk by PRODUCTS (e.g. 50 products per job) to keep batch payload manageable
+        $productChunks = array_chunk($productsToSync, 50, true);
         $batches = [];
 
-        foreach ($chunks as $chunk) {
-            $batches[] = new \App\Jobs\SyncBarcodesToShopifyJob(
+        foreach ($productChunks as $chunk) {
+            $batches[] = new \App\Jobs\SyncImportedBarcodesBatchJob(
                 $shop->id,
-                $chunk,
-                $jobLog->id
+                $jobLog->id,
+                $chunk
             );
         }
 
         Bus::batch($batches)
             ->name("Barcode Import Sync - Shop {$shop->id}")
-            ->then(function (Batch $batch) use ($jobLog, $total) {
-                $jobLog->markAsCompleted("Successfully imported and synced {$total} barcodes to Shopify.");
+            ->then(function (Batch $batch) use ($shop) {
+                // Optional: Final cleanup or notify
             })
-            ->catch(function (Batch $batch, \Throwable $e) use ($jobLog) {
-                $jobLog->markAsFailed("Shopify sync failed: " . $e->getMessage());
+            ->finally(function (Batch $batch) use ($jobLog, $total) {
+                // Check for failures
+                if ($batch->cancelled()) {
+                    $jobLog->markAsFailed("Batch cancelled");
+                } else {
+                    $jobLog->markAsCompleted("Processed import of {$total} barcodes.");
+                }
             })
             ->dispatch();
 
-        Log::info("ImportBarcodesJob: Dispatched Shopify sync for {$total} variants");
+        Log::info("ImportBarcodesJob: Prepared and dispatched " . count($batches) . " sync batches for {$total} variants.");
     }
 }

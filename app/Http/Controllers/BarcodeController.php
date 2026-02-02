@@ -123,7 +123,7 @@ class BarcodeController extends Controller
                     fputcsv($handle, [
                         $newBarcode,
                         $format,
-                        $variant->id,
+                        '="' . $variant->shopify_variant_id . '"',
                         $variant->product->title ?? '',
                         $variant->sku ?? '',
                         $oldBarcode,
