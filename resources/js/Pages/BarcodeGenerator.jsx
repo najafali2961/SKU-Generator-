@@ -274,38 +274,36 @@ export default function BarcodeGenerator({
     };
 
     const handleExport = () => {
-        if (barcodes.length === 0) return alert("No barcodes to export yet!");
+        if (stats.total === 0) return alert("No barcodes to export!");
 
-        const csv = [
-            [
-                "Barcode",
-                "Format",
-                "Variant ID",
-                "Product Title",
-                "SKU",
-                "Old Barcode",
-                "New Barcode",
-            ],
-            ...barcodes.map((b) => [
-                b.new_barcode || "",
-                b.format || "",
-                b.id || "",
-                b.title || "",
-                b.sku || "",
-                b.old_barcode || "",
-                b.new_barcode || "",
-            ]),
-        ]
-            .map((row) => row.join(","))
-            .join("\n");
+        setLoading(true);
 
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `barcodes-${new Date().toISOString().slice(0, 10)}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
+        const params = {
+            ...form,
+            tab: activeTab,
+            collections: selectedCollectionIds,
+            vendor: selectedVendors[0] || null,
+            type: selectedTypes[0] || null,
+            tags: selectedTags,
+        };
+
+        router.post("/barcode-generator/export", params, {
+            onFinish: () => setLoading(false),
+            onSuccess: (page) => {
+                console.log("Export POST success", page);
+                const downloadUrl = page.props.flash?.download_url;
+                if (downloadUrl) {
+                    console.log("Redirecting to download:", downloadUrl);
+                    window.location.href = downloadUrl;
+                } else {
+                    console.error(
+                        "No download_url found in flash props",
+                        page.props,
+                    );
+                }
+            },
+            onError: (err) => console.error("Export POST failed", err),
+        });
     };
 
     const handleTabChange = (tab) => {

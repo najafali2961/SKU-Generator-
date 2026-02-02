@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class SkuController extends Controller
@@ -97,6 +98,116 @@ class SkuController extends Controller
 
         return redirect()->route('jobs.show', $jobLog->id)
             ->with('success', 'SKU generation started! Redirecting to progress page...');
+    }
+
+    public function export(Request $request)
+    {
+        Log::info('SKU Export POST initialized.', ['request' => $request->all()]);
+        $id = \Illuminate\Support\Str::uuid()->toString();
+        Cache::put("sku_export_{$id}", $request->all(), now()->addMinutes(5));
+
+        Log::info("SKU Export hashed and cached. ID: {$id}");
+
+        return back()->with('download_url', route('sku-generator.download-export', ['id' => $id]));
+    }
+
+    public function downloadExport(Request $request)
+    {
+        Log::info('SKU Export Download (GET) started.', ['id' => $request->input('id')]);
+        $id = $request->input('id');
+        $filters = Cache::get("sku_export_{$id}");
+
+        if (!$filters) {
+            Log::error('SKU Export link expired or not found.', ['id' => $id]);
+            return redirect()->route('sku-generator')->with('error', 'Export link expired.');
+        }
+
+        Log::info('SKU Export filters retrieved.', ['filters' => $filters]);
+
+        // Rehydrate request with filters
+        $request->merge($filters);
+
+        /** @var \App\Models\User $shop */
+        $shop = Auth::user();
+        $baseQuery = $this->buildFilteredQuery($request, $shop);
+        $tab = $request->input('tab', 'all');
+        $fileName = 'skus-export-' . date('Y-m-d') . '.csv';
+
+        return response()->streamDownload(function () use ($baseQuery, $tab, $request) {
+            $handle = fopen('php://output', 'w');
+            
+            // Add BOM for Excel compatibility
+            fwrite($handle, "\xEF\xBB\xBF");
+            
+            fputcsv($handle, [
+                'Variant ID', 
+                'Product Title', 
+                'Variant Title', 
+                'Current SKU', 
+                'New SKU', 
+                'Vendor', 
+                'Product Type', 
+                'Collections'
+            ]);
+
+            $startNumber = (int)($request->input('auto_start', 1));
+            $padLength = strlen((string)$request->input('auto_start', '0001'));
+            $globalCounter = $startNumber;
+            $perProductCounters = [];
+
+            $query = $baseQuery->clone();
+
+            if ($tab === 'duplicates') {
+                $dupeSkusQuery = $baseQuery->clone()
+                    ->select('sku')
+                    ->whereNotNull('sku')
+                    ->where('sku', '<>', '')
+                    ->groupBy('sku')
+                    ->havingRaw('count(*) > 1');
+                
+                $query->whereIn('sku', $dupeSkusQuery)->orderBy('sku');
+            } elseif ($tab === 'missing') {
+                $query->where(function($q) {
+                    $q->whereNull('sku')->orWhere('sku', '');
+                });
+            }
+
+            // Relationship for collections needed? We already join in buildFilteredQuery if filtering?
+            // buildFilteredQuery uses `whereHas`. It doesn't `with` collections.
+            // We should eager load collections for the export CSV column.
+            $query->with(['product', 'product.collections']);
+
+            $query->chunk(1000, function ($variants) use ($handle, $request, &$globalCounter, $padLength, &$perProductCounters) {
+                foreach ($variants as $variant) {
+                    // Logic to calculate New SKU
+                    $number = $request->boolean('restart_per_product')
+                        ? ($perProductCounters[$variant->product_id] ??= (int)$request->input('auto_start', 1))
+                        : $globalCounter++;
+                    
+                    // Increment per-product counter if used
+                    if ($request->boolean('restart_per_product')) {
+                         $perProductCounters[$variant->product_id]++;
+                    }
+
+                    $num = str_pad($number, $padLength, '0', STR_PAD_LEFT);
+                    $source = $this->getSource($variant, $request);
+                    $newSku = $this->buildSku($request, $source, $num);
+
+                    fputcsv($handle, [
+                        $variant->id,
+                        $variant->product->title ?? '',
+                        $variant->title ?? '',
+                        $variant->sku,
+                        $newSku,
+                        $variant->product->vendor ?? '',
+                        $variant->product->product_type ?? '',
+                        $variant->product->collections->pluck('title')->join(', ')
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, $fileName);
     }
 
     public function preview(Request $request)

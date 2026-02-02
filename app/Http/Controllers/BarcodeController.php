@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class BarcodeController extends Controller
 {
@@ -32,6 +33,103 @@ class BarcodeController extends Controller
             'hasUnlimitedCredits' => $shop->hasUnlimitedCredits(),
             'creditCostPerBarcode' => $shop->getCreditCost('barcode_generation', 1),
         ]);
+    }
+
+    public function export(Request $request)
+    {
+        Log::info('Barcode Export POST initialized.', ['request' => $request->all()]);
+        $id = \Illuminate\Support\Str::uuid()->toString();
+        Cache::put("barcode_export_{$id}", $request->all(), now()->addMinutes(5));
+
+        Log::info("Barcode Export hashed and cached. ID: {$id}");
+
+        return back()->with('download_url', route('barcode-generator.download-export', ['id' => $id]));
+    }
+
+    public function downloadExport(Request $request)
+    {
+        Log::info('Barcode Export Download (GET) started.', ['id' => $request->input('id')]);
+        $id = $request->input('id');
+        $filters = Cache::get("barcode_export_{$id}");
+
+        if (!$filters) {
+            Log::error('Barcode Export link expired or not found.', ['id' => $id]);
+            return redirect()->route('barcode')->with('error', 'Export link expired.');
+        }
+
+        Log::info('Barcode Export filters retrieved.', ['filters' => $filters]);
+
+        $request->merge($filters);
+
+        /** @var \App\Models\User $shop */
+        $shop = Auth::user();
+        $baseQuery = $this->buildFilteredQuery($request, $shop);
+        $tab = $request->input('tab', 'all');
+        $fileName = 'barcodes-export-' . date('Y-m-d') . '.csv';
+
+        return response()->streamDownload(function () use ($baseQuery, $tab, $request) {
+            $handle = fopen('php://output', 'w');
+            
+            // Add BOM
+            fwrite($handle, "\xEF\xBB\xBF");
+            
+            fputcsv($handle, [
+                'Barcode',
+                'Format',
+                'Variant ID',
+                'Product Title',
+                'SKU',
+                'Old Barcode',
+                'New Barcode',
+            ]);
+
+            $startNumber = (int)($request->input('start_number', 1));
+            $globalCounter = $startNumber;
+            $format = $request->input('format', 'UPC');
+            $rules = $request->all();
+
+            $query = $baseQuery->clone();
+
+            if ($tab === 'duplicates') {
+                $dupeBarcodesQuery = $baseQuery->clone()
+                    ->select('barcode')
+                    ->whereNotNull('barcode')
+                    ->where('barcode', '<>', '')
+                    ->where('barcode', '<>', '-')
+                    ->groupBy('barcode')
+                    ->havingRaw('count(*) > 1');
+                
+                $query->whereIn('barcode', $dupeBarcodesQuery)->orderBy('barcode');
+            } elseif ($tab === 'missing') {
+                $query->where(function($q) {
+                    $q->whereNull('barcode')
+                      ->orWhere('barcode', '')
+                      ->orWhere('barcode', '-');
+                });
+            }
+
+            $query->chunk(1000, function ($variants) use ($handle, $rules, $format, &$globalCounter) {
+                foreach ($variants as $variant) {
+                    $newBarcode = $this->generateBarcode($variant, $rules, $globalCounter++);
+                    $oldBarcode = $variant->barcode;
+                    if (empty(trim($oldBarcode)) || trim($oldBarcode) === '-') {
+                        $oldBarcode = '';
+                    }
+                    
+                    fputcsv($handle, [
+                        $newBarcode,
+                        $format,
+                        $variant->id,
+                        $variant->product->title ?? '',
+                        $variant->sku ?? '',
+                        $oldBarcode,
+                        $newBarcode
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, $fileName);
     }
 
     private function generateBarcode($variant, $rules, $counter)

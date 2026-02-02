@@ -149,10 +149,6 @@ export default function SkuGenerator({
     // Calculate credit requirements
     const getCreditRequirements = (scope) => {
         let itemCount = 0;
-        console.log(`[Debug] getCreditRequirements: Scope=${scope}`, {
-            stats,
-            creditInfo,
-        });
 
         if (scope === "selected") {
             itemCount = selected.size;
@@ -181,7 +177,7 @@ export default function SkuGenerator({
             available: creditInfo.available,
             maxAllowed: creditInfo.max_allowed,
         };
-        console.log(`[Debug] Req for ${scope}:`, ret);
+
         return ret;
     };
 
@@ -304,50 +300,40 @@ export default function SkuGenerator({
     };
 
     const handleExport = () => {
-        if (preview.length === 0) {
-            alert("No SKUs to export yet!");
+        if (total === 0) {
+            alert("No SKUs to export!");
             return;
         }
 
-        const headers = [
-            "Variant ID",
-            "Product Title",
-            "Variant Title",
-            "Current SKU",
-            "New SKU",
-            "Vendor",
-            "Product Type",
-            "Collections",
-        ];
+        setLoading(true);
 
-        const rows = preview.map((item) => [
-            item.id || "",
-            `"${(item.title || "").replace(/"/g, '""')}"`,
-            `"${(item.variant_title || "").replace(/"/g, '""')}"`,
-            item.current_sku || "",
-            item.new_sku || "",
-            `"${(item.vendor || "").replace(/"/g, '""')}"`,
-            `"${(item.type || "").replace(/"/g, '""')}"`,
-            `"${(item.collections || []).join(", ")}"`,
-        ]);
+        const params = {
+            ...form,
+            search: queryValue.trim(),
+            tab: activeTab,
+            collections: selectedCollectionIds,
+            vendor: selectedVendors[0] || null,
+            type: selectedTypes[0] || null,
+            tags: selectedTags,
+        };
 
-        const csvContent = [headers, ...rows]
-            .map((row) => row.join(","))
-            .join("\n");
-
-        const blob = new Blob([csvContent], {
-            type: "text/csv;charset=utf-8;",
+        router.post("/sku-generator/export", params, {
+            onFinish: () => setLoading(false),
+            onSuccess: (page) => {
+                console.log("SKU Export POST success", page);
+                const downloadUrl = page.props.flash?.download_url;
+                if (downloadUrl) {
+                    console.log("Redirecting to download:", downloadUrl);
+                    window.location.href = downloadUrl;
+                } else {
+                    console.error(
+                        "No download_url found in flash props",
+                        page.props,
+                    );
+                }
+            },
+            onError: (err) => console.error("SKU Export POST failed", err),
         });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `skus-export-${new Date()
-            .toISOString()
-            .slice(0, 10)}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
     };
 
     const mediaUrl = (item) => item.image || null;

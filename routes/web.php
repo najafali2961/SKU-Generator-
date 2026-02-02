@@ -21,6 +21,8 @@ Route::middleware(['verify.shopify', 'billable'])->group(function () {
     // SKU Generator
     Route::get('/sku-generator', [SkuController::class, 'index'])->name('sku-generator');
     Route::post('/sku-generator/preview', [SkuController::class, 'preview']);
+    Route::post('/sku-generator/export', [SkuController::class, 'export']);
+    Route::get('/sku-generator/download-export', [SkuController::class, 'downloadExport'])->name('sku-generator.download-export');
     Route::post('/sku-generator/apply', [SkuController::class, 'apply']);
     Route::get('/sku-generator/progress', [SkuController::class, 'progress']);
 
@@ -35,6 +37,8 @@ Route::middleware(['verify.shopify', 'billable'])->group(function () {
     Route::post('/barcode-generator/preview', [BarcodeController::class, 'preview']);
     Route::post('/barcode/generate', [BarcodeController::class, 'generate']);
     Route::post('/barcode-generator/apply', [BarcodeController::class, 'apply']);
+    Route::post('/barcode-generator/export', [BarcodeController::class, 'export']);
+    Route::get('/barcode-generator/download-export', [BarcodeController::class, 'downloadExport'])->name('barcode-generator.download-export');
     Route::get('/barcode-generator/progress', [BarcodeController::class, 'progress']);
     Route::post('/barcode/import', [BarcodeController::class, 'import']);
     Route::post('/barcode/fetch-variants', [BarcodeController::class, 'fetchVariants']);
