@@ -287,23 +287,37 @@ export default function BarcodeGenerator({
             tags: selectedTags,
         };
 
-        router.post("/barcode-generator/export", params, {
-            onFinish: () => setLoading(false),
-            onSuccess: (page) => {
-                console.log("Export POST success", page);
-                const downloadUrl = page.props.flash?.download_url;
+        axios
+            .post("/barcode-generator/export", params)
+            .then((res) => {
+                const downloadUrl = res.data.download_url;
                 if (downloadUrl) {
-                    console.log("Redirecting to download:", downloadUrl);
-                    window.location.href = downloadUrl;
-                } else {
-                    console.error(
-                        "No download_url found in flash props",
-                        page.props,
+                    const url = new URL(downloadUrl);
+                    const currentParams = new URLSearchParams(
+                        window.location.search,
                     );
+                    currentParams.forEach((value, key) => {
+                        if (!url.searchParams.has(key)) {
+                            url.searchParams.set(key, value);
+                        }
+                    });
+
+                    console.log(
+                        "Redirecting to download with params:",
+                        url.toString(),
+                    );
+                    window.location.href = url.toString();
+                } else {
+                    console.error("No download_url returned", res.data);
                 }
-            },
-            onError: (err) => console.error("Export POST failed", err),
-        });
+            })
+            .catch((err) => {
+                console.error("Export failed:", err);
+                alert("Export failed. Check console for details.");
+            })
+            .finally(() => {
+                setLoading(false);
+            });
     };
 
     const handleTabChange = (tab) => {

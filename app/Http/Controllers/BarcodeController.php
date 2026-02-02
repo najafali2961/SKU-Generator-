@@ -43,7 +43,11 @@ class BarcodeController extends Controller
 
         Log::info("Barcode Export hashed and cached. ID: {$id}");
 
-        return back()->with('download_url', route('barcode-generator.download-export', ['id' => $id]));
+        Log::info("Barcode Export hashed and cached. ID: {$id}");
+
+        return response()->json([
+            'download_url' => route('barcode-generator.download-export', ['id' => $id])
+        ]);
     }
 
     public function downloadExport(Request $request)

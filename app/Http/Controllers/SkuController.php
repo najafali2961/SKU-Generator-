@@ -108,7 +108,11 @@ class SkuController extends Controller
 
         Log::info("SKU Export hashed and cached. ID: {$id}");
 
-        return back()->with('download_url', route('sku-generator.download-export', ['id' => $id]));
+        Log::info("SKU Export hashed and cached. ID: {$id}");
+
+        return response()->json([
+            'download_url' => route('sku-generator.download-export', ['id' => $id])
+        ]);
     }
 
     public function downloadExport(Request $request)
