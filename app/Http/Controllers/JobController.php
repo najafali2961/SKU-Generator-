@@ -94,7 +94,7 @@ class JobController extends Controller
                 'title'   => $log->title,
                 'message' => $log->message,
                 'time'    => $log->logged_at?->diffForHumans(),
-            ])->reverse()->values(),
+            ])->values(),
         ]);
     }
 }

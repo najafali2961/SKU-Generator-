@@ -77,14 +77,12 @@ export default function JobShow({ job: initialJob }) {
     useEffect(() => {
         const logs = initialJob.activity_logs || initialJob.activityLogs;
         if (logs?.length > 0) {
-            const formatted = logs
-                .map((log) => ({
-                    type: log.level,
-                    title: log.title,
-                    message: log.message || null,
-                    time: log.logged_at,
-                }))
-                .reverse();
+            const formatted = logs.map((log) => ({
+                type: log.level,
+                title: log.title,
+                message: log.message || null,
+                time: log.logged_at,
+            }));
             setLogs(formatted);
         }
     }, [initialJob]);
@@ -110,12 +108,13 @@ export default function JobShow({ job: initialJob }) {
 
                     setLogs((prev) => {
                         const existing = new Set(
-                            prev.map((l) => `${l.title}-${l.time}`)
+                            prev.map((l) => `${l.title}-${l.time}`),
                         );
                         const filtered = newLogs.filter(
-                            (l) => !existing.has(`${l.title}-${l.time}`)
+                            (l) => !existing.has(`${l.title}-${l.time}`),
                         );
-                        return [...prev, ...filtered].slice(-300);
+                        // Prepend new logs (Newest First)
+                        return [...filtered, ...prev].slice(0, 300);
                     });
                 }
 
@@ -134,7 +133,7 @@ export default function JobShow({ job: initialJob }) {
         if (!job.started_at) return;
         if (isDone && job.finished_at) {
             const diff = Math.floor(
-                (new Date(job.finished_at) - new Date(job.started_at)) / 1000
+                (new Date(job.finished_at) - new Date(job.started_at)) / 1000,
             );
             setElapsedTime(diff);
             return;
@@ -142,8 +141,8 @@ export default function JobShow({ job: initialJob }) {
         const interval = setInterval(() => {
             setElapsedTime(
                 Math.floor(
-                    (Date.now() - new Date(job.started_at).getTime()) / 1000
-                )
+                    (Date.now() - new Date(job.started_at).getTime()) / 1000,
+                ),
             );
         }, 1000);
         return () => clearInterval(interval);
@@ -209,7 +208,7 @@ export default function JobShow({ job: initialJob }) {
                                               onAction: () => {
                                                   const a =
                                                       document.createElement(
-                                                          "a"
+                                                          "a",
                                                       );
                                                   a.href =
                                                       job.payload.download_url;
@@ -388,7 +387,7 @@ export default function JobShow({ job: initialJob }) {
                                         Started:{" "}
                                         {job.started_at
                                             ? new Date(
-                                                  job.started_at
+                                                  job.started_at,
                                               ).toLocaleTimeString()
                                             : "—"}
                                     </Text>
@@ -396,7 +395,7 @@ export default function JobShow({ job: initialJob }) {
                                         <Text tone="subdued" size="small">
                                             Finished:{" "}
                                             {new Date(
-                                                job.finished_at
+                                                job.finished_at,
                                             ).toLocaleTimeString()}
                                         </Text>
                                     )}
@@ -476,20 +475,20 @@ export default function JobShow({ job: initialJob }) {
                                                     job.status === "completed"
                                                         ? CheckCircleIcon
                                                         : job.status ===
-                                                          "failed"
-                                                        ? XCircleIcon
-                                                        : job.status ===
-                                                          "running"
-                                                        ? PlayIcon
-                                                        : AlertDiamondIcon
+                                                            "failed"
+                                                          ? XCircleIcon
+                                                          : job.status ===
+                                                              "running"
+                                                            ? PlayIcon
+                                                            : AlertDiamondIcon
                                                 }
                                                 tone={
                                                     job.status === "completed"
                                                         ? "success"
                                                         : job.status ===
-                                                          "failed"
-                                                        ? "critical"
-                                                        : "info"
+                                                            "failed"
+                                                          ? "critical"
+                                                          : "info"
                                                 }
                                             />
                                         </div>
@@ -719,12 +718,12 @@ export default function JobShow({ job: initialJob }) {
                                                                 "success"
                                                                     ? "positive"
                                                                     : logType ===
-                                                                      "error"
-                                                                    ? "negative"
-                                                                    : logType ===
-                                                                      "warning"
-                                                                    ? "warning"
-                                                                    : undefined
+                                                                        "error"
+                                                                      ? "negative"
+                                                                      : logType ===
+                                                                          "warning"
+                                                                        ? "warning"
+                                                                        : undefined
                                                             }
                                                         >
                                                             {item.title}
@@ -734,7 +733,7 @@ export default function JobShow({ job: initialJob }) {
                                                             size="small"
                                                         >
                                                             {formatRelativeTime(
-                                                                item.time
+                                                                item.time,
                                                             )}
                                                         </Text>
                                                     </InlineStack>
