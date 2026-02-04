@@ -40,6 +40,10 @@ class GenerateLabelPdfJob implements ShouldQueue
 
     public function handle()
     {
+        // Boost memory to 1GB and timeout to match the job timeout
+    ini_set('memory_limit', '1024M');
+    set_time_limit(1200); 
+    
         $jobLog = JobLog::find($this->jobLogId);
         if (!$jobLog) return;
 
