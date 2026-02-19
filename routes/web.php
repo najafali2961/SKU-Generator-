@@ -12,6 +12,7 @@ use App\Http\Controllers\JobController;
 use App\Http\Controllers\PrinterController;
 use App\Http\Controllers\ShopifyWebhookController;
 use App\Http\Controllers\WebhookController;
+use App\Http\Controllers\FeedbackController;
 
 // Protected routes - removed check.credits from group
 Route::middleware(['verify.shopify', 'billable'])->group(function () {
@@ -96,5 +97,8 @@ Route::middleware(['auth.webhook'])->group(function () {
 // Log viewer
 Route::get('logs', [\Rap2hpoutre\LaravelLogViewer\LogViewerController::class, 'index']);
 
+
+// Feedback
+    Route::post('/feedback', [FeedbackController::class, 'store'])->name('feedback.store');
 
 Route::get('/test/shopify', [HomeController::class, 'handleShopifyCall']);

@@ -13,16 +13,17 @@ import {
     Icon,
 } from "@shopify/polaris";
 import {
-    BarcodeIcon,
-    LabelPrinterIcon,
-    StarFilledIcon,
-    ArrowRightIcon,
-    ProductIcon,
-    MagicIcon,
-    PhoneIcon,
     CreditCardIcon,
+    MagicIcon,
+    ProductIcon,
+    StoreIcon,
+    BarcodeIcon,
+    ArrowRightIcon,
+    LabelPrinterIcon,
 } from "@shopify/polaris-icons";
-import { Link } from "@inertiajs/react";
+import { Link, useForm } from "@inertiajs/react";
+import { useState, useCallback } from "react";
+import { Modal, TextField, FormLayout } from "@shopify/polaris";
 import RecentJobsTable from "./RecentJobsTable";
 import CreditsSpeedometerCard from "./CreditsSpeedometerCard";
 
@@ -68,6 +69,38 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
         };
     };
 
+    // Feedback States
+    const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+
+    const {
+        data: feedbackData,
+        setData: setFeedbackData,
+        post: postFeedback,
+        processing: feedbackProcessing,
+        reset: resetFeedback,
+    } = useForm({
+        message: "",
+    });
+
+    const handleBadFeedback = useCallback(() => {
+        setFeedbackModalOpen(true);
+    }, []);
+
+    const submitBadFeedback = useCallback(() => {
+        postFeedback("/feedback", {
+            onSuccess: () => {
+                setFeedbackModalOpen(false);
+                resetFeedback();
+                shopify.toast.show("Thank you for your feedback!");
+            },
+            onError: () => {
+                shopify.toast.show("Failed to send feedback", {
+                    isError: true,
+                });
+            },
+        });
+    }, [postFeedback, resetFeedback]);
+
     return (
         <Page>
             <Layout>
@@ -101,23 +134,66 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                             </BlockStack>
 
                             <InlineStack gap="300">
+                                <BlockStack gap="200">
+                                    <Text variant="headingMd" as="h2">
+                                        Share your feedback
+                                    </Text>
+                                </BlockStack>
                                 <Button
-                                    size="large"
-                                    variant="primary"
-                                    icon={<Icon source={StarFilledIcon} />}
                                     onClick={() =>
                                         window.open(
-                                            "https://apps.shopify.com/airo-sku-barcode-generator",
+                                            "https://apps.shopify.com/airo-sku-barcode-generator#modal-show=ReviewListingModal",
                                             "_blank",
                                         )
                                     }
                                 >
-                                    Leave a Review
+                                    😄 Good
+                                </Button>
+                                <Button onClick={handleBadFeedback}>
+                                    😥 Bad
                                 </Button>
                             </InlineStack>
                         </InlineStack>
                     </Box>
                 </Layout.Section>
+
+                {/* Bad Feedback Modal */}
+                <Modal
+                    open={feedbackModalOpen}
+                    onClose={() => setFeedbackModalOpen(false)}
+                    title="We're sorry to hear that 😔"
+                    primaryAction={{
+                        content: "Send Feedback",
+                        onAction: submitBadFeedback,
+                        loading: feedbackProcessing,
+                    }}
+                    secondaryAction={{
+                        content: "Cancel",
+                        onAction: () => setFeedbackModalOpen(false),
+                    }}
+                >
+                    <Modal.Section>
+                        <BlockStack gap="400">
+                            <Text as="p">
+                                Please let us know what went wrong or how we can
+                                improve. Your feedback goes directly to our
+                                support team.
+                            </Text>
+                            <FormLayout>
+                                <TextField
+                                    label="Message"
+                                    value={feedbackData.message}
+                                    onChange={(value) =>
+                                        setFeedbackData("message", value)
+                                    }
+                                    multiline={4}
+                                    autoComplete="off"
+                                    placeholder="Tell us what happened..."
+                                />
+                            </FormLayout>
+                        </BlockStack>
+                    </Modal.Section>
+                </Modal>
 
                 <Layout.Section>
                     <CreditsSpeedometerCard credits={credits} />
