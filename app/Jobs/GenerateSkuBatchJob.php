@@ -75,6 +75,11 @@ class GenerateSkuBatchJob implements ShouldQueue
                     $sku = $this->generateSku($currentCounter, $variant);
                     $currentCounter++; 
 
+                    // Log debug for the very first item in the batch
+                    if ($processed === 0 && $batchProcessed === 0) {
+                         $this->logDetailedDebug($jobLog, $variant, $variant->sku, $sku, $this->settings);
+                    }
+
                     $skuMap[$variant->id] = $sku;
                     $batchProcessed++;
                 } catch (\Exception $e) {
@@ -241,6 +246,25 @@ class GenerateSkuBatchJob implements ShouldQueue
             $sku = str_replace(' ', '', $sku);
         }
 
+        if (!empty($s['alphanumeric'])) {
+            $sku = preg_replace('/[^a-zA-Z0-9]/', '', $sku);
+        }
+
         return $sku;
+    }
+
+    private function logDetailedDebug($jobLog, $variant, $oldSku, $newSku, $settings) {
+        // Log details for the first variant only to avoid flooding
+        static $logged = false;
+        if ($logged) return;
+        $logged = true;
+
+        Log::info("SKU Generation Debug (First Item)", [
+            'variant_id' => $variant->id,
+            'product' => $variant->product->title ?? 'Unknown',
+            'old_sku' => $oldSku,
+            'new_sku' => $newSku,
+            'settings' => $settings,
+        ]);
     }
 }
