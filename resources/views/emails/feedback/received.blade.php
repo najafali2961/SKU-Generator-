@@ -90,6 +90,11 @@
                                                     <div style="font-size: 14px; color: #1a1d21;">
                                                         {{ $feedback->user->storeDetails->plan_name }}</div>
                                                 </td>
+                                                <td width="50%" style="padding-bottom: 8px;">
+                                                    <div style="font-size: 11px; color: #6b7280;">Email</div>
+                                                    <div style="font-size: 14px; color: #1a1d21;">
+                                                        {{ $feedback->user->storeDetails->email }}</div>
+                                                </td>
                                             </tr>
                                             <tr>
                                                 <td colspan="2">
