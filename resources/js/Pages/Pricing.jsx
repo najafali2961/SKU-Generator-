@@ -240,8 +240,10 @@ export default function Pricing({
                                         <div
                                             className={`${
                                                 isPopular
-                                                    ? "border-2 border-green-600 shadow-lg shadow-green-500/25 rounded-2xl"
-                                                    : ""
+                                                    ? "border-2 border-yellow-200 shadow-lg shadow-yellow-500/25 rounded-2xl"
+                                                    : isCurrent
+                                                      ? "border-2 border-green-600 shadow-lg shadow-green-500/25 rounded-2xl"
+                                                      : ""
                                             }`}
                                         >
                                             <Card>
