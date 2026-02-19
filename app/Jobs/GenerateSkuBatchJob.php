@@ -171,7 +171,21 @@ class GenerateSkuBatchJob implements ShouldQueue
     {
         $s = $this->settings;
         $start = $s['auto_start'] ?? 1;
-        $padLength = max(strlen((string)$start), 4);
+        // Fix: Use the length of the start number provided by user, 
+        // effectively allowing "1" (pad 1) or "001" (pad 3).
+        // If not provided, default to length of 1, but maybe we should default to 4 for backward compat?
+        // Original logic was `max(strlen((string)$start), 4)`.
+        // If user sends "1", strlen is 1. max(1,4) = 4. Result: 0001.
+        // We want: strlen("1") -> 1.
+        
+        $startStr = (string)$start;
+        $padLength = strlen($startStr);
+        
+        // Only default to 4 if the input was literally empty or missing, 
+        // but $start is '1' by default in line 173.
+        // So we really just want `strlen($startStr)`.
+        // However, if they want "0001", they send "0001".
+        
         $num = str_pad($counter, $padLength, '0', STR_PAD_LEFT);
 
         // Dynamic Source Logic

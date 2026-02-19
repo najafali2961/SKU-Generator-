@@ -89,9 +89,20 @@ export default function BarcodeSidebar({ form, handleChange }) {
                                     <TextField
                                         label="Start Number"
                                         value={form.start_number}
-                                        onChange={(v) =>
-                                            handleChange("start_number", v)
-                                        }
+                                        onChange={(v) => {
+                                            handleChange("start_number", v);
+                                            // Track that user manually touched this field
+                                            // handleChange handles form state update, but we need to set the flag.
+                                            // We can pass a special key or handle it in parent.
+                                            // Actually handleChange in parent just does: setForm((prev) => ({ ...prev, [key]: value }));
+                                            // So we should update `manual_start_touched` explicitly if we can't access setForm here.
+                                            // Wait, `handleChange` is a simple wrapper.
+                                            // We can call it for the flag too!
+                                            handleChange(
+                                                "manual_start_touched",
+                                                true,
+                                            );
+                                        }}
                                         placeholder="000000000001"
                                         helpText="Sequential counter"
                                         autoComplete="off"

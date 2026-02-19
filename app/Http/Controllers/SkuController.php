@@ -251,19 +251,26 @@ class SkuController extends Controller
         // 3. Counters Setup
         $startNumber = (int)($request->input('auto_start', 1));
         $padLength   = strlen((string)$request->input('auto_start', '0001'));
+
+        // Fetch ACTUAL next SKU number from DB for preview accuracy
+        $currentCounterRow = DB::table('sku_counters')
+            ->where('shop_id', $shop->id)
+            ->whereNull('product_id')
+            ->first();
+        
+        $nextSkuNumber = $currentCounterRow ? ($currentCounterRow->counter + 1) : 1;
+
+        // If user hasn't manually changed the start number (we detect this via frontend flag or just by comparing),
+        // we might want to use the DB counter.
+        // For preview: If the request 'auto_start' is exactly '1' (default) AND we have a DB counter,
+        // we should probably preview using the DB counter to show what WILL happen.
+        // However, the frontend will overwrite 'auto_start' with 'nextSkuNumber' on load, so 'auto_start' 
+        // in the request should already be correct if we do this right. 
+        // So we trust 'auto_start' from request for the preview calculation.
         
         // Calculate offset for current page global counter
-        // Note: For SKU generation with "restart_per_product", offset logic is complex.
-        // If we strictly follow visual pagination, we generate for the 8 items on screen.
-        // But if generation depends on previous items (like counter++), paging breaks continuity visually 
-        // unless we calculate the offset.
-        // Ideally, for preview, we approximate or just show simple counters starting from page offset * perPage?
-        // Or if simple global counter:
         $globalCounterOffset = $startNumber + (($page - 1) * $perPage);
         
-        // We will misuse these for now as a rough preview estimation to avoid 
-        // fetching ALL previous pages to calculate exact state for "restart_per_product".
-        // Use a simplified counter local to this page request for preview purposes unless crucial.
         $globalCounter = $globalCounterOffset;
         $duplicateCounter = $globalCounterOffset; 
         $missingCounter = $globalCounterOffset;
@@ -435,6 +442,7 @@ class SkuController extends Controller
                 'max_allowed' => $shop->getMaxAllowedItems('sku_generation'),
                 'can_process_all' => $creditValidation['can_proceed'] ?? true,
             ],
+            'next_sku_number' => $nextSkuNumber,
         ]);
     }
 

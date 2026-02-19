@@ -35,6 +35,7 @@ export default function BarcodeGenerator({
         vendor: "",
         type: "",
         start_number: "1",
+        manual_start_touched: false,
     });
 
     const [barcodes, setBarcodes] = useState([]);
@@ -95,6 +96,19 @@ export default function BarcodeGenerator({
 
             if (res.data.credit_info) {
                 setCreditInfo(res.data.credit_info);
+            }
+
+            // Pre-fill Start Number if provided and we haven't touched it yet
+            if (res.data.next_start_number && !form.manual_start_touched) {
+                const nextNum = String(res.data.next_start_number);
+                // Only update if different to avoid potential loops or flicker,
+                // though checks below handles it.
+                if (
+                    form.start_number === "1" ||
+                    form.start_number !== nextNum
+                ) {
+                    setForm((prev) => ({ ...prev, start_number: nextNum }));
+                }
             }
         } catch (err) {
             console.error("Preview error:", err);

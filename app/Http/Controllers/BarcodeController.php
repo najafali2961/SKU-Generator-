@@ -492,13 +492,24 @@ class BarcodeController extends Controller
 
         $creditValidation = $shop->validateCreditsForOperation('barcode_generation', $totalVariants);
 
+        // 6. Fetch ACTUAL next Barcode number from DB for preview accuracy
+        $format = $request->input('format', 'UPC');
+        $currentCounterRow = DB::table('barcode_counters')
+            ->where('shop_id', $shop->id)
+            ->where('format', $format)
+            ->first();
+
+        // If no counter exists, next is 1. If exists, next is counter + 1. 
+        $nextStartNumber = $currentCounterRow ? ($currentCounterRow->counter + 1) : 1;
+
         return response()->json([
-            'data' => $previewData, // For All/Missing tabs
-            'total' => $tableTotal, // Total items for pagination
-            'duplicateGroups' => $duplicateGroups, // For Duplicates tab
+            // ... existing data ...
+            'data' => $previewData, 
+            'total' => $tableTotal, 
+            'duplicateGroups' => $duplicateGroups, 
             'stats' => [
                 'missing' => $missingCount,
-                'duplicates' => $duplicateCount, // Total variants that are duplicates
+                'duplicates' => $duplicateCount, 
                 'total' => $totalVariants,
             ],
             'overall_total' => $totalVariants,
@@ -509,6 +520,7 @@ class BarcodeController extends Controller
                 'max_allowed' => $shop->getMaxAllowedItems('barcode_generation'),
                 'can_process_all' => $creditValidation['can_proceed'],
             ],
+            'next_start_number' => $nextStartNumber, // New field
         ]);
     }
 

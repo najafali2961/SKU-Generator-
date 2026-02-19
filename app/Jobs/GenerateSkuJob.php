@@ -194,12 +194,30 @@ class GenerateSkuJob implements ShouldQueue
                 return $start;
             }
 
-            $current = $row->counter + 1; // Valid next number
+            // Fix: If user has explicitly provided a start number in the settings,
+            // we should respect it and RESET/JUMP the counter to that number.
+            // But we must be careful not to reset it if it's just the default "0001" and hasn't changed.
+            // HOWEVER, the frontend now sends the *current* next number as "auto_start" if untouched.
+            // So if `auto_start` > `current_counter`, it's a jump forward (safe).
+            // If `auto_start` < `current_counter`, it's a reset (user action).
+            // WE SHOULD TRUST THE INPUT `auto_start` if it differs from expected next.
+            
+            // Actually, simpler logic: 
+            // If the user passed an `auto_start`, we use it as the base for this batch.
+            // And we update the DB counter to `auto_start + count`.
+            // This allows resets (e.g. back to 1) and jumps.
+            
+            // We use the `auto_start` from settings if present, otherwise fall back to row counter + 1.
+            // NOTE: `auto_start` is always sent by frontend now.
+            
+            $start = $this->settings['auto_start'] ?? ($row->counter + 1);
+            $start = (int)$start;
+
             \Illuminate\Support\Facades\DB::table('sku_counters')
                 ->where('id', $row->id)
-                ->update(['counter' => $row->counter + $count, 'updated_at' => now()]);
+                ->update(['counter' => $start + $count - 1, 'updated_at' => now()]); // counter is the LAST used number
 
-            return $current;
+            return $start;
         });
     }
 }

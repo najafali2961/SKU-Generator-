@@ -41,7 +41,14 @@ export default function SkuSidebar({ form, setForm }) {
                             <TextField
                                 label="Start Number"
                                 value={form.auto_start}
-                                onChange={(v) => handleChange("auto_start", v)}
+                                onChange={(v) => {
+                                    handleChange("auto_start", v);
+                                    // Track that user manually touched this field
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        manual_start_touched: true,
+                                    }));
+                                }}
                                 placeholder="0001"
                                 helpText="Leading zeros are preserved"
                                 autoComplete="off"
@@ -119,8 +126,11 @@ export default function SkuSidebar({ form, setForm }) {
                                                 "source_len",
                                                 Math.max(
                                                     1,
-                                                    Math.min(10, Number(v) || 1)
-                                                )
+                                                    Math.min(
+                                                        10,
+                                                        Number(v) || 1,
+                                                    ),
+                                                ),
                                             )
                                         }
                                         helpText="Between 1 and 10"

@@ -200,12 +200,22 @@ class GenerateBarcodeJob implements ShouldQueue
                 return $startNumber;
             }
 
-            $current = $row->counter + 1; // Valid next number
+            // Fix: If user has explicitly provided a start number in the settings,
+            // we should respect it and RESET the counter to that number.
+            // The frontend now sends the *current* next number if untouched, 
+            // so we can trust `startNumber` from settings as the base.
+            
+            // Logic:
+            // 1. Use `startNumber` from settings as the starting point for this batch.
+            // 2. Update DB counter to `startNumber + count`.
+            
+            $start = $startNumber; // Confirmed to be set in handle() from settings
+            
             \Illuminate\Support\Facades\DB::table('barcode_counters')
                 ->where('id', $row->id)
-                ->update(['counter' => $row->counter + $count, 'updated_at' => now()]);
+                ->update(['counter' => $start + $count - 1, 'updated_at' => now()]);
 
-            return $current;
+            return $start;
         });
     }
 }

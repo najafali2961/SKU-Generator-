@@ -110,7 +110,7 @@ createInertiaApp({
                                     : "normal",
                         }}
                     >
-                        Plans
+                        Pricing
                     </a>
                 </NavMenu>
 
