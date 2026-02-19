@@ -101,22 +101,6 @@ export default function SkuGenerator({
             if (res.data.credit_info) {
                 setCreditInfo(res.data.credit_info);
             }
-
-            // Pre-fill Start Number if provided and we haven't touched it yet
-            if (res.data.next_sku_number && !form.manual_start_touched) {
-                // Only update if it's different to avoid loops, though the check above helps
-                // We should add a flag 'manual_start_touched' to form state to track this.
-                // However, to avoid complex state migration, let's just use a ref or check if form.auto_start is default '0001'
-
-                const nextNum = String(res.data.next_sku_number).padStart(
-                    Math.max(4, String(res.data.next_sku_number).length),
-                    "0",
-                );
-
-                if (form.auto_start === "0001" || form.auto_start === nextNum) {
-                    setForm((prev) => ({ ...prev, auto_start: nextNum }));
-                }
-            }
         } catch (error) {
             console.error("Failed to fetch preview:", error);
         } finally {
