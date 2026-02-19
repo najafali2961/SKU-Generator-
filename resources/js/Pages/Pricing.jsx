@@ -311,32 +311,15 @@ export default function Pricing({
                                                                 </Text>
                                                             )}
 
-                                                            {/* Credits Badge */}
-                                                            <Box
-                                                                background="bg-surface-secondary"
-                                                                padding="200"
-                                                                borderRadius="100"
+                                                            {/* Credits Display */}
+                                                            <Text
+                                                                variant="bodyLg"
+                                                                as="p"
+                                                                fontWeight="medium"
                                                             >
-                                                                <InlineStack
-                                                                    gap="200"
-                                                                    blockAlign="center"
-                                                                    align="center"
-                                                                >
-                                                                    <Text
-                                                                        variant="headingSm"
-                                                                        fontWeight="bold"
-                                                                    >
-                                                                        {
-                                                                            credits.value
-                                                                        }
-                                                                    </Text>
-                                                                    <Text variant="bodySm">
-                                                                        {
-                                                                            credits.text
-                                                                        }
-                                                                    </Text>
-                                                                </InlineStack>
-                                                            </Box>
+                                                                {credits.value}{" "}
+                                                                {credits.text}
+                                                            </Text>
 
                                                             {/* Trial Badge */}
                                                             {plan.trial_days >
@@ -353,108 +336,137 @@ export default function Pricing({
                                                         </BlockStack>
 
                                                         {/* Features List */}
-                                                        <BlockStack gap="200">
-                                                            {allFeatures &&
-                                                            allFeatures.length >
-                                                                0 ? (
-                                                                allFeatures.map(
-                                                                    (
-                                                                        feature,
-                                                                        idx,
-                                                                    ) => {
-                                                                        const hasFeature =
-                                                                            plan.feature_ids?.includes(
-                                                                                feature.id,
-                                                                            );
-                                                                        return (
+                                                        <BlockStack gap="400">
+                                                            <div className="min-h-[200px]">
+                                                                {allFeatures &&
+                                                                allFeatures.length >
+                                                                    0 ? (
+                                                                    allFeatures
+                                                                        .slice()
+                                                                        .sort(
+                                                                            (
+                                                                                a,
+                                                                                b,
+                                                                            ) => {
+                                                                                const aHas =
+                                                                                    plan.feature_ids?.includes(
+                                                                                        a.id,
+                                                                                    );
+                                                                                const bHas =
+                                                                                    plan.feature_ids?.includes(
+                                                                                        b.id,
+                                                                                    );
+                                                                                // Included (true) comes first (-1), Excluded (false) comes last (1)
+                                                                                if (
+                                                                                    aHas ===
+                                                                                    bHas
+                                                                                )
+                                                                                    return 0;
+                                                                                return aHas
+                                                                                    ? -1
+                                                                                    : 1;
+                                                                            },
+                                                                        )
+                                                                        .map(
+                                                                            (
+                                                                                feature,
+                                                                                idx,
+                                                                            ) => {
+                                                                                const hasFeature =
+                                                                                    plan.feature_ids?.includes(
+                                                                                        feature.id,
+                                                                                    );
+                                                                                return (
+                                                                                    <InlineStack
+                                                                                        key={
+                                                                                            feature.id
+                                                                                        }
+                                                                                        gap="300"
+                                                                                        blockAlign="start"
+                                                                                    >
+                                                                                        <div className="flex-shrink-0 mt-1">
+                                                                                            <div
+                                                                                                className={`flex items-center justify-center w-4 h-4 rounded-full ${
+                                                                                                    hasFeature
+                                                                                                        ? "bg-green-100"
+                                                                                                        : "bg-red-50"
+                                                                                                }`}
+                                                                                            >
+                                                                                                <Icon
+                                                                                                    source={
+                                                                                                        hasFeature
+                                                                                                            ? CheckIcon
+                                                                                                            : XIcon
+                                                                                                    }
+                                                                                                    tone={
+                                                                                                        hasFeature
+                                                                                                            ? "success"
+                                                                                                            : "critical"
+                                                                                                    }
+                                                                                                />
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <Text
+                                                                                            variant="bodySm"
+                                                                                            tone={
+                                                                                                hasFeature
+                                                                                                    ? "base"
+                                                                                                    : "subdued"
+                                                                                            }
+                                                                                        >
+                                                                                            {feature.name ||
+                                                                                                feature}
+                                                                                        </Text>
+                                                                                    </InlineStack>
+                                                                                );
+                                                                            },
+                                                                        )
+                                                                ) : plan.features &&
+                                                                  plan.features
+                                                                      .length >
+                                                                      0 ? (
+                                                                    // Fallback to old string list if allFeatures not provided
+                                                                    plan.features.map(
+                                                                        (
+                                                                            feature,
+                                                                            idx,
+                                                                        ) => (
                                                                             <InlineStack
                                                                                 key={
-                                                                                    feature.id
+                                                                                    idx
                                                                                 }
-                                                                                gap="300"
+                                                                                gap="400"
                                                                                 blockAlign="start"
                                                                             >
                                                                                 <div className="flex-shrink-0 mt-1">
-                                                                                    <div
-                                                                                        className={`flex items-center justify-center w-4 h-4 rounded-full ${
-                                                                                            hasFeature
-                                                                                                ? "bg-green-100"
-                                                                                                : "bg-red-50"
-                                                                                        }`}
-                                                                                    >
+                                                                                    <div className="flex items-center justify-center w-4 h-4 bg-green-100 rounded-full">
                                                                                         <Icon
                                                                                             source={
-                                                                                                hasFeature
-                                                                                                    ? CheckIcon
-                                                                                                    : XIcon
+                                                                                                CheckIcon
                                                                                             }
-                                                                                            tone={
-                                                                                                hasFeature
-                                                                                                    ? "success"
-                                                                                                    : "critical"
-                                                                                            }
+                                                                                            tone="success"
                                                                                         />
                                                                                     </div>
                                                                                 </div>
-                                                                                <Text
-                                                                                    variant="bodySm"
-                                                                                    tone={
-                                                                                        hasFeature
-                                                                                            ? "base"
-                                                                                            : "subdued"
+                                                                                <Text variant="bodySm">
+                                                                                    {
+                                                                                        feature
                                                                                     }
-                                                                                >
-                                                                                    {feature.name ||
-                                                                                        feature}
                                                                                 </Text>
                                                                             </InlineStack>
-                                                                        );
-                                                                    },
-                                                                )
-                                                            ) : plan.features &&
-                                                              plan.features
-                                                                  .length >
-                                                                  0 ? (
-                                                                // Fallback to old string list if allFeatures not provided
-                                                                plan.features.map(
-                                                                    (
-                                                                        feature,
-                                                                        idx,
-                                                                    ) => (
-                                                                        <InlineStack
-                                                                            key={
-                                                                                idx
-                                                                            }
-                                                                            gap="300"
-                                                                            blockAlign="start"
-                                                                        >
-                                                                            <div className="flex-shrink-0 mt-1">
-                                                                                <div className="flex items-center justify-center w-4 h-4 bg-green-100 rounded-full">
-                                                                                    <Icon
-                                                                                        source={
-                                                                                            CheckIcon
-                                                                                        }
-                                                                                        tone="success"
-                                                                                    />
-                                                                                </div>
-                                                                            </div>
-                                                                            <Text variant="bodySm">
-                                                                                {
-                                                                                    feature
-                                                                                }
-                                                                            </Text>
-                                                                        </InlineStack>
-                                                                    ),
-                                                                )
-                                                            ) : (
-                                                                <Text
-                                                                    variant="bodySm"
-                                                                    tone="subdued"
-                                                                >
-                                                                    No features
-                                                                    listed
-                                                                </Text>
-                                                            )}
+                                                                        ),
+                                                                    )
+                                                                ) : (
+                                                                    <Text
+                                                                        variant="bodySm"
+                                                                        tone="subdued"
+                                                                    >
+                                                                        No
+                                                                        features
+                                                                        listed
+                                                                    </Text>
+                                                                )}
+                                                            </div>
                                                         </BlockStack>
 
                                                         {/* Subscribe Button - Moved to Bottom */}
