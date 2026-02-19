@@ -352,39 +352,70 @@ export default function Pricing({
                                                                 )}
                                                         </BlockStack>
 
-                                                        {/* Subscribe Button */}
-                                                        <Button
-                                                            variant={
-                                                                isCurrent
-                                                                    ? "plain"
-                                                                    : "primary"
-                                                            }
-                                                            size="large"
-                                                            fullWidth
-                                                            onClick={() =>
-                                                                handleSubscribePlan(
-                                                                    plan.id,
-                                                                )
-                                                            }
-                                                            loading={
-                                                                isLoading ===
-                                                                plan.id
-                                                            }
-                                                            disabled={
-                                                                isCurrent ||
-                                                                isLoading
-                                                            }
-                                                        >
-                                                            {getButtonText(
-                                                                plan,
-                                                            )}
-                                                        </Button>
-
                                                         {/* Features List */}
                                                         <BlockStack gap="200">
-                                                            {plan.features &&
-                                                            plan.features
-                                                                .length > 0 ? (
+                                                            {allFeatures &&
+                                                            allFeatures.length >
+                                                                0 ? (
+                                                                allFeatures.map(
+                                                                    (
+                                                                        feature,
+                                                                        idx,
+                                                                    ) => {
+                                                                        const hasFeature =
+                                                                            plan.feature_ids?.includes(
+                                                                                feature.id,
+                                                                            );
+                                                                        return (
+                                                                            <InlineStack
+                                                                                key={
+                                                                                    feature.id
+                                                                                }
+                                                                                gap="300"
+                                                                                blockAlign="start"
+                                                                            >
+                                                                                <div className="flex-shrink-0 mt-1">
+                                                                                    <div
+                                                                                        className={`flex items-center justify-center w-4 h-4 rounded-full ${
+                                                                                            hasFeature
+                                                                                                ? "bg-green-100"
+                                                                                                : "bg-red-50"
+                                                                                        }`}
+                                                                                    >
+                                                                                        <Icon
+                                                                                            source={
+                                                                                                hasFeature
+                                                                                                    ? CheckIcon
+                                                                                                    : XIcon
+                                                                                            }
+                                                                                            tone={
+                                                                                                hasFeature
+                                                                                                    ? "success"
+                                                                                                    : "critical"
+                                                                                            }
+                                                                                        />
+                                                                                    </div>
+                                                                                </div>
+                                                                                <Text
+                                                                                    variant="bodySm"
+                                                                                    tone={
+                                                                                        hasFeature
+                                                                                            ? "base"
+                                                                                            : "subdued"
+                                                                                    }
+                                                                                >
+                                                                                    {feature.name ||
+                                                                                        feature}
+                                                                                </Text>
+                                                                            </InlineStack>
+                                                                        );
+                                                                    },
+                                                                )
+                                                            ) : plan.features &&
+                                                              plan.features
+                                                                  .length >
+                                                                  0 ? (
+                                                                // Fallback to old string list if allFeatures not provided
                                                                 plan.features.map(
                                                                     (
                                                                         feature,
@@ -425,6 +456,36 @@ export default function Pricing({
                                                                 </Text>
                                                             )}
                                                         </BlockStack>
+
+                                                        {/* Subscribe Button - Moved to Bottom */}
+                                                        <Box paddingBlockStart="400">
+                                                            <Button
+                                                                variant={
+                                                                    isCurrent
+                                                                        ? "plain"
+                                                                        : "primary"
+                                                                }
+                                                                size="large"
+                                                                fullWidth
+                                                                onClick={() =>
+                                                                    handleSubscribePlan(
+                                                                        plan.id,
+                                                                    )
+                                                                }
+                                                                loading={
+                                                                    isLoading ===
+                                                                    plan.id
+                                                                }
+                                                                disabled={
+                                                                    isCurrent ||
+                                                                    isLoading
+                                                                }
+                                                            >
+                                                                {getButtonText(
+                                                                    plan,
+                                                                )}
+                                                            </Button>
+                                                        </Box>
                                                     </BlockStack>
                                                 </Box>
                                             </Card>
@@ -434,6 +495,75 @@ export default function Pricing({
                             })}
                         </div>
                     </div>
+
+                    {/* Freemium Banner */}
+                    {/* Freemium Banner */}
+                    {user?.is_freemium && (
+                        <Box paddingBlockStart="800">
+                            <Card>
+                                <BlockStack gap="400">
+                                    <InlineStack
+                                        align="space-between"
+                                        blockAlign="center"
+                                        wrap={false}
+                                    >
+                                        <BlockStack gap="100">
+                                            <Text variant="headingMd" as="h2">
+                                                Freemium Plan Active
+                                            </Text>
+                                            <Text
+                                                variant="bodyMd"
+                                                as="p"
+                                                tone="subdued"
+                                            >
+                                                You are currently enjoying our
+                                                Free Tier benefits.
+                                            </Text>
+                                        </BlockStack>
+                                        <div className="flex-shrink-0">
+                                            <Button variant="primary" disabled>
+                                                Current Plan
+                                            </Button>
+                                        </div>
+                                    </InlineStack>
+
+                                    <Divider />
+
+                                    <InlineStack gap="600">
+                                        <BlockStack gap="100">
+                                            <Text variant="headingMd" as="h3">
+                                                {user.credits || 0}
+                                            </Text>
+                                            <Text
+                                                variant="bodySm"
+                                                tone="subdued"
+                                            >
+                                                Available Credits
+                                            </Text>
+                                        </BlockStack>
+                                        <div
+                                            style={{
+                                                width: "1px",
+                                                background:
+                                                    "var(--p-color-border-subdued)",
+                                            }}
+                                        ></div>
+                                        <BlockStack gap="100">
+                                            <Text variant="headingMd" as="h3">
+                                                Forever
+                                            </Text>
+                                            <Text
+                                                variant="bodySm"
+                                                tone="subdued"
+                                            >
+                                                Validity
+                                            </Text>
+                                        </BlockStack>
+                                    </InlineStack>
+                                </BlockStack>
+                            </Card>
+                        </Box>
+                    )}
                 </BlockStack>
             </Page>
         </>

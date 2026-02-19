@@ -60,7 +60,10 @@ class PricingController extends Controller
                 'price' => $currentPlan->price,
                 'features' => $currentPlan->features->pluck('id')->toArray(),
             ] : ['id' => null, 'name' => 'Free', 'features' => []],
-            'user' => $user->only(['id', 'name', 'email', 'credits']),
+            'user' => array_merge(
+                $user->only(['id', 'name', 'email', 'credits', 'shopify_freemium']),
+                ['is_freemium' => $user->isFreemium()]
+            ),
             'allFeatures' => $allFeatures,
         ]);
     }
