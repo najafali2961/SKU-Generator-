@@ -18,13 +18,43 @@ class FeedbackController extends Controller
             'message' => 'required|string|max:1000',
         ]);
 
+        $user = $request->user() ?? Auth::user();
+
+        if (!$user) {
+            Log::warning('Feedback Auth: Initial check failed, attempting fallback.', [
+                'headers' => $request->headers->all(),
+            ]);
+            
+            // Try to find user by shop domain if available in request (fallback)
+            // 1. Check query param
+            $shopDomain = $request->query('shop');
+            
+            // 2. Check Referer header if not in query
+            if (!$shopDomain && $request->headers->has('referer')) {
+                $referer = parse_url($request->headers->get('referer'));
+                if (isset($referer['query'])) {
+                    parse_str($referer['query'], $queryParams);
+                    $shopDomain = $queryParams['shop'] ?? null;
+                }
+            }
+
+            if ($shopDomain) {
+                 $user = \App\Models\User::where('name', $shopDomain)->first();
+            }
+        }
+
+        if (!$user) {
+            Log::error('Feedback Auth Final Failure', ['extracted_domain' => $shopDomain ?? 'none']);
+            return back()->withErrors('Authentication failed (User not found).');
+        }
+
         $feedback = Feedback::create([
-            'user_id' => Auth::id(),
+            'user_id' => $user->id,
             'message' => $validated['message'],
         ]);
 
         // Send email to support
-        $supportEmail = config('mail.from.address'); // Or a specific support email env var
+        $supportEmail = config('mail.from.address'); 
         
         try {
             Mail::to($supportEmail)->send(new FeedbackReceived($feedback));

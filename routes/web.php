@@ -85,6 +85,9 @@ Route::middleware(['verify.shopify', 'billable'])->group(function () {
     Route::post('/pricing/select/{planId}', [PricingController::class, 'selectPlan'])->name('pricing.select');
     Route::post('/pricing/cancel', [PricingController::class, 'cancel'])->name('pricing.cancel');
     Route::get('/credit-stats', [PricingController::class, 'creditStats'])->name('pricing.credit-stats');
+
+    // Feedback
+    Route::post('/feedback', [FeedbackController::class, 'store'])->name('feedback.store');
 });
 
 // Shopify webhooks (protected)
