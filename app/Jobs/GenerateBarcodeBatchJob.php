@@ -71,6 +71,11 @@ class GenerateBarcodeBatchJob implements ShouldQueue
                 $newBarcode = $this->generateBarcode($variant, $this->settings, $currentCounter);
                 $currentCounter++; // Local increment
 
+                // Log debug for the very first item in the batch
+                if ($processed === 0 && count($productsToSync) === 0) {
+                     $this->logDetailedDebug($jobLog, $variant, $variant->barcode, $newBarcode, $this->settings);
+                }
+
                 // Collect for bulk Shopify sync
                 $productsToSync[$variant->product_id][$variant->id] = $newBarcode;
                 // processed count is incremented after sync
@@ -245,5 +250,20 @@ class GenerateBarcodeBatchJob implements ShouldQueue
         }
 
         return (10 - ($sum % 10)) % 10;
+    }
+
+    private function logDetailedDebug($jobLog, $variant, $oldBarcode, $newBarcode, $settings) {
+        // Log details for the first variant only to avoid flooding
+        static $logged = false;
+        if ($logged) return;
+        $logged = true;
+
+        Log::info("Barcode Generation Debug (First Item)", [
+            'variant_id' => $variant->id,
+            'product' => $variant->product->title ?? 'Unknown',
+            'old_barcode' => $oldBarcode,
+            'new_barcode' => $newBarcode,
+            'settings' => $settings,
+        ]);
     }
 }
