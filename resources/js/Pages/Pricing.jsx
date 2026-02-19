@@ -386,7 +386,7 @@ export default function Pricing({
                                                                                         gap="300"
                                                                                         blockAlign="start"
                                                                                     >
-                                                                                        <div className="flex-shrink-0 mt-1">
+                                                                                        <div className="flex-shrink-0 mt-3">
                                                                                             <div
                                                                                                 className={`flex items-center justify-center w-4 h-4 rounded-full ${
                                                                                                     hasFeature
