@@ -17,7 +17,7 @@ export default function CreditsSpeedometerCard({ credits = {} }) {
             credits.plan_name.toLowerCase().includes("unlimited"));
 
     const creditsData = {
-        plan_name: credits.plan_name || "Freemium",
+        plan_name: credits.plan_name || "Free Plan",
         available: credits.available || 0,
         used: credits.used || 0,
         total: credits.total || 0,

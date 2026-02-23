@@ -523,7 +523,7 @@ export default function Pricing({
                                     >
                                         <BlockStack gap="100">
                                             <Text variant="headingMd" as="h2">
-                                                Freemium Plan Active
+                                                Free Plan Active
                                             </Text>
                                             <Text
                                                 variant="bodyMd"

@@ -40,7 +40,7 @@ class UsersTable
                     ->sortable(),
 
                 IconColumn::make('shopify_freemium')
-                    ->label('Freemium')
+                    ->label('Free Plan')
                     ->boolean(),
 
                 TextColumn::make('credits')

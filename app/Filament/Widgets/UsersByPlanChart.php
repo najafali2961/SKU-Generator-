@@ -20,7 +20,7 @@ class UsersByPlanChart extends ChartWidget
         $data = $plans->pluck('users_count')->toArray();
 
         // Add Freemium to the beginning
-        array_unshift($labels, 'Freemium');
+        array_unshift($labels, 'Free Plan');
         array_unshift($data, $freemiumCount);
 
         return [

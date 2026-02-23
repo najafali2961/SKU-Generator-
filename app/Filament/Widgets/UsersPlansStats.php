@@ -22,7 +22,7 @@ class UsersPlansStats extends StatsOverviewWidget
                 ->icon('heroicon-o-credit-card')
                 ->color('success'),
 
-            Stat::make('Freemium Users', User::whereNull('plan_id')->count())
+            Stat::make('Free Plan Users', User::whereNull('plan_id')->count())
                 ->icon('heroicon-o-user-minus')
                 ->color('warning'),
 

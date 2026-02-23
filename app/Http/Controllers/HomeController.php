@@ -58,7 +58,7 @@ class HomeController extends Controller
         ];
 
         $plan = $shop->plan;
-        $planName = $plan ? $plan->name : ($shop->isFreemium() ? 'Freemium' : 'None');
+        $planName = $plan ? $plan->name : ($shop->isFreemium() ? 'Free Plan' : 'None');
         $monthlyCredits = $plan ? $plan->monthly_credits : 0; // Adjust as needed for freemium via config if >0
 
         $credits = [

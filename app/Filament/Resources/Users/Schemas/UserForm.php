@@ -27,10 +27,10 @@ class UserForm
                 ->searchable()
                 ->preload()
                 ->nullable()
-                ->placeholder('Free / Freemium'),
+                ->placeholder('Free Plan'),
 
             Toggle::make('shopify_freemium')
-                ->label('Freemium Active'),
+                ->label('Free Plan Active'),
 
             TextInput::make('credits')
                 ->numeric()
