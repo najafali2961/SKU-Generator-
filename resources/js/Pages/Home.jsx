@@ -252,9 +252,9 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                         <style>
                             {`
                                 :root {
-                                    --banner-gradient: linear-gradient(135deg, #FFD4E5 0%, #a1c4fd 100%);
+                                    --banner-gradient: linear-gradient(135deg, #FF6B9E 0%, #6BA4FF 100%);
                                     --shimmer: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-                                    --banner-glow: 0 4px 20px rgba(255, 154, 158, 0.4);
+                                    --banner-glow: 0 4px 20px rgba(255, 107, 158, 0.4);
                                 }
                                 @keyframes shimmer {
                                     0% { transform: translateX(-100%); }
@@ -265,8 +265,8 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                                     50% { transform: translateY(-5px); }
                                 }
                                 @keyframes pulseGlow {
-                                    0%, 100% { box-shadow: 0 0 15px rgba(255,154,158,0.5); }
-                                    50% { box-shadow: 0 0 25px rgba(255,154,158,0.8); }
+                                    0%, 100% { box-shadow: 0 0 15px rgba(255,107,158,0.5); }
+                                    50% { box-shadow: 0 0 25px rgba(255,107,158,0.8); }
                                 }
                                 .animate-shimmer {
                                     animation: shimmer 2.5s infinite;
@@ -279,25 +279,25 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                                 }
                             `}
                         </style>
-                        <div className="flex w-full items-center justify-center py-4">
+                        <div className="flex w-full items-center justify-center py-2">
                             <div className="w-full">
                                 <div className="w-full">
                                     <div
-                                        className="relative overflow-hidden rounded-2xl p-[1px]"
+                                        className="relative overflow-hidden rounded-xl p-[1px]"
                                         style={{
                                             background:
                                                 "var(--banner-gradient)",
                                         }}
                                     >
                                         <div
-                                            className="relative rounded-2xl bg-white backdrop-blur-sm px-6 py-5 sm:px-8 sm:py-6"
+                                            className="relative rounded-xl bg-white backdrop-blur-sm px-4 py-3 sm:px-6 sm:py-4"
                                             style={{
                                                 backgroundColor:
-                                                    "rgba(255, 255, 255, 0.95)",
+                                                    "rgba(255, 255, 255, 0.96)",
                                             }}
                                         >
                                             {/* Shimmer */}
-                                            <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+                                            <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
                                                 <div
                                                     className="absolute inset-0 animate-shimmer"
                                                     style={{
@@ -309,25 +309,25 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
 
                                             {/* Floating dots */}
                                             <div
-                                                className="absolute top-3 left-6 w-2 h-2 rounded-full animate-float"
+                                                className="absolute top-2 left-6 w-2 h-2 rounded-full animate-float"
                                                 style={{
                                                     backgroundColor:
-                                                        "rgba(255, 154, 158, 0.5)",
+                                                        "rgba(255, 107, 158, 0.5)",
                                                 }}
                                             />
                                             <div
-                                                className="absolute top-8 right-20 w-1.5 h-1.5 rounded-full animate-float"
+                                                className="absolute top-6 right-20 w-1.5 h-1.5 rounded-full animate-float"
                                                 style={{
                                                     backgroundColor:
-                                                        "rgba(161, 196, 253, 0.5)",
+                                                        "rgba(107, 164, 255, 0.5)",
                                                     animationDelay: "0.5s",
                                                 }}
                                             />
                                             <div
-                                                className="absolute bottom-4 left-1/3 w-1 h-1 rounded-full animate-float"
+                                                className="absolute bottom-2 left-1/3 w-1 h-1 rounded-full animate-float"
                                                 style={{
                                                     backgroundColor:
-                                                        "rgba(255, 212, 229, 0.7)",
+                                                        "rgba(255, 107, 158, 0.7)",
                                                     animationDelay: "1s",
                                                 }}
                                             />
@@ -337,13 +337,13 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                                                 onClick={() =>
                                                     setIsGiveawayDismissed(true)
                                                 }
-                                                className="absolute top-3 right-3 z-10 p-1.5 rounded-full hover:bg-gray-100 transition-colors cursor-pointer border-none bg-transparent flex items-center justify-center"
+                                                className="absolute top-2 right-2 z-10 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer border-none bg-transparent flex items-center justify-center"
                                                 style={{ border: "none" }}
                                             >
                                                 <div
                                                     style={{
-                                                        width: "16px",
-                                                        height: "16px",
+                                                        width: "14px",
+                                                        height: "14px",
                                                         color: "#6b7280",
                                                     }}
                                                 >
@@ -352,36 +352,36 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                                             </button>
 
                                             {/* Content */}
-                                            <div className="relative z-[1] flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                            <div className="relative z-[1] flex flex-col sm:flex-row items-center sm:items-center gap-3">
                                                 <div
-                                                    className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center animate-pulse-glow"
+                                                    className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center animate-pulse-glow"
                                                     style={{
                                                         background:
                                                             "var(--banner-gradient)",
                                                         boxShadow:
                                                             "var(--banner-glow)",
-                                                        fontSize: "24px",
+                                                        fontSize: "20px",
                                                     }}
                                                 >
                                                     🎁
                                                 </div>
 
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 mb-1">
+                                                    <div className="flex items-center gap-1.5 mb-0.5">
                                                         <span
                                                             className="text-pink-500"
                                                             style={{
                                                                 fontSize:
-                                                                    "14px",
+                                                                    "12px",
                                                             }}
                                                         >
                                                             ✨
                                                         </span>
-                                                        <h3 className="text-sm font-bold tracking-wide uppercase text-gray-800 m-0">
+                                                        <h3 className="text-xs font-bold tracking-wide uppercase text-gray-800 m-0">
                                                             Special Giveaway
                                                         </h3>
                                                     </div>
-                                                    <p className="text-base font-semibold text-gray-900 m-0">
+                                                    <p className="text-sm font-semibold text-gray-900 m-0">
                                                         Claim your{" "}
                                                         <span
                                                             className="text-transparent bg-clip-text"
@@ -397,13 +397,10 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                                                             Free Credits!
                                                         </span>
                                                     </p>
-                                                    <p className="text-sm text-gray-500 mt-1 leading-relaxed max-w-lg m-0">
-                                                        To celebrate our latest
-                                                        feature drops, we're
-                                                        giving away buckets of
-                                                        free usage credits. Chat
-                                                        with our support team to
-                                                        claim yours instantly.
+                                                    <p className="text-xs text-gray-500 mt-0.5 leading-snug w-full m-0">
+                                                        Chat with our support
+                                                        team to claim yours
+                                                        instantly.
                                                     </p>
                                                 </div>
 
@@ -432,7 +429,7 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                                                             );
                                                         }
                                                     }}
-                                                    className="flex-shrink-0 group flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-300 hover:scale-105 hover:shadow-lg cursor-pointer border-none"
+                                                    className="flex-shrink-0 group flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white transition-all duration-300 hover:scale-105 hover:shadow-lg cursor-pointer border-none"
                                                     style={{
                                                         background:
                                                             "var(--banner-gradient)",
@@ -441,7 +438,7 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                                                     }}
                                                 >
                                                     Chat to Claim
-                                                    <div className="ml-1 w-4 h-4 transition-transform group-hover:translate-x-0.5 flex items-center justify-center text-white">
+                                                    <div className="ml-0.5 w-3 h-3 transition-transform group-hover:translate-x-0.5 flex items-center justify-center text-white">
                                                         <Icon
                                                             source={
                                                                 ArrowRightIcon
