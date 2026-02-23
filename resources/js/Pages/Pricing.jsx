@@ -52,11 +52,13 @@ export default function Pricing({
             });
             if (response.data.success && response.data.redirectUrl) {
                 window.top.location.href = response.data.redirectUrl;
+                // DO NOT set isLoading to false here, let the page redirect happen with the spinner spinning
+            } else {
+                setIsLoading(false);
             }
         } catch (error) {
             console.error("Custom plan error", error);
             alert("Could not process custom plan request.");
-        } finally {
             setIsLoading(false);
         }
     };
