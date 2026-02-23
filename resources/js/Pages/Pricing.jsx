@@ -568,148 +568,163 @@ export default function Pricing({
                         </div>
                     </div>
 
-                    {/* Freemium Banner */}
-                    {/* Freemium Banner */}
-                    {user?.is_freemium && !currentPlan.id && (
-                        <Box paddingBlockStart="800">
-                            <Card>
-                                <BlockStack gap="400">
-                                    <InlineStack
-                                        align="space-between"
-                                        blockAlign="center"
-                                        wrap={false}
-                                    >
-                                        <BlockStack gap="100">
-                                            <Text variant="headingMd" as="h2">
-                                                Free Plan Active
-                                            </Text>
-                                            <Text
-                                                variant="bodyMd"
-                                                as="p"
-                                                tone="subdued"
-                                            >
-                                                You are currently enjoying our
-                                                Free Tier benefits.
-                                            </Text>
-                                        </BlockStack>
-                                        <div className="flex-shrink-0">
-                                            <Button variant="primary" disabled>
-                                                Current Plan
-                                            </Button>
-                                        </div>
-                                    </InlineStack>
-
-                                    <Divider />
-
-                                    <InlineStack gap="600">
-                                        <BlockStack gap="100">
-                                            <Text variant="headingMd" as="h3">
-                                                {user.credits || 0}
-                                            </Text>
-                                            <Text
-                                                variant="bodySm"
-                                                tone="subdued"
-                                            >
-                                                Available Credits
-                                            </Text>
-                                        </BlockStack>
-                                        <div
-                                            style={{
-                                                width: "1px",
-                                                background:
-                                                    "var(--p-color-border-subdued)",
-                                            }}
-                                        ></div>
-                                        <BlockStack gap="100">
-                                            <Text variant="headingMd" as="h3">
-                                                Forever
-                                            </Text>
-                                            <Text
-                                                variant="bodySm"
-                                                tone="subdued"
-                                            >
-                                                Validity
-                                            </Text>
-                                        </BlockStack>
-                                    </InlineStack>
-                                </BlockStack>
-                            </Card>
-                        </Box>
-                    )}
-
-                    {/* Custom Credits Calculator */}
+                    {/* Combined Bottom Section */}
                     <Box paddingBlockStart="800">
                         <Card>
-                            <BlockStack gap="400">
-                                <Text variant="headingMd" as="h2">
-                                    Need More Credits?
-                                </Text>
-                                <Text variant="bodyMd" tone="subdued">
-                                    Create a custom plan that fits your exact
-                                    volume needs.
-                                </Text>
+                            <BlockStack gap="600">
+                                {/* Free Plan Section (Only if applicable) */}
+                                {user?.is_freemium && !currentPlan.id && (
+                                    <>
+                                        <InlineStack
+                                            align="space-between"
+                                            blockAlign="center"
+                                            wrap={false}
+                                        >
+                                            <InlineStack
+                                                gap="400"
+                                                blockAlign="center"
+                                            >
+                                                <Badge
+                                                    tone="success"
+                                                    size="large"
+                                                >
+                                                    Free Plan Active
+                                                </Badge>
+                                                <Text
+                                                    variant="bodyMd"
+                                                    tone="subdued"
+                                                >
+                                                    Currently enjoying Free Tier
+                                                    benefits (
+                                                    {user.credits || 0} Credits
+                                                    / Forever)
+                                                </Text>
+                                            </InlineStack>
+                                            <div className="flex-shrink-0">
+                                                <Button disabled>
+                                                    Current Plan
+                                                </Button>
+                                            </div>
+                                        </InlineStack>
+                                        <Divider />
+                                    </>
+                                )}
 
-                                <Divider />
-
-                                <Box paddingBlock="400">
-                                    <InlineStack
-                                        gap="400"
-                                        blockAlign="center"
-                                        wrap={false}
-                                    >
-                                        <div style={{ flexGrow: 1 }}>
-                                            <RangeSlider
-                                                label="Select precise credits needed"
-                                                labelHidden
-                                                min={customCreditMin}
-                                                max={customCreditMin * 100}
-                                                step={50}
-                                                value={customCredits}
-                                                onChange={
-                                                    handleCustomSliderChange
-                                                }
-                                                output
-                                            />
-                                        </div>
-                                        <div style={{ width: "120px" }}>
-                                            <TextField
-                                                type="number"
-                                                value={customCredits.toString()}
-                                                onChange={
-                                                    handleCustomSliderChange
-                                                }
-                                                autoComplete="off"
-                                                suffix="Credits"
-                                                min={customCreditMin}
-                                            />
-                                        </div>
-                                    </InlineStack>
-                                </Box>
-
+                                {/* Custom Credits Calculator */}
                                 <InlineStack
-                                    align="space-between"
+                                    align="start"
                                     blockAlign="center"
+                                    wrap={false}
+                                    gap="800"
                                 >
-                                    <BlockStack gap="100">
-                                        <Text variant="headingXl">
-                                            ${calculatedPrice}
+                                    <div style={{ flex: "0 0 250px" }}>
+                                        <Text variant="headingMd" as="h2">
+                                            Need More Credits?
                                         </Text>
-                                        <Text variant="bodySm" tone="subdued">
-                                            /month for {customCredits} credits
-                                        </Text>
-                                    </BlockStack>
-                                    <Button
-                                        variant="primary"
-                                        size="large"
-                                        onClick={handleCustomSubscribe}
-                                        loading={isLoading === "custom"}
-                                        disabled={
-                                            isLoading !== false &&
-                                            isLoading !== "custom"
-                                        }
+                                        <Box paddingBlockStart="100">
+                                            <Text
+                                                variant="bodyMd"
+                                                tone="subdued"
+                                            >
+                                                Scale your store with a custom
+                                                plan (${customCreditPrice}
+                                                /credit/month).
+                                            </Text>
+                                        </Box>
+                                    </div>
+
+                                    <div
+                                        style={{
+                                            flex: "1 1 auto",
+                                            background:
+                                                "var(--p-color-bg-surface-secondary)",
+                                            padding: "16px",
+                                            borderRadius: "8px",
+                                        }}
                                     >
-                                        Subscribe Custom Plan
-                                    </Button>
+                                        <InlineStack
+                                            gap="400"
+                                            blockAlign="center"
+                                            wrap={false}
+                                        >
+                                            <div
+                                                style={{ paddingRight: "8px" }}
+                                            >
+                                                <Text
+                                                    variant="bodyXs"
+                                                    tone="subdued"
+                                                    fontWeight="bold"
+                                                >
+                                                    SELECT AMOUNT
+                                                </Text>
+                                            </div>
+
+                                            <div
+                                                style={{
+                                                    flexGrow: 1,
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: "12px",
+                                                }}
+                                            >
+                                                <div style={{ flexGrow: 1 }}>
+                                                    <RangeSlider
+                                                        label="Select precise credits needed"
+                                                        labelHidden
+                                                        min={customCreditMin}
+                                                        max={
+                                                            customCreditMin *
+                                                            100
+                                                        }
+                                                        step={50}
+                                                        value={customCredits}
+                                                        onChange={
+                                                            handleCustomSliderChange
+                                                        }
+                                                    />
+                                                </div>
+                                                <Text
+                                                    variant="headingLg"
+                                                    tone="subdued"
+                                                >
+                                                    ∞
+                                                </Text>
+                                            </div>
+
+                                            <div style={{ width: "130px" }}>
+                                                <TextField
+                                                    type="number"
+                                                    value={customCredits.toString()}
+                                                    onChange={
+                                                        handleCustomSliderChange
+                                                    }
+                                                    autoComplete="off"
+                                                    suffix="Credits"
+                                                    min={customCreditMin}
+                                                />
+                                            </div>
+
+                                            <div className="flex-shrink-0 ml-2">
+                                                <Button
+                                                    variant="primary"
+                                                    size="large"
+                                                    onClick={
+                                                        handleCustomSubscribe
+                                                    }
+                                                    loading={
+                                                        isLoading === "custom"
+                                                    }
+                                                    disabled={
+                                                        isLoading !== false &&
+                                                        isLoading !== "custom"
+                                                    }
+                                                >
+                                                    Subscribe for $
+                                                    {calculatedPrice}
+                                                </Button>
+                                            </div>
+                                        </InlineStack>
+                                    </div>
                                 </InlineStack>
                             </BlockStack>
                         </Card>
