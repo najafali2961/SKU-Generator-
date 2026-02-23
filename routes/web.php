@@ -101,7 +101,6 @@ Route::middleware(['auth.webhook'])->group(function () {
 Route::get('logs', [\Rap2hpoutre\LaravelLogViewer\LogViewerController::class, 'index']);
 
 
-// Feedback
-    Route::post('/feedback', [FeedbackController::class, 'store'])->name('feedback.store');
+
 
 Route::get('/test/shopify', [HomeController::class, 'handleShopifyCall']);
