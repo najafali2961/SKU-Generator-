@@ -7,6 +7,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\BooleanColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
@@ -41,6 +42,9 @@ class PlansTable
                     ->suffix(' days')
                     ->placeholder('No trial')
                     ->alignCenter(),
+
+                ToggleColumn::make('is_visible')
+                    ->label('Visible'),
 
                 BooleanColumn::make('test')
                     ->label('Test'),

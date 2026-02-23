@@ -33,6 +33,11 @@ class PlanForm
                             ->maxLength(1000)
                             ->placeholder('Plan description shown on pricing page')
                             ->helperText('Optional description'),
+
+                        Toggle::make('is_visible')
+                            ->label('Visible on Pricing Page')
+                            ->default(true)
+                            ->helperText('If disabled, this plan will be hidden from the public pricing page.'),
                     ]),
 
                 // Advanced Settings Section

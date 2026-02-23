@@ -19,6 +19,7 @@ class PricingController extends Controller
 
         // Get all plans with their features
         $plans = Plan::with('features')
+            ->where('is_visible', true)
             ->orderBy('price', 'asc')
             ->get()
             ->map(fn($plan) => [
