@@ -36,7 +36,7 @@ class PlanForm
 
                         Toggle::make('is_visible')
                             ->label('Visible on Pricing Page')
-                            ->default(true)
+                            ->default(false)
                             ->helperText('If disabled, this plan will be hidden from the public pricing page.'),
                     ]),
 

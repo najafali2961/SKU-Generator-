@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('plans', function (Blueprint $table) {
-            $table->boolean('is_visible')->default(true)->after('name')->comment('Determines if the plan is listed on the pricing page');
+            $table->boolean('is_visible')->default(false)->after('name')->comment('Determines if the plan is listed on the pricing page');
         });
     }
 

@@ -30,7 +30,7 @@ export default function CreditWarning({
     }
 
     return (
-        <Banner tone="critical">
+        <Banner tone="info">
             <InlineStack gap="300" wrap={false}>
                 <div style={{ flex: 1 }}>
                     <Text>
