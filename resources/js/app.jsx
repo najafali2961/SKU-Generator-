@@ -38,7 +38,7 @@ createInertiaApp({
                         }}
                         rel="sku-generator"
                     >
-                        Generator SKU
+                        SKU Generator
                     </a>
                     <a
                         href="/barcode-generator"
@@ -48,7 +48,7 @@ createInertiaApp({
                         }}
                         rel="barcode-generator"
                     >
-                        Generator Barcode
+                        Barcode Generator
                     </a>
                     <a
                         href="/barcode-import"
