@@ -160,20 +160,26 @@ export default function Pricing({
 
     const getDiscountPercent = () => {
         if (billingInterval === "annual" && visiblePlans.length > 0) {
+            const annualPlan = visiblePlans[0];
+            const baseName = annualPlan.name.replace(
+                /\s*(Annual|Yearly)\s*/i,
+                "",
+            );
             const monthlyPlan = plans.find(
                 (p) =>
                     p.interval === "EVERY_30_DAYS" &&
-                    p.name === visiblePlans[0].name,
+                    (p.name === annualPlan.name || p.name === baseName),
             );
-            const annualPlan = visiblePlans[0];
 
             if (monthlyPlan && annualPlan) {
                 const monthlyYearlyCost = parseFloat(monthlyPlan.price) * 12;
                 const annualCost = parseFloat(annualPlan.price) * 12;
-                const discount =
-                    ((monthlyYearlyCost - annualCost) / monthlyYearlyCost) *
-                    100;
-                return Math.round(discount);
+                if (monthlyYearlyCost > 0) {
+                    const discount =
+                        ((monthlyYearlyCost - annualCost) / monthlyYearlyCost) *
+                        100;
+                    return Math.round(discount);
+                }
             }
         }
         return 0;
@@ -181,10 +187,14 @@ export default function Pricing({
 
     const getPlanDiscountPercent = (annualPlan) => {
         if (annualPlan.interval === "ANNUAL") {
+            const baseName = annualPlan.name.replace(
+                /\s*(Annual|Yearly)\s*/i,
+                "",
+            );
             const monthlyPlan = plans.find(
                 (p) =>
                     p.interval === "EVERY_30_DAYS" &&
-                    p.name === annualPlan.name,
+                    (p.name === annualPlan.name || p.name === baseName),
             );
             if (monthlyPlan) {
                 const monthlyYearlyCost = parseFloat(monthlyPlan.price) * 12;
@@ -220,7 +230,9 @@ export default function Pricing({
                                         : undefined
                                 }
                             >
-                                Monthly
+                                <div className="flex items-center min-h-[24px]">
+                                    Monthly
+                                </div>
                             </Button>
                             <Button
                                 pressed={billingInterval === "annual"}
@@ -231,17 +243,18 @@ export default function Pricing({
                                         : undefined
                                 }
                             >
-                                Yearly
-                                {discountPercent > 0 && (
-                                    <>
-                                        {" ("}
-                                        <Badge tone="success">
-                                            {settings?.yearly_discount_badge ||
-                                                `Save ${discountPercent}%`}
-                                        </Badge>
-                                        {")"}
-                                    </>
-                                )}
+                                <div className="flex items-center min-h-[24px]">
+                                    <InlineStack blockAlign="center" gap="100">
+                                        <span>Yearly</span>
+                                        {(settings?.yearly_discount_badge ||
+                                            discountPercent > 0) && (
+                                            <Badge tone="success" size="small">
+                                                {settings?.yearly_discount_badge ||
+                                                    `Save ${discountPercent}%`}
+                                            </Badge>
+                                        )}
+                                    </InlineStack>
+                                </div>
                             </Button>
                         </ButtonGroup>
                     </InlineStack>
