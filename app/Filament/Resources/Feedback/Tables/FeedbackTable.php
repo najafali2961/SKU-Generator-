@@ -18,6 +18,9 @@ class FeedbackTable
                 TextColumn::make('user.name')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('user.email')
+                    ->searchable()
+                    ->sortable(),
                     
                 TextColumn::make('rating')
                     ->sortable()
@@ -34,9 +37,6 @@ class FeedbackTable
             ])
             ->filters([
                 //
-            ])
-            ->recordActions([
-                EditAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

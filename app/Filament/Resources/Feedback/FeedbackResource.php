@@ -44,7 +44,7 @@ class FeedbackResource extends Resource
         return [
             'index' => ListFeedback::route('/'),
             'create' => CreateFeedback::route('/create'),
-            'edit' => EditFeedback::route('/{record}/edit'),
+            // 'edit' => EditFeedback::route('/{record}/edit'),
         ];
     }
 }
