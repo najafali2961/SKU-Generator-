@@ -130,6 +130,7 @@ class PricingController extends Controller
         $plan = Plan::firstOrCreate(
             ['name' => $planName, 'price' => $price, 'interval' => 'EVERY_30_DAYS'],
             [
+                'type' => 'RECURRING',
                 'test' => env('SHOPIFY_BILLING_TEST_MODE', false),
                 'on_install' => 0,
                 'capped_amount' => 0,
