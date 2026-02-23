@@ -20,6 +20,8 @@ import {
     BarcodeIcon,
     ArrowRightIcon,
     LabelPrinterIcon,
+    StarIcon,
+    StarFilledIcon,
 } from "@shopify/polaris-icons";
 import { Link, useForm } from "@inertiajs/react";
 import { useState, useCallback } from "react";
@@ -79,6 +81,7 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
         processing: feedbackProcessing,
         reset: resetFeedback,
     } = useForm({
+        rating: 0,
         message: "",
     });
 
@@ -161,9 +164,9 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                 <Modal
                     open={feedbackModalOpen}
                     onClose={() => setFeedbackModalOpen(false)}
-                    title="We're sorry to hear that 😔"
+                    title="Review this app"
                     primaryAction={{
-                        content: "Send Feedback",
+                        content: "Submit",
                         onAction: submitBadFeedback,
                         loading: feedbackProcessing,
                     }}
@@ -174,23 +177,64 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                 >
                     <Modal.Section>
                         <BlockStack gap="400">
-                            <Text as="p">
-                                Please let us know what went wrong or how we can
-                                improve. Your feedback goes directly to our
-                                support team.
-                            </Text>
+                            <InlineStack gap="100">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                    <div
+                                        key={star}
+                                        onClick={() =>
+                                            setFeedbackData("rating", star)
+                                        }
+                                        className="cursor-pointer"
+                                        style={{
+                                            width: "32px",
+                                            height: "32px",
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                transform: "scale(1.5)",
+                                                transformOrigin: "top left",
+                                            }}
+                                        >
+                                            <Icon
+                                                source={
+                                                    star <= feedbackData.rating
+                                                        ? StarFilledIcon
+                                                        : StarIcon
+                                                }
+                                                tone="base"
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </InlineStack>
+
                             <FormLayout>
                                 <TextField
-                                    label="Message"
+                                    label="Describe your experience (optional)"
                                     value={feedbackData.message}
                                     onChange={(value) =>
                                         setFeedbackData("message", value)
                                     }
                                     multiline={4}
                                     autoComplete="off"
-                                    placeholder="Tell us what happened..."
+                                    placeholder="What should other merchants know about this app?"
                                 />
                             </FormLayout>
+
+                            <Text as="p" tone="base">
+                                If your review is published, we'll include some
+                                details about your store.{" "}
+                                <a
+                                    href="#"
+                                    style={{
+                                        textDecoration: "underline",
+                                        color: "inherit",
+                                    }}
+                                >
+                                    Learn more
+                                </a>
+                            </Text>
                         </BlockStack>
                     </Modal.Section>
                 </Modal>

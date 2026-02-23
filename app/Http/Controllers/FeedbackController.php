@@ -15,7 +15,8 @@ class FeedbackController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'message' => 'required|string|max:1000',
+            'rating' => 'required|integer|min:1|max:5',
+            'message' => 'nullable|string|max:1000',
         ]);
 
         $user = $request->user() ?? Auth::user();
@@ -50,7 +51,8 @@ class FeedbackController extends Controller
 
         $feedback = Feedback::create([
             'user_id' => $user->id,
-            'message' => $validated['message'],
+            'rating' => $validated['rating'],
+            'message' => $validated['message'] ?? null,
         ]);
 
         // Send email to support
