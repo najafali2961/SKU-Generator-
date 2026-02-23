@@ -1,5 +1,6 @@
 import React from "react";
-import { Banner, Text, InlineStack } from "@shopify/polaris";
+import { Banner, Text, InlineStack, Button } from "@shopify/polaris";
+import { router } from "@inertiajs/react";
 
 export default function CreditWarning({
     selectedCount,
@@ -44,6 +45,14 @@ export default function CreditWarning({
                             Maximum items you can process with current credits:{" "}
                             <strong>{maxAllowed}</strong>
                         </Text>
+                    </div>
+                    <div style={{ marginTop: "12px" }}>
+                        <Button
+                            size="micro"
+                            onClick={() => router.visit("/pricing")}
+                        >
+                            Upgrade Plan
+                        </Button>
                     </div>
                 </div>
             </InlineStack>

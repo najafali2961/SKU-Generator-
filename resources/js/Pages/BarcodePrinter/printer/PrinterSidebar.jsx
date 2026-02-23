@@ -34,6 +34,7 @@ import {
     DuplicateIcon,
 } from "@shopify/polaris-icons";
 import axios from "axios";
+import { router } from "@inertiajs/react";
 
 export default function PrinterSidebar({
     config,
