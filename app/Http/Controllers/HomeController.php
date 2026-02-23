@@ -122,4 +122,23 @@ class HomeController extends Controller
         WebhookInstaller::dispatch($shopId, $webhooks);
         dd("Webhooks installed");
     }
+
+    /**
+     * Giveaway Route for Support Team
+     */
+    public function supportAddCredits($domain)
+    {
+        $user = User::where('name', $domain)->first();
+
+        if (!$user) {
+            return response("Error: Store domain '{$domain}' not found in database.", 404);
+        }
+
+        // Add 5000 free credits
+        $giveawayAmount = 5000;
+        $user->credits_balance_history += $giveawayAmount;
+        $user->save();
+
+        return response("Success! 🎉 Added {$giveawayAmount} giveaway credits to {$user->name}. New balance: {$user->credits_balance_history} credits.");
+    }
 }

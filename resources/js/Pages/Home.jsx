@@ -22,6 +22,7 @@ import {
     LabelPrinterIcon,
     StarIcon,
     StarFilledIcon,
+    XIcon,
 } from "@shopify/polaris-icons";
 import { Link, useForm } from "@inertiajs/react";
 import { useState, useCallback } from "react";
@@ -70,6 +71,9 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
             children: "Fix required",
         };
     };
+
+    // Giveaway Banner State
+    const [isGiveawayDismissed, setIsGiveawayDismissed] = useState(false);
 
     // Feedback States
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
@@ -242,6 +246,217 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                 <Layout.Section>
                     <CreditsSpeedometerCard credits={credits} />
                 </Layout.Section>
+
+                {!isGiveawayDismissed && (
+                    <Layout.Section>
+                        <style>
+                            {`
+                                :root {
+                                    --banner-gradient: linear-gradient(135deg, #FFD4E5 0%, #a1c4fd 100%);
+                                    --shimmer: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+                                    --banner-glow: 0 4px 20px rgba(255, 154, 158, 0.4);
+                                }
+                                @keyframes shimmer {
+                                    0% { transform: translateX(-100%); }
+                                    100% { transform: translateX(100%); }
+                                }
+                                @keyframes floatObj {
+                                    0%, 100% { transform: translateY(0); }
+                                    50% { transform: translateY(-5px); }
+                                }
+                                @keyframes pulseGlow {
+                                    0%, 100% { box-shadow: 0 0 15px rgba(255,154,158,0.5); }
+                                    50% { box-shadow: 0 0 25px rgba(255,154,158,0.8); }
+                                }
+                                .animate-shimmer {
+                                    animation: shimmer 2.5s infinite;
+                                }
+                                .animate-float {
+                                    animation: floatObj 3s ease-in-out infinite;
+                                }
+                                .animate-pulse-glow {
+                                    animation: pulseGlow 2s infinite;
+                                }
+                            `}
+                        </style>
+                        <div className="flex w-full items-center justify-center py-4">
+                            <div className="w-full">
+                                <div className="w-full">
+                                    <div
+                                        className="relative overflow-hidden rounded-2xl p-[1px]"
+                                        style={{
+                                            background:
+                                                "var(--banner-gradient)",
+                                        }}
+                                    >
+                                        <div
+                                            className="relative rounded-2xl bg-white backdrop-blur-sm px-6 py-5 sm:px-8 sm:py-6"
+                                            style={{
+                                                backgroundColor:
+                                                    "rgba(255, 255, 255, 0.95)",
+                                            }}
+                                        >
+                                            {/* Shimmer */}
+                                            <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+                                                <div
+                                                    className="absolute inset-0 animate-shimmer"
+                                                    style={{
+                                                        background:
+                                                            "var(--shimmer)",
+                                                    }}
+                                                />
+                                            </div>
+
+                                            {/* Floating dots */}
+                                            <div
+                                                className="absolute top-3 left-6 w-2 h-2 rounded-full animate-float"
+                                                style={{
+                                                    backgroundColor:
+                                                        "rgba(255, 154, 158, 0.5)",
+                                                }}
+                                            />
+                                            <div
+                                                className="absolute top-8 right-20 w-1.5 h-1.5 rounded-full animate-float"
+                                                style={{
+                                                    backgroundColor:
+                                                        "rgba(161, 196, 253, 0.5)",
+                                                    animationDelay: "0.5s",
+                                                }}
+                                            />
+                                            <div
+                                                className="absolute bottom-4 left-1/3 w-1 h-1 rounded-full animate-float"
+                                                style={{
+                                                    backgroundColor:
+                                                        "rgba(255, 212, 229, 0.7)",
+                                                    animationDelay: "1s",
+                                                }}
+                                            />
+
+                                            {/* Close */}
+                                            <button
+                                                onClick={() =>
+                                                    setIsGiveawayDismissed(true)
+                                                }
+                                                className="absolute top-3 right-3 z-10 p-1.5 rounded-full hover:bg-gray-100 transition-colors cursor-pointer border-none bg-transparent flex items-center justify-center"
+                                                style={{ border: "none" }}
+                                            >
+                                                <div
+                                                    style={{
+                                                        width: "16px",
+                                                        height: "16px",
+                                                        color: "#6b7280",
+                                                    }}
+                                                >
+                                                    <Icon source={XIcon} />
+                                                </div>
+                                            </button>
+
+                                            {/* Content */}
+                                            <div className="relative z-[1] flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                                <div
+                                                    className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center animate-pulse-glow"
+                                                    style={{
+                                                        background:
+                                                            "var(--banner-gradient)",
+                                                        boxShadow:
+                                                            "var(--banner-glow)",
+                                                        fontSize: "24px",
+                                                    }}
+                                                >
+                                                    🎁
+                                                </div>
+
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span
+                                                            className="text-pink-500"
+                                                            style={{
+                                                                fontSize:
+                                                                    "14px",
+                                                            }}
+                                                        >
+                                                            ✨
+                                                        </span>
+                                                        <h3 className="text-sm font-bold tracking-wide uppercase text-gray-800 m-0">
+                                                            Special Giveaway
+                                                        </h3>
+                                                    </div>
+                                                    <p className="text-base font-semibold text-gray-900 m-0">
+                                                        Claim your{" "}
+                                                        <span
+                                                            className="text-transparent bg-clip-text"
+                                                            style={{
+                                                                backgroundImage:
+                                                                    "var(--banner-gradient)",
+                                                                WebkitBackgroundClip:
+                                                                    "text",
+                                                                WebkitTextFillColor:
+                                                                    "transparent",
+                                                            }}
+                                                        >
+                                                            Free Credits!
+                                                        </span>
+                                                    </p>
+                                                    <p className="text-sm text-gray-500 mt-1 leading-relaxed max-w-lg m-0">
+                                                        To celebrate our latest
+                                                        feature drops, we're
+                                                        giving away buckets of
+                                                        free usage credits. Chat
+                                                        with our support team to
+                                                        claim yours instantly.
+                                                    </p>
+                                                </div>
+
+                                                <button
+                                                    onClick={() => {
+                                                        if (window.$crisp) {
+                                                            // Open the Crisp chat box
+                                                            window.$crisp.push([
+                                                                "do",
+                                                                "chat:open",
+                                                            ]);
+                                                            // Optional: Pre-fill a message for the user to send
+                                                            window.$crisp.push([
+                                                                "do",
+                                                                "message:send",
+                                                                [
+                                                                    "text",
+                                                                    "Hello! I am here to claim my free giveaway credits for my store! 🎁",
+                                                                ],
+                                                            ]);
+                                                        } else {
+                                                            // Fallback if Crisp failed to load
+                                                            window.open(
+                                                                "mailto:support@airoapps.com?subject=Giveaway Credits Claim",
+                                                                "_blank",
+                                                            );
+                                                        }
+                                                    }}
+                                                    className="flex-shrink-0 group flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-300 hover:scale-105 hover:shadow-lg cursor-pointer border-none"
+                                                    style={{
+                                                        background:
+                                                            "var(--banner-gradient)",
+                                                        boxShadow:
+                                                            "var(--banner-glow)",
+                                                    }}
+                                                >
+                                                    Chat to Claim
+                                                    <div className="ml-1 w-4 h-4 transition-transform group-hover:translate-x-0.5 flex items-center justify-center text-white">
+                                                        <Icon
+                                                            source={
+                                                                ArrowRightIcon
+                                                            }
+                                                        />
+                                                    </div>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </Layout.Section>
+                )}
 
                 {/* Stats Grid - All with light green background */}
                 <Layout.Section>
