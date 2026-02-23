@@ -14,6 +14,8 @@ import {
     BlockStack,
     Divider,
     ButtonGroup,
+    RangeSlider,
+    TextField,
 } from "@shopify/polaris";
 import { CheckIcon, XIcon } from "@shopify/polaris-icons";
 
@@ -22,11 +24,42 @@ export default function Pricing({
     currentPlan = {},
     user = {},
     allFeatures = [],
+    settings = {},
 }) {
     const { shop } = usePage().props || {};
 
     const [isLoading, setIsLoading] = useState(false);
     const [billingInterval, setBillingInterval] = useState("monthly");
+
+    // Custom Calculator State
+    const customCreditMin =
+        parseInt(settings?.custom_credit_min_amount) || 1000;
+    const customCreditPrice =
+        parseFloat(settings?.custom_credit_price_per_unit) || 0.05;
+    const [customCredits, setCustomCredits] = useState(customCreditMin);
+    const calculatedPrice = (customCredits * customCreditPrice).toFixed(2);
+
+    const handleCustomSliderChange = (value) => {
+        setCustomCredits(parseInt(value, 10));
+    };
+
+    const handleCustomSubscribe = async () => {
+        setIsLoading("custom");
+        try {
+            const response = await axios.post(route("pricing.select.custom"), {
+                credits: customCredits,
+                price: calculatedPrice,
+            });
+            if (response.data.success && response.data.redirectUrl) {
+                window.top.location.href = response.data.redirectUrl;
+            }
+        } catch (error) {
+            console.error("Custom plan error", error);
+            alert("Could not process custom plan request.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     // Filter plans by billing interval
     const visiblePlans = useMemo(() => {
@@ -146,6 +179,27 @@ export default function Pricing({
         return 0;
     };
 
+    const getPlanDiscountPercent = (annualPlan) => {
+        if (annualPlan.interval === "ANNUAL") {
+            const monthlyPlan = plans.find(
+                (p) =>
+                    p.interval === "EVERY_30_DAYS" &&
+                    p.name === annualPlan.name,
+            );
+            if (monthlyPlan) {
+                const monthlyYearlyCost = parseFloat(monthlyPlan.price) * 12;
+                const annualCost = parseFloat(annualPlan.price) * 12;
+                if (monthlyYearlyCost > 0) {
+                    const discount =
+                        ((monthlyYearlyCost - annualCost) / monthlyYearlyCost) *
+                        100;
+                    return Math.round(discount);
+                }
+            }
+        }
+        return 0;
+    };
+
     const discountPercent = getDiscountPercent();
 
     return (
@@ -182,7 +236,8 @@ export default function Pricing({
                                     <>
                                         {" ("}
                                         <Badge tone="success">
-                                            Save {discountPercent}%
+                                            {settings?.yearly_discount_badge ||
+                                                `Save ${discountPercent}%`}
                                         </Badge>
                                         {")"}
                                     </>
@@ -303,13 +358,30 @@ export default function Pricing({
 
                                                             {billingInterval ===
                                                                 "annual" && (
-                                                                <Text
-                                                                    variant="bodySm"
-                                                                    tone="subdued"
+                                                                <BlockStack
+                                                                    gap="100"
+                                                                    inlineAlign="center"
                                                                 >
-                                                                    (Billed
-                                                                    annually)
-                                                                </Text>
+                                                                    <Text
+                                                                        variant="bodySm"
+                                                                        tone="subdued"
+                                                                    >
+                                                                        (Billed
+                                                                        annually)
+                                                                    </Text>
+                                                                    {getPlanDiscountPercent(
+                                                                        plan,
+                                                                    ) > 0 && (
+                                                                        <Badge tone="success">
+                                                                            Save{" "}
+                                                                            {getPlanDiscountPercent(
+                                                                                plan,
+                                                                            )}
+                                                                            %
+                                                                            yearly
+                                                                        </Badge>
+                                                                    )}
+                                                                </BlockStack>
                                                             )}
 
                                                             {/* Credits Display */}
@@ -372,7 +444,7 @@ export default function Pricing({
                                                                                         gap="300"
                                                                                         blockAlign="start"
                                                                                     >
-                                                                                        <div className="flex-shrink-0 mt-3">
+                                                                                        <div className="flex-shrink-0 mt-0.5">
                                                                                             <div
                                                                                                 className={`flex items-center justify-center w-4 h-4 rounded-full ${
                                                                                                     hasFeature
@@ -426,7 +498,7 @@ export default function Pricing({
                                                                                 gap="400"
                                                                                 blockAlign="start"
                                                                             >
-                                                                                <div className="flex-shrink-0 mt-1">
+                                                                                <div className="flex-shrink-0 mt-0.5">
                                                                                     <div className="flex items-center justify-center w-4 h-4 bg-green-100 rounded-full">
                                                                                         <Icon
                                                                                             source={
@@ -564,6 +636,84 @@ export default function Pricing({
                             </Card>
                         </Box>
                     )}
+
+                    {/* Custom Credits Calculator */}
+                    <Box paddingBlockStart="800">
+                        <Card>
+                            <BlockStack gap="400">
+                                <Text variant="headingMd" as="h2">
+                                    Need More Credits?
+                                </Text>
+                                <Text variant="bodyMd" tone="subdued">
+                                    Create a custom plan that fits your exact
+                                    volume needs.
+                                </Text>
+
+                                <Divider />
+
+                                <Box paddingBlock="400">
+                                    <InlineStack
+                                        gap="400"
+                                        blockAlign="center"
+                                        wrap={false}
+                                    >
+                                        <div style={{ flexGrow: 1 }}>
+                                            <RangeSlider
+                                                label="Select precise credits needed"
+                                                labelHidden
+                                                min={customCreditMin}
+                                                max={customCreditMin * 100}
+                                                step={50}
+                                                value={customCredits}
+                                                onChange={
+                                                    handleCustomSliderChange
+                                                }
+                                                output
+                                            />
+                                        </div>
+                                        <div style={{ width: "120px" }}>
+                                            <TextField
+                                                type="number"
+                                                value={customCredits.toString()}
+                                                onChange={
+                                                    handleCustomSliderChange
+                                                }
+                                                autoComplete="off"
+                                                suffix="Credits"
+                                                min={customCreditMin}
+                                            />
+                                        </div>
+                                    </InlineStack>
+                                </Box>
+
+                                <InlineStack
+                                    align="space-between"
+                                    blockAlign="center"
+                                >
+                                    <BlockStack gap="100">
+                                        <Text variant="headingXl">
+                                            ${calculatedPrice}
+                                        </Text>
+                                        <Text variant="bodySm" tone="subdued">
+                                            /month for {customCredits} credits
+                                        </Text>
+                                    </BlockStack>
+                                    <Button
+                                        variant="primary"
+                                        size="large"
+                                        onClick={handleCustomSubscribe}
+                                        loading={isLoading === "custom"}
+                                        disabled={
+                                            isLoading !== false &&
+                                            isLoading !== "custom"
+                                        }
+                                    >
+                                        Subscribe Custom Plan
+                                    </Button>
+                                </InlineStack>
+                            </BlockStack>
+                        </Card>
+                    </Box>
                 </BlockStack>
             </Page>
         </>

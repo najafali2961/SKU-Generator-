@@ -82,6 +82,7 @@ Route::middleware(['verify.shopify', 'billable'])->group(function () {
 
     // Pricing
     Route::get('/pricing', [PricingController::class, 'index'])->name('pricing');
+    Route::post('/pricing/select/custom', [PricingController::class, 'selectCustomPlan'])->name('pricing.select.custom');
     Route::post('/pricing/select/{planId}', [PricingController::class, 'selectPlan'])->name('pricing.select');
     Route::post('/pricing/cancel', [PricingController::class, 'cancel'])->name('pricing.cancel');
     Route::get('/credit-stats', [PricingController::class, 'creditStats'])->name('pricing.credit-stats');
