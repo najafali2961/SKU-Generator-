@@ -2,19 +2,21 @@
 
 namespace App\Filament\Resources\Settings\Schemas;
 
-use Filament\Schemas\Schema;
+use Filament\Forms\Form;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
 
 class SettingForm
 {
-    public static function configure(Schema $schema): Schema
+    public static function configure(Form $form): Form
     {
-        return $schema
-            ->components([
-                \Filament\Schemas\Components\TextInput::make('key')
+        return $form
+            ->schema([
+                TextInput::make('key')
                     ->required()
                     ->unique(ignoreRecord: true)
                     ->maxLength(255),
-                \Filament\Schemas\Components\Textarea::make('value')
+                Textarea::make('value')
                     ->nullable()
                     ->columnSpanFull(),
             ]);
