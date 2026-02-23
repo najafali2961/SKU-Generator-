@@ -209,31 +209,30 @@ export default function Pricing({
                                             maxWidth: "350px",
                                         }}
                                     >
-                                        {isPopular && (
+                                        {(isPopular || isCurrent) && (
                                             <div
-                                                className="absolute z-20 transform -translate-x-1/2 left-1/2"
-                                                style={{ top: "-16px" }}
+                                                className="absolute z-20 flex gap-2 transform -translate-x-1/2 left-1/2"
+                                                style={{
+                                                    top: "-16px",
+                                                    whiteSpace: "nowrap",
+                                                }}
                                             >
-                                                <Badge
-                                                    tone="attention"
-                                                    size="large"
-                                                >
-                                                    ⭐ Most Popular
-                                                </Badge>
-                                            </div>
-                                        )}
-
-                                        {isCurrent && (
-                                            <div
-                                                className="absolute z-20 transform -translate-x-1/2 left-1/2"
-                                                style={{ top: "-16px" }}
-                                            >
-                                                <Badge
-                                                    tone="success"
-                                                    size="large"
-                                                >
-                                                    ⭐ Current Plan
-                                                </Badge>
+                                                {isPopular && (
+                                                    <Badge
+                                                        tone="attention"
+                                                        size="large"
+                                                    >
+                                                        ⭐ Most Popular
+                                                    </Badge>
+                                                )}
+                                                {isCurrent && (
+                                                    <Badge
+                                                        tone="success"
+                                                        size="large"
+                                                    >
+                                                        ⭐ Current Plan
+                                                    </Badge>
+                                                )}
                                             </div>
                                         )}
 
@@ -322,19 +321,6 @@ export default function Pricing({
                                                                 {credits.value}{" "}
                                                                 {credits.text}
                                                             </Text>
-
-                                                            {/* Trial Badge */}
-                                                            {plan.trial_days >
-                                                                0 &&
-                                                                !isCurrent && (
-                                                                    <Badge tone="info">
-                                                                        {
-                                                                            plan.trial_days
-                                                                        }{" "}
-                                                                        day free
-                                                                        trial
-                                                                    </Badge>
-                                                                )}
                                                         </BlockStack>
 
                                                         {/* Features List */}
@@ -512,7 +498,7 @@ export default function Pricing({
 
                     {/* Freemium Banner */}
                     {/* Freemium Banner */}
-                    {user?.is_freemium && (
+                    {user?.is_freemium && !currentPlan.id && (
                         <Box paddingBlockStart="800">
                             <Card>
                                 <BlockStack gap="400">
