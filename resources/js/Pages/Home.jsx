@@ -30,7 +30,12 @@ import { Modal, TextField, FormLayout } from "@shopify/polaris";
 import RecentJobsTable from "./RecentJobsTable";
 import CreditsSpeedometerCard from "./CreditsSpeedometerCard";
 
-export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
+export default function Home({
+    stats = {},
+    credits = {},
+    recentJobs = [],
+    has_claimed_giveaway = false,
+}) {
     const data = {
         total_variants: stats.total_variants || 0,
         variants_missing_sku: stats.variants_missing_sku || 0,
@@ -247,7 +252,7 @@ export default function Home({ stats = {}, credits = {}, recentJobs = [] }) {
                     <CreditsSpeedometerCard credits={credits} />
                 </Layout.Section>
 
-                {!isGiveawayDismissed && (
+                {!isGiveawayDismissed && !has_claimed_giveaway && (
                     <Layout.Section>
                         <style>
                             {`

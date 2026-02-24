@@ -72,7 +72,8 @@ class HomeController extends Controller
         return Inertia::render('Home', [
             'stats' => $stats,
             'credits' => $credits,
-            'recentJobs' => JobLog::where('user_id', $shop->id)->latest()->limit(10)->get()
+            'recentJobs' => JobLog::where('user_id', $shop->id)->latest()->limit(10)->get(),
+            'has_claimed_giveaway' => (bool) $shop->has_claimed_giveaway,
         ]);
     }
 
@@ -134,11 +135,16 @@ class HomeController extends Controller
             return response("Error: Store domain '{$domain}' not found in database.", 404);
         }
 
-        // Add 5000 free credits
-        $giveawayAmount = 5000;
-        $user->credits_balance_history += $giveawayAmount;
+        if ($user->has_claimed_giveaway) {
+            return response("Error: Store '{$domain}' has already claimed the giveaway.", 400);
+        }
+
+        // Add 500 free giveaway credits
+        $giveawayAmount = 500;
+        $user->credits += $giveawayAmount;
+        $user->has_claimed_giveaway = true;
         $user->save();
 
-        return response("Success! 🎉 Added {$giveawayAmount} giveaway credits to {$user->name}. New balance: {$user->credits_balance_history} credits.");
+        return response("Success! 🎉 Added {$giveawayAmount} giveaway credits to {$user->name}. New total credits: {$user->credits}.");
     }
 }
