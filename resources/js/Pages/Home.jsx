@@ -235,7 +235,9 @@ export default function Home({
                                 If your review is published, we'll include some
                                 details about your store.{" "}
                                 <a
-                                    href="#"
+                                    href="https://help.shopify.com/en/manual/apps/choosing-apps#app-reviews"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
                                     style={{
                                         textDecoration: "underline",
                                         color: "inherit",
