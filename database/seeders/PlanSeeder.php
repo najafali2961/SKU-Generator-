@@ -28,10 +28,11 @@ class PlanSeeder extends Seeder
                 'trial_days' => 7,
                 'test' => false,
                 'on_install' => true,
-                'monthly_credits' => 100,
+                'monthly_credits' => 2000,
                 'unlimited_credits' => false,
                 'created_at' => now(),
                 'updated_at' => now(),
+                'is_visible' => true,
             ],
             [
                 'type' => 'RECURRING',
@@ -43,10 +44,11 @@ class PlanSeeder extends Seeder
                 'trial_days' => 7,
                 'test' => false,
                 'on_install' => false,
-                'monthly_credits' => 500,
+                'monthly_credits' => 10000,
                 'unlimited_credits' => false,
                 'created_at' => now(),
                 'updated_at' => now(),
+                'is_visible' => true,
             ],
             [
                 'type' => 'RECURRING',
@@ -58,10 +60,11 @@ class PlanSeeder extends Seeder
                 'trial_days' => 7,
                 'test' => false,
                 'on_install' => false,
-                'monthly_credits' => 6000,
+                'monthly_credits' => 20000,
                 'unlimited_credits' => false,
                 'created_at' => now(),
                 'updated_at' => now(),
+                'is_visible' => true,
             ],
             [
                 'type' => 'RECURRING',
@@ -77,6 +80,7 @@ class PlanSeeder extends Seeder
                 'unlimited_credits' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
+                'is_visible' => true,
             ],
         ];
 
