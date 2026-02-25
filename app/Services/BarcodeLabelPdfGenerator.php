@@ -123,7 +123,7 @@ class BarcodeLabelPdfGenerator
 
             case 'product_url':
                 $shop = $variant->product->user->name ?? '';
-                $productId = $variant->product->shopify_product_id ?? '';
+                $productId = $variant->product->shopify_id ?? '';
                 $variantId = $variant->shopify_variant_id ?? '';
                 if ($shop && $productId) {
                     $finalValue = "https://{$shop}/products/{$productId}?variant={$variantId}";
@@ -156,7 +156,7 @@ class BarcodeLabelPdfGenerator
                 'barcode' => $variant->barcode,
                 'shopify_variant_id' => $variant->shopify_variant_id,
                 'domain_from_user' => $variant->product->user->name ?? null,
-                'shopify_product_id' => $variant->product->shopify_product_id ?? null,
+                'shopify_id' => $variant->product->shopify_id ?? null,
             ]
         ]);
 
@@ -179,8 +179,8 @@ class BarcodeLabelPdfGenerator
             '{{title}}' => $variant->product->title ?? '',
             '{variant_id}' => $variant->shopify_variant_id ?? '',
             '{{variant_id}}' => $variant->shopify_variant_id ?? '',
-            '{product_id}' => $variant->product->shopify_product_id ?? '',
-            '{{product_id}}' => $variant->product->shopify_product_id ?? '',
+            '{product_id}' => $variant->product->shopify_id ?? '',
+            '{{product_id}}' => $variant->product->shopify_id ?? '',
             '{vendor}' => $variant->product->vendor ?? '',
             '{{vendor}}' => $variant->product->vendor ?? '',
             '{variant}' => $this->getVariantTitle($variant),
@@ -465,11 +465,11 @@ class BarcodeLabelPdfGenerator
             $labelW = floatval($this->setting->label_width);
             $labelH = floatval($this->setting->label_height);
             
-            // Get effective margins
-            $mT = floatval($this->setting->margin_top ?? 0);
-            $mB = floatval($this->setting->margin_bottom ?? 0);
-            $mL = floatval($this->setting->margin_left ?? 0);
-            $mR = floatval($this->setting->margin_right ?? 0);
+            // Get effective margins EXACTLY matching buildHtml to prevent overflow
+            $mT = floatval($this->setting->margin_top ?? $this->setting->page_margin_top ?? 0);
+            $mB = floatval($this->setting->margin_bottom ?? $this->setting->page_margin_bottom ?? 0);
+            $mL = floatval($this->setting->margin_left ?? $this->setting->page_margin_left ?? 0);
+            $mR = floatval($this->setting->margin_right ?? $this->setting->page_margin_right ?? 0);
 
             // Force Paper Size = Label Size + Margins
             // This ensures the PDF page creates a canvas exactly the size of the sticker
@@ -506,10 +506,10 @@ class BarcodeLabelPdfGenerator
         $effectiveWidth = $effective['width'];
         $effectiveHeight = $effective['height'];
 
-        $marginLeft = floatval($this->setting->page_margin_left ?? 0);
-        $marginRight = floatval($this->setting->page_margin_right ?? 0);
-        $marginTop = floatval($this->setting->page_margin_top ?? 0);
-        $marginBottom = floatval($this->setting->page_margin_bottom ?? 0);
+        $marginLeft = floatval($this->setting->margin_left ?? $this->setting->page_margin_left ?? 0);
+        $marginRight = floatval($this->setting->margin_right ?? $this->setting->page_margin_right ?? 0);
+        $marginTop = floatval($this->setting->margin_top ?? $this->setting->page_margin_top ?? 0);
+        $marginBottom = floatval($this->setting->margin_bottom ?? $this->setting->page_margin_bottom ?? 0);
 
         $labelWidth = floatval($this->setting->label_width ?? 80);
         $labelHeight = floatval($this->setting->label_height ?? 40);
@@ -566,10 +566,10 @@ class BarcodeLabelPdfGenerator
 
         // Fix: Frontend sends 'margin_top', backend might expect 'page_margin_top'
         // We check both, preferring the shorter 'margin_*' keys if available.
-        $marginTop = floatval($s->margin_top ?? $s->page_margin_top ?? 10) * self::MM_TO_PT;
-        $marginRight = floatval($s->margin_right ?? $s->page_margin_right ?? 10) * self::MM_TO_PT;
-        $marginBottom = floatval($s->margin_bottom ?? $s->page_margin_bottom ?? 10) * self::MM_TO_PT;
-        $marginLeft = floatval($s->margin_left ?? $s->page_margin_left ?? 10) * self::MM_TO_PT;
+        $marginTop = floatval($s->margin_top ?? $s->page_margin_top ?? 0) * self::MM_TO_PT;
+        $marginRight = floatval($s->margin_right ?? $s->page_margin_right ?? 0) * self::MM_TO_PT;
+        $marginBottom = floatval($s->margin_bottom ?? $s->page_margin_bottom ?? 0) * self::MM_TO_PT;
+        $marginLeft = floatval($s->margin_left ?? $s->page_margin_left ?? 0) * self::MM_TO_PT;
 
         $barcodeWidth = floatval($s->barcode_width ?? 60) * self::MM_TO_PT;
         $barcodeHeight = floatval($s->barcode_height ?? 20) * self::MM_TO_PT;
