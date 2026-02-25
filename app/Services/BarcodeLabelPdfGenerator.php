@@ -119,7 +119,7 @@ class BarcodeLabelPdfGenerator
                 return (string)$variant->shopify_variant_id;
 
             case 'product_url':
-                $shop = $variant->product->user->shopify_domain ?? '';
+                $shop = $variant->product->user->name ?? '';
                 $productId = $variant->product->shopify_product_id ?? '';
                 $variantId = $variant->shopify_variant_id ?? '';
                 if ($shop && $productId) {
@@ -592,6 +592,9 @@ class BarcodeLabelPdfGenerator
         // CSS: Hide border for thermal to prevent overflow/double-lines
         $borderStyle = $isThermal ? 'none' : '0.5pt solid #cccccc';
 
+        $cssWidth = max(0, $labelWidth - ($labelPadding * 2));
+        $cssHeight = max(0, $labelHeight - ($labelPadding * 2));
+
         $html = <<<HTML
 <!DOCTYPE html>
 <html>
@@ -633,14 +636,15 @@ class BarcodeLabelPdfGenerator
         }
 
         .label-content {
-            width: {$labelWidth}pt;
-            height: {$labelHeight}pt;
+            width: {$cssWidth}pt;
+            height: {$cssHeight}pt;
             border: {$borderStyle};
             padding: {$labelPadding}pt;
             overflow: hidden;
             display: block;
             background: white;
             position: relative;
+            box-sizing: content-box;
         }
 
         .label-header {
