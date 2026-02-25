@@ -140,7 +140,7 @@ export default function Home({
                                 <Text variant="bodyLg" tone="invert-subdued">
                                     Fix missing SKUs & barcodes in seconds •
                                     Trusted by{" "}
-                                    {data.active_stores.toLocaleString()}+
+                                    {data.active_stores.toLocaleString()}00+
                                     stores
                                 </Text>
                             </BlockStack>
