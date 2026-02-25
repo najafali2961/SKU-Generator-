@@ -709,7 +709,7 @@ export default function Pricing({
                                                 </Text>
                                             </div>
 
-                                            <div style={{ width: "160px" }}>
+                                            <div style={{ width: "220px" }}>
                                                 <TextField
                                                     type="number"
                                                     value={customCredits.toString()}
@@ -717,7 +717,6 @@ export default function Pricing({
                                                         handleCustomSliderChange
                                                     }
                                                     autoComplete="off"
-                                                    suffix="Credits"
                                                     min={customCreditMin}
                                                 />
                                             </div>
