@@ -314,10 +314,18 @@ class SkuController extends Controller
                  // Reuse logic to group and format
                  $grouped = $variants->groupBy('sku');
                  
-                 $fullDuplicateGroups = $grouped->map(function ($items, $sku) use (&$duplicateCounter, $padLength, $request) {
+                 $fullDuplicateGroups = $grouped->map(function ($items, $sku) use (&$duplicateCounter, $padLength, $request, &$perProductCounters, $startNumber) {
                      $groupVariants = [];
                      foreach ($items as $variant) {
-                         $num = str_pad($duplicateCounter++, $padLength, '0', STR_PAD_LEFT);
+                         $number = $request->boolean('restart_per_product')
+                                ? ($perProductCounters[$variant->product_id] ??= $startNumber)
+                                : $duplicateCounter++;
+                         
+                         if ($request->boolean('restart_per_product')) {
+                             $perProductCounters[$variant->product_id]++;
+                         }
+
+                         $num = str_pad($number, $padLength, '0', STR_PAD_LEFT);
                          $source = $this->getSource($variant, $request);
                          $newSku = $this->buildSku($request, $source, $num);
                          $groupVariants[] = $this->formatVariant($variant, $newSku, true);
@@ -342,11 +350,33 @@ class SkuController extends Controller
              $total = $q->count();
              $variants = $q->skip(($page - 1) * $perPage)->take($perPage)->get();
              
+             if ($request->boolean('restart_per_product') && $variants->isNotEmpty()) {
+                 $productIds = $variants->pluck('product_id')->unique()->toArray();
+                 $firstVariantIdOnPage = $variants->first()->id;
+
+                 $priorCounts = $baseQuery->clone()->where(function($qq) {
+                     $qq->whereNull('sku')->orWhere('sku', '');
+                 });
+                 $counts = $priorCounts->whereIn('product_id', $productIds)
+                     ->where('variants.id', '<', $firstVariantIdOnPage)
+                     ->selectRaw('product_id, count(*) as cnt')
+                     ->groupBy('product_id')
+                     ->pluck('cnt', 'product_id');
+
+                 foreach ($productIds as $pId) {
+                     $perProductCounters[$pId] = $startNumber + ($counts->get($pId, 0));
+                 }
+             }
+
              foreach ($variants as $variant) {
                  // Counter logic for preview
                  $number = $request->boolean('restart_per_product')
                         ? ($perProductCounters[$variant->product_id] ??= $startNumber)
                         : $missingCounter++;
+                 
+                 if ($request->boolean('restart_per_product')) {
+                     $perProductCounters[$variant->product_id]++;
+                 }
                  
                  $num = str_pad($number, $padLength, '0', STR_PAD_LEFT);
                  $source = $this->getSource($variant, $request);
@@ -361,6 +391,25 @@ class SkuController extends Controller
                 ->skip(($page - 1) * $perPage)
                 ->take($perPage)
                 ->get();
+
+             // Pre-calculate per-product offsets if restart_per_product is true
+             if ($request->boolean('restart_per_product') && $variants->isNotEmpty()) {
+                 $productIds = $variants->pluck('product_id')->unique()->toArray();
+                 $firstVariantIdOnPage = $variants->first()->id;
+
+                 // Count how many variants for each product appear in the query BEFORE the first item on this page
+                 // This gives us the starting offset for this page's counters
+                 $priorCounts = clone $baseQuery;
+                 $counts = $priorCounts->whereIn('product_id', $productIds)
+                     ->where('variants.id', '<', $firstVariantIdOnPage)
+                     ->selectRaw('product_id, count(*) as cnt')
+                     ->groupBy('product_id')
+                     ->pluck('cnt', 'product_id');
+
+                 foreach ($productIds as $pId) {
+                     $perProductCounters[$pId] = $startNumber + ($counts->get($pId, 0));
+                 }
+             }
 
              foreach ($variants as $variant) {
                 // Check if duplicate for flagging?
@@ -387,6 +436,10 @@ class SkuController extends Controller
                 $number = $request->boolean('restart_per_product')
                         ? ($perProductCounters[$variant->product_id] ??= $startNumber)
                         : $globalCounter++;
+
+                if ($request->boolean('restart_per_product')) {
+                    $perProductCounters[$variant->product_id]++;
+                }
 
                 $num = str_pad($number, $padLength, '0', STR_PAD_LEFT);
                 $source = $this->getSource($variant, $request);
