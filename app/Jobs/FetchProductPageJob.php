@@ -49,6 +49,7 @@ class FetchProductPageJob implements ShouldQueue
                       node {
                         id
                         title
+                        handle
                         bodyHtml
                         status
                         vendor
@@ -190,6 +191,7 @@ class FetchProductPageJob implements ShouldQueue
                     ],
                     [
                         'title'            => $title,
+                        'handle'           => $this->toString($node['handle'] ?? null),
                         'description_html' => $bodyHtml,
                         'status'           => $status,
                         'vendor'           => $vendor,

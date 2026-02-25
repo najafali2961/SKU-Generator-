@@ -12,6 +12,7 @@ class Product extends Model
         'user_id',
         'shopify_id',
         'title',
+        'handle',
         'description_html',
         'status',
         'vendor',

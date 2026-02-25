@@ -123,10 +123,10 @@ class BarcodeLabelPdfGenerator
 
             case 'product_url':
                 $shop = $variant->product->user->name ?? '';
-                $productId = $variant->product->shopify_id ?? '';
+                $productHandle = $variant->product->handle ?? '';
                 $variantId = $variant->shopify_variant_id ?? '';
-                if ($shop && $productId) {
-                    $finalValue = "https://{$shop}/products/{$productId}?variant={$variantId}";
+                if ($shop && $productHandle) {
+                    $finalValue = "https://{$shop}/products/{$productHandle}?variant={$variantId}";
                 } else {
                     $finalValue = $variant->barcode ?: "VAR-{$variant->id}";
                 }
@@ -156,7 +156,7 @@ class BarcodeLabelPdfGenerator
                 'barcode' => $variant->barcode,
                 'shopify_variant_id' => $variant->shopify_variant_id,
                 'domain_from_user' => $variant->product->user->name ?? null,
-                'shopify_id' => $variant->product->shopify_id ?? null,
+                'product_handle' => $variant->product->handle ?? null,
             ]
         ]);
 

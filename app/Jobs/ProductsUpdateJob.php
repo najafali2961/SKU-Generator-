@@ -68,6 +68,7 @@ class ProductsUpdateJob implements ShouldQueue
                 ['shopify_id' => $shopifyProductId, 'user_id' => $shop->id],
                 [
                     'title'            => $productData['title'] ?? 'Untitled',
+                    'handle'           => $productData['handle'] ?? null,
                     'description_html' => $productData['descriptionHtml'] ?? $productData['body_html'] ?? null,
                     'status'           => strtoupper($productData['status'] ?? 'DRAFT'),
                     'vendor'           => $productData['vendor'] ?? null,
