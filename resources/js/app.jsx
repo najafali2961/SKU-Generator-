@@ -97,7 +97,7 @@ createInertiaApp({
                     >
                         History
                     </a>
-                    <a
+                    {/* <a
                         href="/pricing"
                         onClick={(e) => {
                             e.preventDefault();
@@ -111,7 +111,7 @@ createInertiaApp({
                         }}
                     >
                         Pricing
-                    </a>
+                    </a> */}
                 </NavMenu>
 
                 <App {...props} />

@@ -606,7 +606,7 @@ export default function Pricing({
                                                     tone="success"
                                                     size="large"
                                                 >
-                                                    Free Plan Active
+                                                    Free
                                                 </Badge>
                                                 <Text
                                                     variant="bodyMd"
