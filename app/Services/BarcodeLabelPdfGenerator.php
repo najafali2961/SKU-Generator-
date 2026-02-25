@@ -110,36 +110,57 @@ class BarcodeLabelPdfGenerator
     protected function getQrDataValue($variant)
     {
         $dataSource = $this->setting->qr_data_source ?? 'barcode';
+        $finalValue = '';
 
         switch ($dataSource) {
             case 'sku':
-                return $variant->sku ?: "VAR-{$variant->id}";
+                $finalValue = $variant->sku ?: "VAR-{$variant->id}";
+                break;
 
             case 'variant_id':
-                return (string)$variant->shopify_variant_id;
+                $finalValue = (string)$variant->shopify_variant_id;
+                break;
 
             case 'product_url':
                 $shop = $variant->product->user->name ?? '';
                 $productId = $variant->product->shopify_product_id ?? '';
                 $variantId = $variant->shopify_variant_id ?? '';
                 if ($shop && $productId) {
-                    return "https://{$shop}/products/{$productId}?variant={$variantId}";
+                    $finalValue = "https://{$shop}/products/{$productId}?variant={$variantId}";
+                } else {
+                    $finalValue = $variant->barcode ?: "VAR-{$variant->id}";
                 }
-                return $variant->barcode ?: "VAR-{$variant->id}";
+                break;
 
             case 'custom':
-                return $this->parseCustomFormat($variant);
+                $finalValue = $this->parseCustomFormat($variant);
+                break;
 
             case 'barcode':
             default:
                 if (!empty($variant->barcode)) {
-                    return $variant->barcode;
+                    $finalValue = $variant->barcode;
+                } else if (!empty($variant->sku)) {
+                    $finalValue = $variant->sku;
+                } else {
+                    $finalValue = "VAR-{$variant->id}";
                 }
-                if (!empty($variant->sku)) {
-                    return $variant->sku;
-                }
-                return "VAR-{$variant->id}";
+                break;
         }
+
+        Log::info('QR Code Data Source Resolution', [
+            'selected_source' => $dataSource,
+            'resolved_value' => $finalValue,
+            'variant_attributes' => [
+                'sku' => $variant->sku,
+                'barcode' => $variant->barcode,
+                'shopify_variant_id' => $variant->shopify_variant_id,
+                'domain_from_user' => $variant->product->user->name ?? null,
+                'shopify_product_id' => $variant->product->shopify_product_id ?? null,
+            ]
+        ]);
+
+        return $finalValue;
     }
 
     protected function parseCustomFormat($variant)

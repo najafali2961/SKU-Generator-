@@ -264,79 +264,38 @@ export default function BarcodePrinterIndex({
             return;
         }
 
-        // BATCH MODE CHECK ( > 100 items )
-        const BATCH_THRESHOLD = 500;
-        if (variantIds.length > BATCH_THRESHOLD || variantIds.length > 100) {
-            try {
-                setPrinting(true);
-
-                // Save config first
-                await axios.post(
-                    `/barcode-printer/update-setting/${setting.id}`,
-                    config,
-                );
-
-                const res = await axios.post(
-                    "/barcode-printer/generate-pdf-job",
-                    {
-                        setting_id: setting.id,
-                        variant_ids: variantIds,
-                        quantity_per_variant: parseInt(
-                            config.quantity_per_variant,
-                        ),
-                    },
-                );
-
-                if (res.data.success) {
-                    showToast("Job started! Redirecting...");
-                    // Redirect to the Job Details page
-                    router.visit(`/jobs/${res.data.job_id}`);
-                }
-            } catch (error) {
-                console.error("Job start failed:", error);
-                showToast(
-                    error.response?.data?.message || "Failed to start job",
-                    true,
-                );
-                setPrinting(false);
-            }
-            return;
-        }
-
-        // STANDARD DIRECT DOWNLOAD
+        // ALWAYS DISPATCH AS JOB
         try {
             setPrinting(true);
 
+            // Save config first
             await axios.post(
                 `/barcode-printer/update-setting/${setting.id}`,
                 config,
             );
 
-            await new Promise((resolve) => setTimeout(resolve, 300));
+            const res = await axios.post("/barcode-printer/generate-pdf-job", {
+                setting_id: setting.id,
+                variant_ids: variantIds,
+                quantity_per_variant: parseInt(config.quantity_per_variant),
+            });
 
-            const res = await axios.post(
-                "/barcode-printer/generate-pdf",
-                {
-                    setting_id: setting.id,
-                    variant_ids: variantIds,
-                    quantity_per_variant: parseInt(config.quantity_per_variant),
-                },
-                { responseType: "blob" },
-            );
-
-            const url = window.URL.createObjectURL(new Blob([res.data]));
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `labels-${new Date().toISOString().slice(0, 10)}.pdf`;
-            a.click();
-            window.URL.revokeObjectURL(url);
-            showToast("Labels generated successfully!");
+            if (res.data.success) {
+                showToast("Job started! Redirecting...");
+                // Redirect to the Job Details page
+                router.visit(`/jobs/${res.data.job_id}`);
+            }
         } catch (error) {
-            console.error("PDF generation failed:", error);
-            showToast("Failed to generate PDF. Please try again.", true);
-        } finally {
+            console.error("Job start failed:", error);
+            showToast(
+                error.response?.data?.message || "Failed to start job",
+                true,
+            );
             setPrinting(false);
         }
+        return;
+
+        // Dead code removed: Standard direct download is no longer used.
     };
 
     return (
