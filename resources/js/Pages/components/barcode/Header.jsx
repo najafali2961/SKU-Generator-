@@ -34,7 +34,7 @@ export default function BarcodeHeader({ onImport, onExport }) {
                 {/* Right side – Import & Export buttons */}
                 <InlineStack gap="200">
                     {/* Import Button */}
-                    <Tooltip
+                    {/* <Tooltip
                         content="Import purchased EAN/UPC/ISBN numbers (CSV)"
                         preferredPosition="below"
                     >
@@ -45,7 +45,7 @@ export default function BarcodeHeader({ onImport, onExport }) {
                         >
                             Import Codes
                         </Button>
-                    </Tooltip>
+                    </Tooltip> */}
 
                     {/* Export Button */}
                     <Tooltip
