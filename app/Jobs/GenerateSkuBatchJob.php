@@ -61,6 +61,63 @@ class GenerateSkuBatchJob implements ShouldQueue
 
         // Use pre-allocated counter
         $currentCounter = $this->startCounter;
+        
+        // Track per-product initialization offset for "restart_per_product" support
+        $perProductCounters = [];
+        $startNumber = (int)($this->settings['auto_start'] ?? 1);
+
+        if (!empty($this->settings['restart_per_product'])) {
+            $productIds = $variants->pluck('product_id')->unique()->toArray();
+            $firstVariantIdInBatch = collect($this->variantIds)->min(); // The IDs in this chunk
+
+            // We must find how many variants mapped to these products existed BEFORE this batch
+            // The job query is usually based on shop variants.
+            $priorCountsQuery = Variant::whereIn('product_id', $productIds)
+                ->where('id', '<', $firstVariantIdInBatch);
+
+            // Apply the scope logic constraints that GenerateSkuJob uses
+            $tab = $this->settings['active_tab'] ?? 'all';
+            if ($tab === 'missing') {
+                $priorCountsQuery->where(function($q) {
+                    $q->whereNull('sku')->orWhere('sku', '');
+                });
+            } elseif ($tab === 'duplicates') {
+                $dupSkus = Variant::whereHas('product', fn($q) => $q->where('user_id', $this->shopId))
+                    ->select('sku')
+                    ->whereNotNull('sku')
+                    ->where('sku', '<>', '')
+                    ->groupBy('sku')
+                    ->havingRaw('count(*) > 1');
+                $priorCountsQuery->whereIn('sku', $dupSkus);
+            }
+            if (!empty($this->settings['only_missing'])) {
+                $priorCountsQuery->whereNull('sku');
+            }
+            if (!empty($this->settings['vendor'])) {
+                $priorCountsQuery->whereHas('product', fn($p) => $p->where('vendor', $this->settings['vendor']));
+            }
+            if (!empty($this->settings['type'])) {
+                $priorCountsQuery->whereHas('product', fn($p) => $p->where('product_type', $this->settings['type']));
+            }
+            if (!empty($this->settings['search'])) {
+                $term = trim($this->settings['search']);
+                $priorCountsQuery->where(function ($q) use ($term) {
+                    $q->where('sku', 'like', "%{$term}%")
+                      ->orWhere('title', 'like', "%{$term}%")
+                      ->orWhereHas('product', function ($pq) use ($term) {
+                          $pq->where('title', 'like', "%{$term}%");
+                      });
+                });
+            }
+
+            $counts = $priorCountsQuery->select(\Illuminate\Support\Facades\DB::raw('product_id, count(*) as cnt'))
+                ->groupBy('product_id')
+                ->pluck('cnt', 'product_id');
+
+            foreach ($productIds as $pId) {
+                $perProductCounters[$pId] = $startNumber + ($counts->get($pId, 0));
+            }
+        }
 
         // Use Redis for high-speed progress tracking to avoid DB row locks
         $redisKeyProcessed = "job_progress_{$this->jobLogId}";
@@ -72,8 +129,15 @@ class GenerateSkuBatchJob implements ShouldQueue
 
             foreach ($productVariants as $variant) {
                 try {
-                    $sku = $this->generateSku($currentCounter, $variant);
-                    $currentCounter++; 
+                    $number = !empty($this->settings['restart_per_product'])
+                        ? ($perProductCounters[$variant->product_id] ??= $startNumber)
+                        : $currentCounter++;
+
+                    if (!empty($this->settings['restart_per_product'])) {
+                        $perProductCounters[$variant->product_id]++;
+                    }
+
+                    $sku = $this->generateSku($number, $variant);
 
                     // Log debug for the very first item in the batch
                     if ($processed === 0 && $batchProcessed === 0) {
