@@ -452,9 +452,8 @@ class BarcodeLabelPdfGenerator
 
             // Force Paper Size = Label Size + Margins
             // This ensures the PDF page creates a canvas exactly the size of the sticker
-            // BUFFER: Add 1mm to width/height to prevent rounding overflows causing blank pages
-            $this->setting->paper_width = $labelW + $mL + $mR + 1.0;
-            $this->setting->paper_height = $labelH + $mT + $mB + 1.0;
+            $this->setting->paper_width = $labelW + $mL + $mR;
+            $this->setting->paper_height = $labelH + $mT + $mB;
             
             // Log this override for debugging
             Log::info("Thermal Mode Detected: Auto-sized PDF page to {$this->setting->paper_width}x{$this->setting->paper_height}mm");

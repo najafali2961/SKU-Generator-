@@ -47,12 +47,20 @@ class BarcodePrinterSetting extends Model
         'custom_fields',
         'barcode_encoding',
         'include_checksum',
-        'print_barcode_value'
+        'print_barcode_value',
+        'qr_data_source',
+        'show_barcode_value',
+        'title_font_size',
+        'title_bold',
+        'show_vendor',
+        'show_product_type',
+        'text_layout'
     ];
 
     protected $casts = [
         'display_attributes' => 'array',
         'custom_fields' => 'array',
+        'text_layout' => 'array',
         'show_product_title' => 'boolean',
         'show_sku' => 'boolean',
         'show_price' => 'boolean',
@@ -61,6 +69,10 @@ class BarcodePrinterSetting extends Model
         'show_linear_barcode' => 'boolean',
         'include_checksum' => 'boolean',
         'print_barcode_value' => 'boolean',
+        'show_barcode_value' => 'boolean',
+        'title_bold' => 'boolean',
+        'show_vendor' => 'boolean',
+        'show_product_type' => 'boolean',
     ];
 
     public function user(): BelongsTo
