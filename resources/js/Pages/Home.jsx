@@ -117,7 +117,7 @@ const styles = `
         text-decoration: underline;
     }
     .airo-giveaway {
-        background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+        background: #111213;
         border: none;
         border-radius: 12px;
         padding: 20px 24px;
@@ -128,7 +128,7 @@ const styles = `
         align-items: center;
         position: relative;
         overflow: hidden;
-        box-shadow: 0 4px 15px -3px rgba(168, 85, 247, 0.4);
+        box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.4);
     }
     .airo-close-btn {
         position: absolute;
@@ -352,7 +352,7 @@ export default function Home({
                 >
                     <Modal.Section>
                         <FormLayout>
-                            <InlineStack gap="200">
+                            <InlineStack gap="100">
                                 {[1, 2, 3, 4, 5].map((star) => (
                                     <span
                                         key={star}
@@ -362,9 +362,9 @@ export default function Home({
                                         }
                                         style={{
                                             width: 32,
-                                            height: 32,
+                                            height: 42,
                                             display: "inline-flex",
-                                            color: "#7c3aed",
+                                            color: "#000000ff",
                                         }}
                                     >
                                         <Icon
@@ -497,7 +497,7 @@ export default function Home({
                                                         "message:send",
                                                         [
                                                             "text",
-                                                            "Hello! I am here to claim my free giveaway credits for my store! 🎁",
+                                                            "Hi! I’m here to collect my complimentary giveaway credits! 🎊",
                                                         ],
                                                     ]);
                                                 } else {
