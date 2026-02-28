@@ -119,8 +119,8 @@ const styles = `
     .airo-giveaway {
         background: #111213;
         border: none;
-        border-radius: 12px;
-        padding: 20px 24px;
+        border-radius: 30px;
+        padding: 12px 12px;
         color: #fff;
         height: 100%;
         width: 100%;
@@ -132,7 +132,7 @@ const styles = `
     }
     .airo-close-btn {
         position: absolute;
-        top: 12px;
+        top: 18px;
         right: 12px;
         z-index: 10;
         background: rgba(255, 255, 255, 0.2);
