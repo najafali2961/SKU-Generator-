@@ -101,14 +101,17 @@ export default function BarcodeGenerator({
             // Pre-fill Start Number if provided and we haven't touched it yet
             if (res.data.next_start_number && !form.manual_start_touched) {
                 const nextNum = String(res.data.next_start_number);
-                // Only update if different to avoid potential loops or flicker,
-                // though checks below handles it.
-                if (
-                    form.start_number === "1" ||
-                    form.start_number !== nextNum
-                ) {
-                    setForm((prev) => ({ ...prev, start_number: nextNum }));
-                }
+                setForm((prev) => {
+                    // Only update if start_number is still at the default "1"
+                    // Doing this avoids an infinite loop of preview requests.
+                    if (
+                        prev.start_number === "1" &&
+                        prev.start_number !== nextNum
+                    ) {
+                        return { ...prev, start_number: nextNum };
+                    }
+                    return prev;
+                });
             }
         } catch (err) {
             console.error("Preview error:", err);
