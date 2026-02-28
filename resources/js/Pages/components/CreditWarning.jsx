@@ -35,18 +35,12 @@ export default function CreditWarning({
             <Text as="p">
                 You need <strong>{requiredCredits} credits</strong> to process{" "}
                 <strong>{itemsToProcess} item(s)</strong>, but only have{" "}
-                <strong>{availableCredits} credits</strong> available.
-                {maxAllowed > 0 && (
-                    <div style={{ marginTop: "4px" }}>
-                        <Text as="p" tone="subdued">
-                            Maximum items you can process with current credits:{" "}
-                            <strong>{maxAllowed}</strong>
-                        </Text>
-                    </div>
-                )}
+                <strong>{availableCredits} credits</strong> available. Maximum
+                items you can process with current credits:{" "}
+                <strong>{maxAllowed}</strong>
             </Text>
 
-            <div style={{ marginTop: "12px" }}>
+            <div style={{ marginTop: "2px" }}>
                 <button
                     onClick={() => {
                         if (window.$crisp) {
