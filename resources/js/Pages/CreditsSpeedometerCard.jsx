@@ -37,14 +37,24 @@ export default function CreditsSpeedometerCard({ credits = {} }) {
     const fillOffset = circumference - (remainingPercent / 100) * circumference;
 
     return (
-        <Card background="bg-surface" borderRadius="300" padding="600">
+        <div
+            style={{
+                background: "#fff",
+                border: "1px solid #ebebeb",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                borderRadius: "12px",
+                padding: "24px",
+                color: "#202223",
+            }}
+            className="airo-card-white"
+        >
             <InlineStack align="space-between" blockAlign="center" wrap={false}>
                 {/* Left: Plan details */}
 
                 <InlineStack gap="200" blockAlign="center">
                     <div
                         style={{
-                            background: "rgba(149, 191, 71, 0.12)",
+                            background: "#f3f0ff",
                             borderRadius: "10px",
                             padding: "10px",
                             display: "flex",
@@ -52,14 +62,16 @@ export default function CreditsSpeedometerCard({ credits = {} }) {
                             justifyContent: "center",
                         }}
                     >
-                        <Icon source={CreditCardIcon} tone="success" />
+                        <div style={{ color: "#a78bfa" }}>
+                            <Icon source={CreditCardIcon} tone="base" />
+                        </div>
                     </div>
                     <BlockStack gap="050">
                         <Text variant="headingLg" fontWeight="bold" as="h2">
-                            {creditsData.plan_name} Plan
+                            <span>{creditsData.plan_name} Plan</span>
                         </Text>
-                        <Text variant="bodySm" tone="subdued">
-                            Credit Usage Overview
+                        <Text variant="bodySm">
+                            <span>Credit Usage Overview</span>
                         </Text>
                     </BlockStack>
                 </InlineStack>
@@ -67,44 +79,29 @@ export default function CreditsSpeedometerCard({ credits = {} }) {
                 <InlineStack gap="400" blockAlign="center">
                     <BlockStack gap="200">
                         <Text variant="headingLg" fontWeight="bold">
-                            {creditsData.used.toLocaleString()}
+                            <span>{creditsData.used.toLocaleString()}</span>
                         </Text>
-                        <Text variant="bodySm" tone="subdued">
-                            Used
-                        </Text>
-                    </BlockStack>
-                    <div
-                        style={{
-                            width: "1px",
-                            height: "32px",
-                            background: "rgba(0,0,0,0.1)",
-                        }}
-                    />
-                    <BlockStack gap="200">
-                        <Text variant="headingLg" fontWeight="bold">
-                            {creditsData.unlimited
-                                ? "Infinity"
-                                : creditsData.available.toLocaleString()}
-                        </Text>
-                        <Text variant="bodySm" tone="subdued">
-                            Remaining
+                        <Text variant="bodySm">
+                            <span>Used</span>
                         </Text>
                     </BlockStack>
                     <div
                         style={{
                             width: "1px",
                             height: "32px",
-                            background: "rgba(0,0,0,0.1)",
+                            background: "#ebebeb",
                         }}
                     />
                     <BlockStack gap="200">
                         <Text variant="headingLg" fontWeight="bold">
-                            {creditsData.unlimited
-                                ? "Infinity"
-                                : creditsData.total.toLocaleString()}
+                            <span>
+                                {creditsData.unlimited
+                                    ? "Infinity"
+                                    : creditsData.total.toLocaleString()}
+                            </span>
                         </Text>
-                        <Text variant="bodySm" tone="subdued">
-                            Total
+                        <Text variant="bodySm">
+                            <span>Total</span>
                         </Text>
                     </BlockStack>
                 </InlineStack>
@@ -124,7 +121,7 @@ export default function CreditsSpeedometerCard({ credits = {} }) {
                             width: size - 10,
                             height: size - 10,
                             borderRadius: "50%",
-                            background: "rgba(149, 191, 71, 0.08)",
+                            background: "rgba(124, 58, 237, 0.08)",
                             filter: "blur(8px)",
                         }}
                     />
@@ -138,7 +135,7 @@ export default function CreditsSpeedometerCard({ credits = {} }) {
                             cy={size / 2}
                             r={radius}
                             fill="none"
-                            stroke="rgba(0,0,0,0.06)"
+                            stroke="#e1e3e5"
                             strokeWidth={strokeWidth}
                         />
                         <circle
@@ -146,14 +143,14 @@ export default function CreditsSpeedometerCard({ credits = {} }) {
                             cy={size / 2}
                             r={radius}
                             fill="none"
-                            stroke="#95BF47"
+                            stroke="#7c3aed"
                             strokeWidth={strokeWidth}
                             strokeLinecap="round"
                             strokeDasharray={circumference}
                             strokeDashoffset={fillOffset}
                             style={{
                                 transition: "stroke-dashoffset 0.8s ease-out",
-                                filter: "drop-shadow(0 0 4px rgba(149, 191, 71, 0.4))",
+                                filter: "none",
                             }}
                         />
                     </svg>
@@ -188,6 +185,6 @@ export default function CreditsSpeedometerCard({ credits = {} }) {
                     </div>
                 </div>
             </InlineStack>
-        </Card>
+        </div>
     );
 }

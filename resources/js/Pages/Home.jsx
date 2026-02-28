@@ -11,6 +11,9 @@ import {
     Button,
     Badge,
     Icon,
+    Modal,
+    TextField,
+    FormLayout,
 } from "@shopify/polaris";
 import {
     CreditCardIcon,
@@ -26,9 +29,162 @@ import {
 } from "@shopify/polaris-icons";
 import { Link, useForm } from "@inertiajs/react";
 import { useState, useCallback } from "react";
-import { Modal, TextField, FormLayout } from "@shopify/polaris";
 import RecentJobsTable from "./RecentJobsTable";
 import CreditsSpeedometerCard from "./CreditsSpeedometerCard";
+
+const styles = `
+    .airo-hero {
+        background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #6366f1 100%);
+        border-radius: 12px;
+        padding: 24px 28px;
+        color: #fff;
+        position: relative;
+        overflow: hidden;
+    }
+    .airo-hero::before {
+        content: '';
+        position: absolute;
+        top: -40%;
+        right: -15%;
+        width: 250px;
+        height: 250px;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        border-radius: 50%;
+        pointer-events: none;
+    }
+    .airo-feedback-btn {
+        background: rgba(255,255,255,0.15);
+        color: #fff;
+        border: 1.5px solid rgba(255,255,255,0.4);
+        border-radius: 8px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .airo-feedback-btn:hover {
+        background: rgba(255,255,255,0.25);
+        border-color: #fff;
+    }
+    .airo-card-white {
+        background: #fff;
+        border: 1px solid #ebebeb;
+        border-radius: 12px;
+        padding: 24px;
+        color: #202223;
+        transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .airo-action-card {
+        cursor: pointer;
+    }
+    .airo-action-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px -8px rgba(0,0,0,0.1);
+        border-color: #c4b5fd;
+    }
+    .airo-icon-circle {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f3f0ff;
+        color: #7c3aed;
+        flex-shrink: 0;
+    }
+    .airo-action-btn {
+        background: transparent;
+        color: #005bd3;
+        border: none;
+        padding: 0;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: color 0.15s;
+    }
+    .airo-action-btn:hover {
+        color: #004299;
+        text-decoration: underline;
+    }
+    .airo-giveaway {
+        background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+        border: none;
+        border-radius: 12px;
+        padding: 20px 24px;
+        color: #fff;
+        height: 100%;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 4px 15px -3px rgba(168, 85, 247, 0.4);
+    }
+    .airo-close-btn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 10;
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        border-radius: 50%;
+        width: 26px;
+        height: 26px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        transition: background 0.2s, transform 0.2s;
+    }
+    .airo-close-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: scale(1.05);
+    }
+    .airo-claim-btn {
+        background: #fff;
+        color: #7c3aed;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 18px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: transform 0.2s, box-shadow 0.2s;
+        flex-shrink: 0;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    }
+    .airo-claim-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 8px -2px rgba(0,0,0,0.15);
+    }
+    .airo-top-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .airo-top-grid > div { display: flex; flex-direction: column; width: 100%; }
+    .airo-star {
+        cursor: pointer;
+        transition: transform 0.12s;
+    }
+    .airo-star:hover {
+        transform: scale(1.15);
+    }
+`;
 
 export default function Home({
     stats = {},
@@ -77,10 +233,7 @@ export default function Home({
         };
     };
 
-    // Giveaway Banner State
     const [isGiveawayDismissed, setIsGiveawayDismissed] = useState(false);
-
-    // Feedback States
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
 
     const {
@@ -115,61 +268,72 @@ export default function Home({
 
     return (
         <Page>
-            <Layout>
-                {/* HERO */}
-                <Layout.Section>
-                    <Box
-                        background="bg-surface-active"
-                        padding="100"
-                        borderRadius="300"
-                    >
+            <style>{styles}</style>
+            <BlockStack gap="500">
+                {/* ── Hero Banner ── */}
+                <div className="airo-hero">
+                    <div style={{ position: "relative", zIndex: 1 }}>
                         <InlineStack
                             align="space-between"
                             blockAlign="center"
-                            gap="600"
-                            wrap={false}
+                            wrap
                         >
-                            <BlockStack gap="200">
+                            <BlockStack gap="100">
                                 <Text
+                                    as="h1"
                                     variant="headingXl"
                                     fontWeight="bold"
-                                    tone="invert"
                                 >
-                                    Airo SKU & Barcode Generator
+                                    <span>Airo SKU & Barcode Generator</span>
                                 </Text>
-                                <Text variant="bodyLg" tone="invert-subdued">
-                                    Fix missing SKUs & barcodes in seconds •
-                                    Trusted by{" "}
-                                    {data.active_stores.toLocaleString()}00+
-                                    stores
+                                <Text as="p" variant="bodyMd">
+                                    <span
+                                        style={{
+                                            color: "rgba(255,255,255,0.85)",
+                                        }}
+                                    >
+                                        Fix missing SKUs & barcodes in seconds •
+                                        Trusted by{" "}
+                                        {data.active_stores.toLocaleString()}00+
+                                        stores
+                                    </span>
                                 </Text>
                             </BlockStack>
-
-                            <InlineStack gap="300">
-                                <BlockStack gap="200">
-                                    <Text variant="headingMd" as="h2">
+                            <BlockStack gap="100">
+                                <Text as="p" variant="bodySm">
+                                    <span
+                                        style={{
+                                            color: "rgba(255,255,255,0.65)",
+                                        }}
+                                    >
                                         Share your feedback
-                                    </Text>
-                                </BlockStack>
-                                <Button
-                                    onClick={() =>
-                                        window.open(
-                                            "https://apps.shopify.com/airo-sku-barcode-generator#modal-show=ReviewListingModal",
-                                            "_blank",
-                                        )
-                                    }
-                                >
-                                    😄 Good
-                                </Button>
-                                <Button onClick={handleBadFeedback}>
-                                    😥 Bad
-                                </Button>
-                            </InlineStack>
+                                    </span>
+                                </Text>
+                                <InlineStack gap="200">
+                                    <button
+                                        className="airo-feedback-btn"
+                                        onClick={() =>
+                                            window.open(
+                                                "https://apps.shopify.com/airo-sku-barcode-generator#modal-show=ReviewListingModal",
+                                                "_blank",
+                                            )
+                                        }
+                                    >
+                                        😄 Good
+                                    </button>
+                                    <button
+                                        className="airo-feedback-btn"
+                                        onClick={handleBadFeedback}
+                                    >
+                                        😥 Bad
+                                    </button>
+                                </InlineStack>
+                            </BlockStack>
                         </InlineStack>
-                    </Box>
-                </Layout.Section>
+                    </div>
+                </div>
 
-                {/* Bad Feedback Modal */}
+                {/* ── Feedback Modal ── */}
                 <Modal
                     open={feedbackModalOpen}
                     onClose={() => setFeedbackModalOpen(false)}
@@ -179,616 +343,402 @@ export default function Home({
                         onAction: submitBadFeedback,
                         loading: feedbackProcessing,
                     }}
-                    secondaryAction={{
-                        content: "Cancel",
-                        onAction: () => setFeedbackModalOpen(false),
-                    }}
+                    secondaryActions={[
+                        {
+                            content: "Cancel",
+                            onAction: () => setFeedbackModalOpen(false),
+                        },
+                    ]}
                 >
                     <Modal.Section>
-                        <BlockStack gap="400">
-                            <InlineStack gap="100">
+                        <FormLayout>
+                            <InlineStack gap="200">
                                 {[1, 2, 3, 4, 5].map((star) => (
-                                    <div
+                                    <span
                                         key={star}
+                                        className="airo-star"
                                         onClick={() =>
                                             setFeedbackData("rating", star)
                                         }
-                                        className="cursor-pointer"
                                         style={{
-                                            width: "32px",
-                                            height: "32px",
+                                            width: 32,
+                                            height: 32,
+                                            display: "inline-flex",
+                                            color: "#7c3aed",
                                         }}
                                     >
-                                        <div
-                                            style={{
-                                                transform: "scale(1.5)",
-                                                transformOrigin: "top left",
-                                            }}
-                                        >
-                                            <Icon
-                                                source={
-                                                    star <= feedbackData.rating
-                                                        ? StarFilledIcon
-                                                        : StarIcon
-                                                }
-                                                tone="base"
-                                            />
-                                        </div>
-                                    </div>
+                                        <Icon
+                                            source={
+                                                feedbackData.rating >= star
+                                                    ? StarFilledIcon
+                                                    : StarIcon
+                                            }
+                                        />
+                                    </span>
                                 ))}
                             </InlineStack>
-
-                            <FormLayout>
-                                <TextField
-                                    label="Describe your experience (optional)"
-                                    value={feedbackData.message}
-                                    onChange={(value) =>
-                                        setFeedbackData("message", value)
-                                    }
-                                    multiline={4}
-                                    autoComplete="off"
-                                    placeholder="What should other merchants know about this app?"
-                                />
-                            </FormLayout>
-
-                            <Text as="p" tone="base">
+                            <TextField
+                                label="Your feedback"
+                                value={feedbackData.message}
+                                onChange={(value) =>
+                                    setFeedbackData("message", value)
+                                }
+                                multiline={4}
+                                autoComplete="off"
+                                placeholder="What should other merchants know about this app?"
+                            />
+                            <Text as="p" variant="bodySm" tone="subdued">
                                 If your review is published, we'll include some
                                 details about your store.{" "}
-                                <a
-                                    href="https://help.shopify.com/en/manual/apps/choosing-apps#app-reviews"
+                                <Link
+                                    href="https://help.shopify.com"
                                     target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{
-                                        textDecoration: "underline",
-                                        color: "inherit",
-                                    }}
                                 >
                                     Learn more
-                                </a>
+                                </Link>
                             </Text>
-                        </BlockStack>
+                        </FormLayout>
                     </Modal.Section>
                 </Modal>
 
-                <Layout.Section>
-                    <CreditsSpeedometerCard credits={credits} />
-                </Layout.Section>
-
-                {!isGiveawayDismissed && !has_claimed_giveaway && (
-                    <Layout.Section>
-                        <style>
-                            {`
-                                :root {
-                                    --banner-gradient: linear-gradient(135deg, #FF6B9E 0%, #6BA4FF 100%);
-                                    --shimmer: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-                                    --banner-glow: 0 4px 20px rgba(255, 107, 158, 0.4);
-                                }
-                                @keyframes shimmer {
-                                    0% { transform: translateX(-100%); }
-                                    100% { transform: translateX(100%); }
-                                }
-                                @keyframes floatObj {
-                                    0%, 100% { transform: translateY(0); }
-                                    50% { transform: translateY(-5px); }
-                                }
-                                @keyframes pulseGlow {
-                                    0%, 100% { box-shadow: 0 0 15px rgba(255,107,158,0.5); }
-                                    50% { box-shadow: 0 0 25px rgba(255,107,158,0.8); }
-                                }
-                                .animate-shimmer {
-                                    animation: shimmer 2.5s infinite;
-                                }
-                                .animate-float {
-                                    animation: floatObj 3s ease-in-out infinite;
-                                }
-                                .animate-pulse-glow {
-                                    animation: pulseGlow 2s infinite;
-                                }
-                            `}
-                        </style>
-                        <div className="flex w-full items-center justify-center py-2">
-                            <div className="w-full">
-                                <div className="w-full">
-                                    <div
-                                        className="relative overflow-hidden rounded-xl p-[1px]"
-                                        style={{
-                                            background:
-                                                "var(--banner-gradient)",
-                                        }}
+                {/* ── Credits Speedometer ── */}
+                <div className="airo-top-grid">
+                    <div style={{ display: "flex", flex: 1 }}>
+                        <CreditsSpeedometerCard credits={credits} />
+                    </div>
+                    <div style={{ display: "flex", flex: 1 }}>
+                        {/* ── Giveaway Banner ── */}
+                        {!isGiveawayDismissed && !has_claimed_giveaway ? (
+                            <div className="airo-giveaway">
+                                <div className="airo-shimmer-overlay">
+                                    <div className="airo-shimmer-bar" />
+                                </div>
+                                <button
+                                    className="airo-close-btn"
+                                    onClick={() => setIsGiveawayDismissed(true)}
+                                >
+                                    <Icon source={XIcon} />
+                                </button>
+                                <div
+                                    style={{
+                                        position: "relative",
+                                        zIndex: 1,
+                                        width: "100%",
+                                        paddingRight: "36px",
+                                    }}
+                                >
+                                    <InlineStack
+                                        align="space-between"
+                                        blockAlign="center"
+                                        wrap={false}
                                     >
-                                        <div
-                                            className="relative rounded-xl bg-white backdrop-blur-sm px-4 py-3 sm:px-6 sm:py-4"
-                                            style={{
-                                                backgroundColor:
-                                                    "rgba(255, 255, 255, 0.96)",
-                                            }}
+                                        <InlineStack
+                                            gap="400"
+                                            blockAlign="center"
                                         >
-                                            {/* Shimmer */}
-                                            <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
-                                                <div
-                                                    className="absolute inset-0 animate-shimmer"
-                                                    style={{
-                                                        background:
-                                                            "var(--shimmer)",
-                                                    }}
-                                                />
-                                            </div>
-
-                                            {/* Floating dots */}
-                                            <div
-                                                className="absolute top-2 left-6 w-2 h-2 rounded-full animate-float"
+                                            <span
                                                 style={{
-                                                    backgroundColor:
-                                                        "rgba(255, 107, 158, 0.5)",
+                                                    fontSize: 36,
+                                                    animation:
+                                                        "airo-float 3s ease-in-out infinite",
                                                 }}
-                                            />
-                                            <div
-                                                className="absolute top-6 right-20 w-1.5 h-1.5 rounded-full animate-float"
-                                                style={{
-                                                    backgroundColor:
-                                                        "rgba(107, 164, 255, 0.5)",
-                                                    animationDelay: "0.5s",
-                                                }}
-                                            />
-                                            <div
-                                                className="absolute bottom-2 left-1/3 w-1 h-1 rounded-full animate-float"
-                                                style={{
-                                                    backgroundColor:
-                                                        "rgba(255, 107, 158, 0.7)",
-                                                    animationDelay: "1s",
-                                                }}
-                                            />
-
-                                            {/* Close */}
-                                            <button
-                                                onClick={() =>
-                                                    setIsGiveawayDismissed(true)
-                                                }
-                                                className="absolute top-2 right-2 z-10 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer border-none bg-transparent flex items-center justify-center"
-                                                style={{ border: "none" }}
                                             >
-                                                <div
-                                                    style={{
-                                                        width: "14px",
-                                                        height: "14px",
-                                                        color: "#6b7280",
-                                                    }}
+                                                🎁
+                                            </span>
+                                            <BlockStack gap="050">
+                                                <InlineStack
+                                                    gap="100"
+                                                    blockAlign="center"
                                                 >
-                                                    <Icon source={XIcon} />
-                                                </div>
-                                            </button>
-
-                                            {/* Content */}
-                                            <div className="relative z-[1] flex flex-col sm:flex-row items-center sm:items-center gap-3">
-                                                <div
-                                                    className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center animate-pulse-glow"
-                                                    style={{
-                                                        background:
-                                                            "var(--banner-gradient)",
-                                                        boxShadow:
-                                                            "var(--banner-glow)",
-                                                        fontSize: "20px",
-                                                    }}
-                                                >
-                                                    🎁
-                                                </div>
-
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                                    <Text
+                                                        as="p"
+                                                        variant="headingSm"
+                                                        fontWeight="bold"
+                                                    >
                                                         <span
-                                                            className="text-pink-500"
                                                             style={{
-                                                                fontSize:
-                                                                    "12px",
+                                                                fontSize: 12,
                                                             }}
                                                         >
                                                             ✨
                                                         </span>
-                                                        <h3 className="text-xs font-bold tracking-wide uppercase text-gray-800 m-0">
-                                                            Special Giveaway
-                                                        </h3>
-                                                    </div>
-                                                    <p className="text-sm font-semibold text-gray-900 m-0">
-                                                        Claim your{" "}
                                                         <span
-                                                            className="text-transparent bg-clip-text"
                                                             style={{
-                                                                backgroundImage:
-                                                                    "var(--banner-gradient)",
-                                                                WebkitBackgroundClip:
-                                                                    "text",
-                                                                WebkitTextFillColor:
-                                                                    "transparent",
+                                                                color: "#fff",
                                                             }}
                                                         >
-                                                            Free Credits!
+                                                            Special Giveaway
                                                         </span>
-                                                    </p>
-                                                    <p className="text-xs text-gray-500 mt-0.5 leading-snug w-full m-0">
+                                                    </Text>
+                                                </InlineStack>
+                                                <Text as="p" variant="bodySm">
+                                                    <span
+                                                        style={{
+                                                            color: "rgba(255,255,255,0.8)",
+                                                        }}
+                                                    >
                                                         Chat with our support
                                                         team to claim yours
                                                         instantly.
-                                                    </p>
-                                                </div>
-
-                                                <button
-                                                    onClick={() => {
-                                                        if (window.$crisp) {
-                                                            // Open the Crisp chat box
-                                                            window.$crisp.push([
-                                                                "do",
-                                                                "chat:open",
-                                                            ]);
-                                                            // Optional: Pre-fill a message for the user to send
-                                                            window.$crisp.push([
-                                                                "do",
-                                                                "message:send",
-                                                                [
-                                                                    "text",
-                                                                    "Hello! I am here to claim my free giveaway credits for my store! 🎁",
-                                                                ],
-                                                            ]);
-                                                        } else {
-                                                            // Fallback if Crisp failed to load
-                                                            window.open(
-                                                                "mailto:support@airoapps.com?subject=Giveaway Credits Claim",
-                                                                "_blank",
-                                                            );
-                                                        }
-                                                    }}
-                                                    className="flex-shrink-0 group flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white transition-all duration-300 hover:scale-105 hover:shadow-lg cursor-pointer border-none"
-                                                    style={{
-                                                        background:
-                                                            "var(--banner-gradient)",
-                                                        boxShadow:
-                                                            "var(--banner-glow)",
-                                                    }}
-                                                >
-                                                    Chat to Claim
-                                                    <div className="ml-0.5 w-3 h-3 transition-transform group-hover:translate-x-0.5 flex items-center justify-center text-white">
-                                                        <Icon
-                                                            source={
-                                                                ArrowRightIcon
-                                                            }
-                                                        />
-                                                    </div>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
+                                                    </span>
+                                                </Text>
+                                            </BlockStack>
+                                        </InlineStack>
+                                        <button
+                                            className="airo-claim-btn"
+                                            onClick={() => {
+                                                if (window.$crisp) {
+                                                    window.$crisp.push([
+                                                        "do",
+                                                        "chat:open",
+                                                    ]);
+                                                    window.$crisp.push([
+                                                        "do",
+                                                        "message:send",
+                                                        [
+                                                            "text",
+                                                            "Hello! I am here to claim my free giveaway credits for my store! 🎁",
+                                                        ],
+                                                    ]);
+                                                } else {
+                                                    window.open(
+                                                        "mailto:support@airoapps.com?subject=Giveaway Credits Claim",
+                                                        "_blank",
+                                                    );
+                                                }
+                                            }}
+                                        >
+                                            Chat to Claim
+                                            <Icon source={ArrowRightIcon} />
+                                        </button>
+                                    </InlineStack>
                                 </div>
                             </div>
-                        </div>
-                    </Layout.Section>
-                )}
+                        ) : (
+                            <div />
+                        )}
+                    </div>
+                </div>
 
-                {/* Stats Grid - All with light green background */}
-                <Layout.Section>
-                    <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
-                        {/* Total Variants */}
-                        <Card>
-                            <BlockStack gap="300">
-                                <InlineStack gap="300">
-                                    <div
+                {/* ── Stats Grid ── */}
+                <InlineGrid columns={3} gap="400">
+                    <div className="airo-card-white">
+                        <InlineStack gap="300" blockAlign="center">
+                            <div className="airo-icon-circle">
+                                <Icon source={ProductIcon} />
+                            </div>
+                            <BlockStack gap="050">
+                                <Text
+                                    as="p"
+                                    variant="headingLg"
+                                    fontWeight="bold"
+                                >
+                                    <span>
+                                        {data.total_variants.toLocaleString()}
+                                    </span>
+                                </Text>
+                                <Text as="p" variant="bodySm">
+                                    <span
                                         style={{
-                                            background:
-                                                "rgba(149, 191, 71, 0.12)",
-                                            borderRadius: "10px",
-                                            padding: "10px",
-                                            width: "48px",
-                                            height: "48px",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            flexShrink: 0,
+                                            color: "#9ca3af",
                                         }}
                                     >
-                                        <Icon
-                                            source={MagicIcon}
-                                            tone="success"
-                                        />
-                                    </div>
-                                    <BlockStack gap="100">
-                                        <Text
-                                            variant="headingXl"
-                                            fontWeight="bold"
-                                        >
-                                            {data.total_variants.toLocaleString()}
-                                        </Text>
-                                        <Text tone="subdued">
-                                            Total Variants
-                                        </Text>
-                                    </BlockStack>
-                                </InlineStack>
+                                        Total Variants
+                                    </span>
+                                </Text>
                             </BlockStack>
-                        </Card>
+                        </InlineStack>
+                    </div>
 
-                        {/* Missing SKUs */}
-                        <Card>
-                            <BlockStack gap="300">
-                                <InlineStack gap="300">
-                                    <div
+                    <div className="airo-card-white">
+                        <InlineStack gap="300" blockAlign="center">
+                            <div className="airo-icon-circle">
+                                <Icon source={CreditCardIcon} />
+                            </div>
+                            <BlockStack gap="050">
+                                <InlineStack gap="200" blockAlign="center">
+                                    <Text
+                                        as="p"
+                                        variant="headingLg"
+                                        fontWeight="bold"
+                                    >
+                                        <span>
+                                            {data.variants_missing_sku.toLocaleString()}
+                                        </span>
+                                    </Text>
+                                    <Badge
+                                        {...getBadgeProps(
+                                            data.variants_missing_sku,
+                                            missingSkuPercent,
+                                        )}
+                                    />
+                                </InlineStack>
+                                <Text as="p" variant="bodySm">
+                                    <span
                                         style={{
-                                            background:
-                                                "rgba(149, 191, 71, 0.12)",
-                                            borderRadius: "10px",
-                                            padding: "10px",
-                                            width: "48px",
-                                            height: "48px",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            flexShrink: 0,
+                                            color: "#9ca3af",
                                         }}
                                     >
-                                        <Icon
-                                            source={ProductIcon}
-                                            tone="success"
-                                        />
-                                    </div>
-                                    <BlockStack gap="100">
-                                        <InlineStack
-                                            blockAlign="center"
-                                            gap="200"
-                                        >
-                                            <Text
-                                                variant="headingXl"
-                                                fontWeight="bold"
-                                            >
-                                                {data.variants_missing_sku.toLocaleString()}
-                                            </Text>
-                                            <Badge
-                                                {...getBadgeProps(
-                                                    data.variants_missing_sku,
-                                                    missingSkuPercent,
-                                                )}
-                                            />
-                                        </InlineStack>
-                                        <Text tone="subdued">Missing SKUs</Text>
-                                    </BlockStack>
-                                </InlineStack>
+                                        Missing SKUs
+                                    </span>
+                                </Text>
                             </BlockStack>
-                        </Card>
+                        </InlineStack>
+                    </div>
 
-                        {/* Missing Barcodes */}
-                        <Card>
-                            <BlockStack gap="300">
-                                <InlineStack gap="300">
-                                    <div
+                    <div className="airo-card-white">
+                        <InlineStack gap="300" blockAlign="center">
+                            <div className="airo-icon-circle">
+                                <Icon source={BarcodeIcon} />
+                            </div>
+                            <BlockStack gap="050">
+                                <InlineStack gap="200" blockAlign="center">
+                                    <Text
+                                        as="p"
+                                        variant="headingLg"
+                                        fontWeight="bold"
+                                    >
+                                        <span>
+                                            {data.variants_missing_barcode.toLocaleString()}
+                                        </span>
+                                    </Text>
+                                    <Badge
+                                        {...getBadgeProps(
+                                            data.variants_missing_barcode,
+                                            missingBarcodePercent,
+                                        )}
+                                    />
+                                </InlineStack>
+                                <Text as="p" variant="bodySm">
+                                    <span
                                         style={{
-                                            background:
-                                                "rgba(149, 191, 71, 0.12)",
-                                            borderRadius: "10px",
-                                            padding: "10px",
-                                            width: "48px",
-                                            height: "48px",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            flexShrink: 0,
+                                            color: "#9ca3af",
                                         }}
                                     >
-                                        <Icon
-                                            source={BarcodeIcon}
-                                            tone="success"
-                                        />
-                                    </div>
-                                    <BlockStack gap="100">
-                                        <InlineStack
-                                            blockAlign="center"
-                                            gap="200"
-                                        >
-                                            <Text
-                                                variant="headingXl"
-                                                fontWeight="bold"
-                                            >
-                                                {data.variants_missing_barcode.toLocaleString()}
-                                            </Text>
-                                            <Badge
-                                                {...getBadgeProps(
-                                                    data.variants_missing_barcode,
-                                                    missingBarcodePercent,
-                                                )}
-                                            />
-                                        </InlineStack>
-                                        <Text tone="subdued">
-                                            Missing Barcodes
-                                        </Text>
-                                    </BlockStack>
-                                </InlineStack>
+                                        Missing Barcodes
+                                    </span>
+                                </Text>
                             </BlockStack>
-                        </Card>
-                    </InlineGrid>
-                </Layout.Section>
-
-                {/* Quick Actions - Now ALL with the same light green background */}
-                <Layout.Section>
-                    <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
-                        {/* Generate SKUs */}
-                        <Link
-                            href="/sku-generator?auto=missing"
-                            style={{ textDecoration: "none" }}
-                        >
-                            <Card>
-                                <BlockStack gap="400">
-                                    <InlineStack gap="300">
-                                        <div
+                        </InlineStack>
+                    </div>
+                </InlineGrid>
+                <InlineGrid columns={3} gap="400">
+                    <div className="airo-card-white airo-action-card">
+                        <BlockStack gap="300">
+                            <InlineStack gap="300" blockAlign="center">
+                                <div className="airo-icon-circle">
+                                    <Icon source={MagicIcon} />
+                                </div>
+                                <BlockStack gap="050">
+                                    <Text
+                                        as="p"
+                                        variant="headingSm"
+                                        fontWeight="semibold"
+                                    >
+                                        <span>Generate SKUs</span>
+                                    </Text>
+                                    <Text as="p" variant="bodySm">
+                                        <span
                                             style={{
-                                                background:
-                                                    "rgba(149, 191, 71, 0.12)",
-                                                borderRadius: "10px",
-                                                padding: "10px",
-                                                width: "48px",
-                                                height: "48px",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                flexShrink: 0,
+                                                color: "#9ca3af",
                                             }}
                                         >
-                                            <Icon
-                                                source={ProductIcon}
-                                                tone="success"
-                                            />
-                                        </div>
-                                        <BlockStack gap="100">
-                                            <Text
-                                                variant="headingMd"
-                                                fontWeight="semibold"
-                                            >
-                                                Generate SKUs
-                                            </Text>
-                                            <Text
-                                                tone="subdued"
-                                                variant="bodySm"
-                                            >
-                                                Auto-fill missing SKUs instantly
-                                            </Text>
-                                        </BlockStack>
-                                    </InlineStack>
-                                    <InlineStack blockAlign="center" gap="200">
-                                        <Text
-                                            tone="interactive"
-                                            fontWeight="medium"
-                                        >
-                                            Fix{" "}
-                                            {data.variants_missing_sku.toLocaleString()}{" "}
-                                            SKUs
-                                        </Text>
-                                        <Icon
-                                            source={ArrowRightIcon}
-                                            tone="interactive"
-                                        />
-                                    </InlineStack>
+                                            Auto-fill missing SKUs instantly
+                                        </span>
+                                    </Text>
                                 </BlockStack>
-                            </Card>
-                        </Link>
+                            </InlineStack>
+                            <InlineStack align="start" blockAlign="center">
+                                <Link href="/sku-generator">
+                                    <button className="airo-action-btn">
+                                        Fix{" "}
+                                        {data.variants_missing_sku.toLocaleString()}{" "}
+                                        SKUs
+                                        <Icon source={ArrowRightIcon} />
+                                    </button>
+                                </Link>
+                            </InlineStack>
+                        </BlockStack>
+                    </div>
 
-                        {/* Generate Barcodes */}
-                        <Link
-                            href="/barcode-generator?auto=missing"
-                            style={{ textDecoration: "none" }}
-                        >
-                            <Card>
-                                <BlockStack gap="400">
-                                    <InlineStack gap="300">
-                                        <div
+                    <div className="airo-card-white airo-action-card">
+                        <BlockStack gap="300">
+                            <InlineStack gap="300" blockAlign="center">
+                                <div className="airo-icon-circle">
+                                    <Icon source={BarcodeIcon} />
+                                </div>
+                                <BlockStack gap="050">
+                                    <Text
+                                        as="p"
+                                        variant="headingSm"
+                                        fontWeight="semibold"
+                                    >
+                                        <span>Generate Barcodes</span>
+                                    </Text>
+                                    <Text as="p" variant="bodySm">
+                                        <span
                                             style={{
-                                                background:
-                                                    "rgba(149, 191, 71, 0.12)",
-                                                borderRadius: "10px",
-                                                padding: "10px",
-                                                width: "48px",
-                                                height: "48px",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                flexShrink: 0,
+                                                color: "#9ca3af",
                                             }}
                                         >
-                                            <Icon
-                                                source={BarcodeIcon}
-                                                tone="success"
-                                            />
-                                        </div>
-                                        <BlockStack gap="100">
-                                            <Text
-                                                variant="headingMd"
-                                                fontWeight="semibold"
-                                            >
-                                                Generate Barcodes
-                                            </Text>
-                                            <Text
-                                                tone="subdued"
-                                                variant="bodySm"
-                                            >
-                                                Instant barcode creation
-                                            </Text>
-                                        </BlockStack>
-                                    </InlineStack>
-                                    <InlineStack blockAlign="center" gap="200">
-                                        <Text
-                                            tone="interactive"
-                                            fontWeight="medium"
-                                        >
-                                            Fix{" "}
-                                            {data.variants_missing_barcode.toLocaleString()}{" "}
-                                            barcodes
-                                        </Text>
-                                        <Icon
-                                            source={ArrowRightIcon}
-                                            tone="interactive"
-                                        />
-                                    </InlineStack>
+                                            Instant barcode creation
+                                        </span>
+                                    </Text>
                                 </BlockStack>
-                            </Card>
-                        </Link>
+                            </InlineStack>
+                            <InlineStack align="start" blockAlign="center">
+                                <Link href="/barcode-generator">
+                                    <button className="airo-action-btn">
+                                        Fix{" "}
+                                        {data.variants_missing_barcode.toLocaleString()}{" "}
+                                        barcodes
+                                        <Icon source={ArrowRightIcon} />
+                                    </button>
+                                </Link>
+                            </InlineStack>
+                        </BlockStack>
+                    </div>
 
-                        {/* Print Labels */}
-                        <Link
-                            href="/barcode-printer"
-                            style={{ textDecoration: "none" }}
-                        >
-                            <Card>
-                                <BlockStack gap="400">
-                                    <InlineStack gap="300">
-                                        <div
+                    <div className="airo-card-white airo-action-card">
+                        <BlockStack gap="300">
+                            <InlineStack gap="300" blockAlign="center">
+                                <div className="airo-icon-circle">
+                                    <Icon source={LabelPrinterIcon} />
+                                </div>
+                                <BlockStack gap="050">
+                                    <Text
+                                        as="p"
+                                        variant="headingSm"
+                                        fontWeight="semibold"
+                                    >
+                                        <span>Print Labels</span>
+                                    </Text>
+                                    <Text as="p" variant="bodySm">
+                                        <span
                                             style={{
-                                                background:
-                                                    "rgba(149, 191, 71, 0.12)",
-                                                borderRadius: "10px",
-                                                padding: "10px",
-                                                width: "48px",
-                                                height: "48px",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                flexShrink: 0,
+                                                color: "#9ca3af",
                                             }}
                                         >
-                                            <Icon
-                                                source={LabelPrinterIcon}
-                                                tone="success"
-                                            />
-                                        </div>
-                                        <BlockStack gap="100">
-                                            <Text
-                                                variant="headingMd"
-                                                fontWeight="semibold"
-                                            >
-                                                Print Labels
-                                            </Text>
-                                            <Text
-                                                tone="subdued"
-                                                variant="bodySm"
-                                            >
-                                                QR codes & barcode labels
-                                            </Text>
-                                        </BlockStack>
-                                    </InlineStack>
-                                    <InlineStack blockAlign="center" gap="200">
-                                        <Text
-                                            tone="interactive"
-                                            fontWeight="medium"
-                                        >
-                                            Start printing
-                                        </Text>
-                                        <Icon
-                                            source={ArrowRightIcon}
-                                            tone="interactive"
-                                        />
-                                    </InlineStack>
+                                            QR codes & barcode labels
+                                        </span>
+                                    </Text>
                                 </BlockStack>
-                            </Card>
-                        </Link>
-                    </InlineGrid>
-                </Layout.Section>
+                            </InlineStack>
+                            <InlineStack align="start" blockAlign="center">
+                                <Link href="/barcode-printer">
+                                    <button className="airo-action-btn">
+                                        Start printing
+                                        <Icon source={ArrowRightIcon} />
+                                    </button>
+                                </Link>
+                            </InlineStack>
+                        </BlockStack>
+                    </div>
+                </InlineGrid>
 
-                {/* Recent Jobs */}
-                <Layout.Section>
-                    <RecentJobsTable jobs={recentJobs} />
-                </Layout.Section>
-            </Layout>
+                {/* ── Recent Jobs ── */}
+                <RecentJobsTable recentJobs={recentJobs} />
+            </BlockStack>
         </Page>
     );
 }
