@@ -33,10 +33,9 @@ Route::middleware(['verify.shopify', 'billable'])->group(function () {
     // Barcode Printer
     Route::get('/barcode-printer', [PrinterController::class, 'index']);
 
-    // Barcode Generator - ONLY check credits on index page
+    // Barcode Generator
     Route::get('/barcode-generator', [BarcodeController::class, 'index'])
-        ->name('barcode')
-        ->middleware('check.credits:barcode_generation');
+        ->name('barcode');
 
     Route::post('/barcode-generator/preview', [BarcodeController::class, 'preview']);
     Route::post('/barcode/generate', [BarcodeController::class, 'generate']);
@@ -50,8 +49,7 @@ Route::middleware(['verify.shopify', 'billable'])->group(function () {
     Route::post('/barcode/import-apply', [BarcodeController::class, 'importApply']);
 
     Route::get('/barcode-import', [BarcodeController::class, 'importPage'])
-        ->name('barcode.import')
-        ->middleware('check.credits:barcode_import');
+        ->name('barcode.import');
 
     // Jobs
     Route::get('/jobs', [JobController::class, 'index'])->name('jobs.index');
