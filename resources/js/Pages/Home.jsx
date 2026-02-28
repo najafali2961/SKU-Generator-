@@ -269,7 +269,7 @@ export default function Home({
     return (
         <Page>
             <style>{styles}</style>
-            <BlockStack gap="500">
+            <BlockStack gap="300">
                 {/* ── Hero Banner ── */}
                 <div className="airo-hero">
                     <div style={{ position: "relative", zIndex: 1 }}>
