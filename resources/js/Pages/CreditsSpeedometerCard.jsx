@@ -43,7 +43,7 @@ export default function CreditsSpeedometerCard({ credits = {} }) {
                 border: "1px solid #ebebeb",
                 boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
                 borderRadius: "12px",
-                padding: "24px",
+                padding: "12px",
                 color: "#202223",
             }}
             className="airo-card-white"

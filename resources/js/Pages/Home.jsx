@@ -404,9 +404,6 @@ export default function Home({
                 {/* ── Credits Speedometer ── */}
                 <div className="airo-top-grid">
                     <div style={{ display: "flex", flex: 1 }}>
-                        <CreditsSpeedometerCard credits={credits} />
-                    </div>
-                    <div style={{ display: "flex", flex: 1 }}>
                         {/* ── Giveaway Banner ── */}
                         {!isGiveawayDismissed && !has_claimed_giveaway ? (
                             <div className="airo-giveaway">
@@ -517,6 +514,9 @@ export default function Home({
                         ) : (
                             <div />
                         )}
+                    </div>
+                    <div style={{ display: "flex", flex: 1 }}>
+                        <CreditsSpeedometerCard credits={credits} />
                     </div>
                 </div>
 
