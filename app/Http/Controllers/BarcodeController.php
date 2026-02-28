@@ -27,11 +27,19 @@ class BarcodeController extends Controller
             ->map(fn($c) => ['id' => $c->id, 'title' => $c->title])
             ->toArray();
 
+        $currentCounterRow = DB::table('barcode_counters')
+            ->where('shop_id', $shop->id)
+            ->where('format', 'UPC')
+            ->first();
+        
+        $initialStartNumber = $currentCounterRow ? ($currentCounterRow->counter + 1) : 1;
+
         return inertia('BarcodeGenerator', [
             'initialCollections' => $collections,
             'availableCredits' => $shop->getAvailableCredits(),
             'hasUnlimitedCredits' => $shop->hasUnlimitedCredits(),
             'creditCostPerBarcode' => $shop->getCreditCost('barcode_generation', 1),
+            'initialStartNumber' => $initialStartNumber,
         ]);
     }
 

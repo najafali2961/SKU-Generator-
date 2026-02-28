@@ -16,6 +16,7 @@ export default function BarcodeGenerator({
     availableCredits = 0,
     hasUnlimitedCredits = false,
     creditCostPerBarcode = 1,
+    initialStartNumber = 1,
 }) {
     const [form, setForm] = useState({
         format: "UPC",
@@ -34,7 +35,7 @@ export default function BarcodeGenerator({
         search: "",
         vendor: "",
         type: "",
-        start_number: "1",
+        start_number: String(initialStartNumber),
         manual_start_touched: false,
     });
 
@@ -97,22 +98,6 @@ export default function BarcodeGenerator({
             if (res.data.credit_info) {
                 setCreditInfo(res.data.credit_info);
             }
-
-            // Pre-fill Start Number if provided and we haven't touched it yet
-            if (res.data.next_start_number && !form.manual_start_touched) {
-                const nextNum = String(res.data.next_start_number);
-                setForm((prev) => {
-                    // Only update if start_number is still at the default "1"
-                    // Doing this avoids an infinite loop of preview requests.
-                    if (
-                        prev.start_number === "1" &&
-                        prev.start_number !== nextNum
-                    ) {
-                        return { ...prev, start_number: nextNum };
-                    }
-                    return prev;
-                });
-            }
         } catch (err) {
             console.error("Preview error:", err);
         } finally {
@@ -121,17 +106,11 @@ export default function BarcodeGenerator({
     };
 
     useEffect(() => {
-        if (debounceRef.current) clearTimeout(debounceRef.current);
-
-        debounceRef.current = setTimeout(() => {
-            if (activeTab === "duplicates") {
-                setDuplicatePage(1);
-            } else {
-                setPage(1);
-            }
-        }, DEBOUNCE_MS);
-
-        return () => clearTimeout(debounceRef.current);
+        if (activeTab === "duplicates") {
+            setDuplicatePage(1);
+        } else {
+            setPage(1);
+        }
     }, [
         form,
         activeTab,
@@ -142,17 +121,17 @@ export default function BarcodeGenerator({
     ]);
 
     useEffect(() => {
-        fetchPreview();
-    }, [page, duplicatePage]);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
+        debounceRef.current = setTimeout(() => {
             fetchPreview();
         }, DEBOUNCE_MS);
 
-        return () => clearTimeout(timer);
+        return () => clearTimeout(debounceRef.current);
     }, [
         form,
+        page,
+        duplicatePage,
         activeTab,
         selectedCollectionIds,
         selectedVendors,
