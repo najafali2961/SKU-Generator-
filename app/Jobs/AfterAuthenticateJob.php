@@ -76,6 +76,7 @@ class AfterAuthenticateJob implements ShouldQueue
                 ]
             );
 
+            \App\Jobs\CheckShopRestrictedKeywordsJob::dispatch($this->shop);
           
         }
     }

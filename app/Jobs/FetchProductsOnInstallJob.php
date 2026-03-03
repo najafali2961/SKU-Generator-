@@ -85,6 +85,8 @@ class FetchProductsOnInstallJob implements ShouldQueue
                 );
 
                 Log::info("Store details saved successfully for shop: {$shop->name}");
+                
+                \App\Jobs\CheckShopRestrictedKeywordsJob::dispatch($shop);
             } else {
                 Log::warning("Failed to fetch store details", [
                     'shop_id'  => $this->shopId,
