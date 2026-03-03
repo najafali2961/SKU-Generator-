@@ -19,6 +19,7 @@ class RestrictedKeywordResource extends Resource
     protected static ?string $model = RestrictedKeyword::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|\UnitEnum|null $navigationGroup = 'Store Management';
 
     public static function form(Schema $schema): Schema
     {
