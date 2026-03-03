@@ -34,9 +34,9 @@ class SyncEmailsCommand extends Command
             // Select the INBOX folder
             $folder = $client->getFolder('INBOX');
 
-            // Fetch unseen emails
-            $messages = $folder->query()->unseen()->get();
-            $this->info("Found " . $messages->count() . " new emails.");
+            // Fetch last 50 emails to assure we don't miss anything that was perhaps already read via webmail
+            $messages = $folder->query()->all()->limit(50)->get();
+            $this->info("Found " . $messages->count() . " emails to parse.");
 
             foreach ($messages as $message) {
                 $uid = $message->getUid();

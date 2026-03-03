@@ -33,7 +33,8 @@ class SupportEmailForm
                             ->label('Date Received')
                             ->disabled(),
                     ])
-                    ->columns(2),
+                    ->columns(2)
+                    ->columnSpanFull(),
 
                 Section::make('Message')
                     ->schema([
@@ -41,7 +42,8 @@ class SupportEmailForm
                             ->view('filament.forms.components.email-body-view')
                             ->columnSpanFull()
                             ->hiddenLabel(),
-                    ]),
+                    ])
+                    ->columnSpanFull(),
             ]);
     }
 }

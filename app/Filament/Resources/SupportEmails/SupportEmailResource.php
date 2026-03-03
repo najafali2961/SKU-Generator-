@@ -44,4 +44,9 @@ class SupportEmailResource extends Resource
             'view' => \App\Filament\Resources\SupportEmails\Pages\ViewSupportEmail::route('/{record}'),
         ];
     }
+
+    public static function canCreate(): bool
+    {
+        return false;
+    }
 }
