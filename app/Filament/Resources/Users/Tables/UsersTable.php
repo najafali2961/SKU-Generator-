@@ -62,6 +62,22 @@ class UsersTable
                     ->toggleable(isToggledHiddenByDefault: false)
                     ->color('danger'),
             ])
+            ->actions([
+                \Filament\Tables\Actions\Action::make('uninstall')
+                    ->label('Uninstall Shop')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Uninstall Shop')
+                    ->modalDescription('Are you sure you want to run the uninstall job for this shop? This will perform a soft delete and run the uninstall webhook job.')
+                    ->action(function (\App\Models\User $record) {
+                        dispatch(new \App\Jobs\AppUninstalledJob($record->name, json_decode('{}')));
+                        \Filament\Notifications\Notification::make()
+                            ->title('Uninstall Job Dispatched')
+                            ->success()
+                            ->send();
+                    })
+            ])
             ->recordClasses(fn ($record) => $record->deleted_at ? 'bg-danger-50 dark:bg-danger-900/10' : null);
     }
 }
