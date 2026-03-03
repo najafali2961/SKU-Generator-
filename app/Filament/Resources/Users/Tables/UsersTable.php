@@ -8,7 +8,7 @@ use Filament\Tables\Columns\SelectColumn;
 use Filament\Tables\Table;
 use Livewire\Attributes\Title;
 use Osiset\ShopifyApp\Storage\Models\Plan;
-
+use Filament\Actions\Action;
 class UsersTable
 {
     public static function configure(Table $table): Table
@@ -62,22 +62,22 @@ class UsersTable
                     ->toggleable(isToggledHiddenByDefault: false)
                     ->color('danger'),
             ])
-            ->actions([
-                \Filament\Tables\Actions\Action::make('uninstall')
-                    ->label('Uninstall Shop')
-                    ->icon('heroicon-o-trash')
-                    ->color('danger')
-                    ->requiresConfirmation()
-                    ->modalHeading('Uninstall Shop')
-                    ->modalDescription('Are you sure you want to run the uninstall job for this shop? This will perform a soft delete and run the uninstall webhook job.')
-                    ->action(function (\App\Models\User $record) {
-                        dispatch(new \App\Jobs\AppUninstalledJob($record->name, json_decode('{}')));
-                        \Filament\Notifications\Notification::make()
-                            ->title('Uninstall Job Dispatched')
-                            ->success()
-                            ->send();
-                    })
-            ])
+           ->actions([
+    Action::make('uninstall')
+        ->label('Uninstall Shop')
+        ->icon('heroicon-o-trash')
+        ->color('danger')
+        ->requiresConfirmation()
+        ->modalHeading('Uninstall Shop')
+        ->modalDescription('Are you sure you want to run the uninstall job for this shop? This will perform a soft delete and run the uninstall webhook job.')
+        ->action(function (\App\Models\User $record) {
+            dispatch(new \App\Jobs\AppUninstalledJob($record->name, json_decode('{}')));
+            \Filament\Notifications\Notification::make()
+                ->title('Uninstall Job Dispatched')
+                ->success()
+                ->send();
+        })
+])
             ->recordClasses(fn ($record) => $record->deleted_at ? 'bg-danger-50 dark:bg-danger-900/10' : null);
     }
 }
