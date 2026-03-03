@@ -71,11 +71,38 @@ class UsersTable
         ->modalHeading('Uninstall Shop')
         ->modalDescription('Are you sure you want to run the uninstall job for this shop? This will perform a soft delete and run the uninstall webhook job.')
         ->action(function (\App\Models\User $record) {
-            dispatch(new \App\Jobs\AppUninstalledJob($record->name, json_decode('{}')));
-            \Filament\Notifications\Notification::make()
-                ->title('Uninstall Job Dispatched')
-                ->success()
-                ->send();
+            try {
+                $mutation = '
+                    mutation {
+                        appUninstall {
+                            userErrors {
+                                field
+                                message
+                            }
+                        }
+                    }
+                ';
+                $response = $record->api()->graph($mutation);
+                
+                $errors = data_get($response, 'body.container.data.appUninstall.userErrors', data_get($response, 'body.data.appUninstall.userErrors', []));
+                
+                if (!empty($errors)) {
+                    throw new \Exception($errors[0]['message'] ?? 'An error occurred during uninstallation.');
+                }
+
+                dispatch(new \App\Jobs\AppUninstalledJob($record->name, json_decode('{}')));
+                
+                \Filament\Notifications\Notification::make()
+                    ->title('Shop successfully uninstalled from Shopify')
+                    ->success()
+                    ->send();
+            } catch (\Exception $e) {
+                \Filament\Notifications\Notification::make()
+                    ->title('Uninstall Failed')
+                    ->body($e->getMessage())
+                    ->danger()
+                    ->send();
+            }
         })
 ])
             ->recordClasses(fn ($record) => $record->deleted_at ? 'bg-danger-50 dark:bg-danger-900/10' : null);
