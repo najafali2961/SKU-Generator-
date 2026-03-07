@@ -22,7 +22,7 @@
     <script type="text/javascript" defer>
         window.$crisp = [];
         window.CRISP_WEBSITE_ID = "8305e843-f408-4c73-8b4d-c65666845987";
-        window.$crisp.push(["config", "position:reverse", [false]]);
+        window.$crisp.push(["config", "position:reverse", [true]]);
         window.$crisp.push(["set", "user:avatar",
             "https://cdn.shopify.com/app-store/listing_images/7d4945412c07915efc0b23fd85ee1d69/icon/CIeDzY3Xv5EDEAE=.png"
         ]);
