@@ -31,6 +31,7 @@ import { Link, useForm } from "@inertiajs/react";
 import { useState, useCallback } from "react";
 import RecentJobsTable from "./RecentJobsTable";
 import CreditsSpeedometerCard from "./CreditsSpeedometerCard";
+import ReviewBanner from "./ReviewBanner";
 
 const styles = `
     .airo-hero {
@@ -119,7 +120,7 @@ const styles = `
     .airo-giveaway {
         background: #111213;
         border: none;
-        border-radius: 30px;
+        border-radius: 10px;
         padding: 12px 12px;
         color: #fff;
         height: 100%;
@@ -234,37 +235,6 @@ export default function Home({
     };
 
     const [isGiveawayDismissed, setIsGiveawayDismissed] = useState(false);
-    const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
-
-    const {
-        data: feedbackData,
-        setData: setFeedbackData,
-        post: postFeedback,
-        processing: feedbackProcessing,
-        reset: resetFeedback,
-    } = useForm({
-        rating: 0,
-        message: "",
-    });
-
-    const handleBadFeedback = useCallback(() => {
-        setFeedbackModalOpen(true);
-    }, []);
-
-    const submitBadFeedback = useCallback(() => {
-        postFeedback("/feedback", {
-            onSuccess: () => {
-                setFeedbackModalOpen(false);
-                resetFeedback();
-                shopify.toast.show("Thank you for your feedback!");
-            },
-            onError: () => {
-                shopify.toast.show("Failed to send feedback", {
-                    isError: true,
-                });
-            },
-        });
-    }, [postFeedback, resetFeedback]);
 
     return (
         <Page>
@@ -299,107 +269,9 @@ export default function Home({
                                     </span>
                                 </Text>
                             </BlockStack>
-                            <BlockStack gap="100">
-                                <Text as="p" variant="bodySm">
-                                    <span
-                                        style={{
-                                            color: "rgba(255,255,255,0.65)",
-                                        }}
-                                    >
-                                        Share your feedback
-                                    </span>
-                                </Text>
-                                <InlineStack gap="200">
-                                    <button
-                                        className="airo-feedback-btn"
-                                        onClick={() =>
-                                            window.open(
-                                                "https://apps.shopify.com/airo-sku-barcode-generator#modal-show=ReviewListingModal",
-                                                "_blank",
-                                            )
-                                        }
-                                    >
-                                        😄 Good
-                                    </button>
-                                    <button
-                                        className="airo-feedback-btn"
-                                        onClick={handleBadFeedback}
-                                    >
-                                        😥 Bad
-                                    </button>
-                                </InlineStack>
-                            </BlockStack>
                         </InlineStack>
                     </div>
                 </div>
-
-                {/* ── Feedback Modal ── */}
-                <Modal
-                    open={feedbackModalOpen}
-                    onClose={() => setFeedbackModalOpen(false)}
-                    title="Review this app"
-                    primaryAction={{
-                        content: "Submit",
-                        onAction: submitBadFeedback,
-                        loading: feedbackProcessing,
-                    }}
-                    secondaryActions={[
-                        {
-                            content: "Cancel",
-                            onAction: () => setFeedbackModalOpen(false),
-                        },
-                    ]}
-                >
-                    <Modal.Section>
-                        <FormLayout>
-                            <InlineStack gap="100">
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                    <span
-                                        key={star}
-                                        className="airo-star"
-                                        onClick={() =>
-                                            setFeedbackData("rating", star)
-                                        }
-                                        style={{
-                                            width: 32,
-                                            height: 42,
-                                            display: "inline-flex",
-                                            color: "#000000ff",
-                                        }}
-                                    >
-                                        <Icon
-                                            source={
-                                                feedbackData.rating >= star
-                                                    ? StarFilledIcon
-                                                    : StarIcon
-                                            }
-                                        />
-                                    </span>
-                                ))}
-                            </InlineStack>
-                            <TextField
-                                label="Your feedback"
-                                value={feedbackData.message}
-                                onChange={(value) =>
-                                    setFeedbackData("message", value)
-                                }
-                                multiline={4}
-                                autoComplete="off"
-                                placeholder="What should other merchants know about this app?"
-                            />
-                            <Text as="p" variant="bodySm" tone="subdued">
-                                If your review is published, we'll include some
-                                details about your store.{" "}
-                                <Link
-                                    href="https://help.shopify.com"
-                                    target="_blank"
-                                >
-                                    Learn more
-                                </Link>
-                            </Text>
-                        </FormLayout>
-                    </Modal.Section>
-                </Modal>
 
                 {/* ── Credits Speedometer ── */}
                 <div className="airo-top-grid">
@@ -739,6 +611,7 @@ export default function Home({
                 {/* ── Recent Jobs ── */}
                 <RecentJobsTable recentJobs={recentJobs} />
             </BlockStack>
+            <ReviewBanner />
         </Page>
     );
 }
