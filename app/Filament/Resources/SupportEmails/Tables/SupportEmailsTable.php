@@ -18,12 +18,22 @@ class SupportEmailsTable
         return $table
             ->columns([
                 TextColumn::make('from_name')
-                    ->label('From')
-                    ->description(fn (\App\Models\SupportEmail $record): string => $record->from_email)
-                    ->searchable(['from_name', 'from_email'])
+                    ->label('Name')
+                    ->searchable()
+                    ->weight(fn (\App\Models\SupportEmail $record) => $record->is_read ? 'regular' : 'bold'),
+
+                TextColumn::make('from_email')
+                    ->label('Email')
+                    ->searchable()
                     ->weight(fn (\App\Models\SupportEmail $record) => $record->is_read ? 'regular' : 'bold'),
 
                 TextColumn::make('subject')
+                    ->searchable()
+                    ->limit(40)
+                    ->weight(fn (\App\Models\SupportEmail $record) => $record->is_read ? 'regular' : 'bold'),
+
+                TextColumn::make('body_text')
+                    ->label('Message Snippet')
                     ->searchable()
                     ->limit(50)
                     ->weight(fn (\App\Models\SupportEmail $record) => $record->is_read ? 'regular' : 'bold'),
@@ -37,31 +47,29 @@ class SupportEmailsTable
             ->filters([
                 // Add filters here if needed
             ])
-            ->actions([  // ← This is now used for record/row actions (was recordActions in v3)
-                Action::make('markAsRead')
-                    ->label('Mark Read')
-                    ->icon('heroicon-o-check-circle')
-                    ->hidden(fn (\App\Models\SupportEmail $record) => $record->is_read)
-                    ->action(fn (\App\Models\SupportEmail $record) => $record->update(['is_read' => true])),
-
-                ViewAction::make()
-                    ->mutateRecordDataUsing(function (array $data, \App\Models\SupportEmail $record): array {
+            ->actions([
+                Action::make('viewMessage')
+                    ->label('View')
+                    ->icon('heroicon-o-eye')
+                    ->modalHeading('Support Email')
+                    ->modalWidth('5xl')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Close')
+                    ->modalContent(fn (\App\Models\SupportEmail $record) => view('filament.pages.email-message', ['html' => $record->body_html, 'text' => $record->body_text]))
+                    ->action(function (\App\Models\SupportEmail $record) {
                         if (!$record->is_read) {
                             $record->update(['is_read' => true]);
                         }
-                        return $data;
                     }),
-
-                DeleteAction::make(),
             ])
-            ->bulkActions([  // ← Groups bulk actions (was toolbarActions in some v3 patterns)
+            ->bulkActions([
                 BulkActionGroup::make([
                     BulkAction::make('markAsRead')
                         ->label('Mark as Read')
                         ->icon('heroicon-o-check-circle')
                         ->action(fn (\Illuminate\Database\Eloquent\Collection $records) => $records->each->update(['is_read' => true]))
                         ->deselectRecordsAfterCompletion(),
-
+                    
                     DeleteBulkAction::make(),
                 ]),
             ]);

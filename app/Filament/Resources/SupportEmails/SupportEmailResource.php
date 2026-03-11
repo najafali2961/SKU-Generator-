@@ -41,7 +41,6 @@ class SupportEmailResource extends Resource
     {
         return [
             'index' => ListSupportEmails::route('/'),
-            'view' => \App\Filament\Resources\SupportEmails\Pages\ViewSupportEmail::route('/{record}'),
         ];
     }
 
