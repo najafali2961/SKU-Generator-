@@ -20,15 +20,35 @@ class FeedbackTable
             ->columns([
                 TextColumn::make('user.name')
                     ->label('User')
+                    ->state(function (Feedback $record): ?string {
+                        return $record->user?->name ?: $record->user?->storeDetails?->shopify_domain ?: 'Unknown';
+                    })
                     ->searchable()
-                    ->sortable()
-                    ->url(fn (Feedback $record) => \App\Filament\Resources\Users\UserResource::getUrl('edit', ['record' => $record->user_id])),
+                    ->sortable(query: function (\Illuminate\Database\Eloquent\Builder $query, string $direction): \Illuminate\Database\Eloquent\Builder {
+                        return $query->orderBy(
+                            \App\Models\User::select('name')
+                                ->whereColumn('users.id', 'feedback.user_id')
+                                ->limit(1),
+                            $direction
+                        );
+                    })
+                    ->url(fn (Feedback $record) => $record->user_id ? \App\Filament\Resources\Users\UserResource::getUrl('edit', ['record' => $record->user_id]) : null),
                     
                 TextColumn::make('user.email')
                     ->label('Email')
+                    ->state(function (Feedback $record): ?string {
+                        return $record->user?->email ?: $record->user?->storeDetails?->email ?: 'Unknown';
+                    })
                     ->searchable()
-                    ->sortable()
-                    ->url(fn (Feedback $record) => \App\Filament\Resources\Users\UserResource::getUrl('edit', ['record' => $record->user_id])),
+                    ->sortable(query: function (\Illuminate\Database\Eloquent\Builder $query, string $direction): \Illuminate\Database\Eloquent\Builder {
+                        return $query->orderBy(
+                            \App\Models\User::select('email')
+                                ->whereColumn('users.id', 'feedback.user_id')
+                                ->limit(1),
+                            $direction
+                        );
+                    })
+                    ->url(fn (Feedback $record) => $record->user_id ? \App\Filament\Resources\Users\UserResource::getUrl('edit', ['record' => $record->user_id]) : null),
                     
                 TextColumn::make('rating')
                     ->sortable()
