@@ -46,36 +46,44 @@ class StoreDetailResource extends Resource
                 TextColumn::make('shop_name')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('shop_id')
-                    ->searchable(),
                 TextColumn::make('email')
+                    ->state(function (StoreDetail $record): ?string {
+                        return $record->email ?: $record->user?->email;
+                    })
                     ->searchable()
                     ->copyable(),
-                TextColumn::make('user.name')
-                    ->label('User')
-                    ->searchable()
-                    ->sortable()
-                    ->url(fn (StoreDetail $record) => \App\Filament\Resources\Users\UserResource::getUrl('edit', ['record' => $record->user_id])),
                 TextColumn::make('phone')
                     ->searchable(),
                 TextColumn::make('plan_name')
                     ->badge()
                     ->searchable()
-                    ->color(fn (string $state): string => match ($state) {
+                    ->color(fn (?string $state): string => match ($state) {
                         'frozen' => 'gray',
                         'cancelled' => 'danger',
                         default => 'success',
                     }),
+                TextColumn::make('status')
+                    ->label('Status')
+                    ->state(function (StoreDetail $record): string {
+                        return (!$record->user || $record->user->deleted_at) ? 'Uninstalled' : 'Installed';
+                    })
+                    ->badge()
+                    ->color(fn (string $state): string => $state === 'Uninstalled' ? 'danger' : 'success'),
                 IconColumn::make('shopify_plus')
                     ->searchable()
                     ->boolean()
                     ->label('Plus'),
                 TextColumn::make('country')
-                  ->searchable()
                     ->searchable(),
-                TextColumn::make('currency')
-                  ->searchable()
-                    ->searchable(),
+                TextColumn::make('user.name')
+                    ->label('User')
+                    ->state(function (StoreDetail $record): ?string {
+                        return $record->user?->name ?: $record->shopify_domain;
+                    })
+                    ->default('Unknown')
+                    ->searchable()
+                    ->sortable()
+                    ->url(fn (StoreDetail $record) => $record->user_id ? \App\Filament\Resources\Users\UserResource::getUrl('edit', ['record' => $record->user_id]) : null),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
