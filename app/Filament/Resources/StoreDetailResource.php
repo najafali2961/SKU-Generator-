@@ -88,12 +88,19 @@ class StoreDetailResource extends Resource
                         return (!$record->user || $record->user->deleted_at) ? 'Uninstalled' : 'Installed';
                     })
                     ->badge()
-                    ->sortable()
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy(
+                            \App\Models\User::select('deleted_at')
+                                ->whereColumn('users.id', 'store_details.user_id')
+                                ->limit(1), 
+                            $direction
+                        );
+                    })
                     ->color(fn (string $state): string => $state === 'Uninstalled' ? 'danger' : 'success'),
                 IconColumn::make('shopify_plus')
                     ->searchable()
-                    ->boolean()
                      ->sortable()
+                    ->boolean()
                     ->label('Plus'),
                 TextColumn::make('country')
                  ->sortable()
@@ -105,7 +112,14 @@ class StoreDetailResource extends Resource
                     })
                     ->default('Unknown')
                     ->searchable()
-                    ->sortable()
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy(
+                            \App\Models\User::select('name')
+                                ->whereColumn('users.id', 'store_details.user_id')
+                                ->limit(1),
+                            $direction
+                        );
+                    })
                     ->url(fn (StoreDetail $record) => $record->user_id ? \App\Filament\Resources\Users\UserResource::getUrl('edit', ['record' => $record->user_id]) : null),
                 TextColumn::make('created_at')
                     ->dateTime()
