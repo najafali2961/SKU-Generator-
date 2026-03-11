@@ -15,6 +15,10 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\Filter;
+use Illuminate\Database\Eloquent\Builder;
 use UnitEnum;
 
 class StoreDetailResource extends Resource
@@ -46,6 +50,22 @@ class StoreDetailResource extends Resource
                 TextColumn::make('shop_name')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('shopify_domain')
+                    ->searchable()
+                    ->sortable()
+                    ->copyable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('primary_domain')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('shop_id')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('currency')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('email')
                     ->state(function (StoreDetail $record): ?string {
                         return $record->email ?: $record->user?->email;
@@ -68,12 +88,15 @@ class StoreDetailResource extends Resource
                         return (!$record->user || $record->user->deleted_at) ? 'Uninstalled' : 'Installed';
                     })
                     ->badge()
+                    ->sortable()
                     ->color(fn (string $state): string => $state === 'Uninstalled' ? 'danger' : 'success'),
                 IconColumn::make('shopify_plus')
                     ->searchable()
                     ->boolean()
+                     ->sortable()
                     ->label('Plus'),
                 TextColumn::make('country')
+                 ->sortable()
                     ->searchable(),
                 TextColumn::make('user.name')
                     ->label('User')
@@ -94,7 +117,38 @@ class StoreDetailResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                SelectFilter::make('plan_name')
+                    ->label('Plan')
+                    ->options([
+                        'Basic App Development' => 'Basic App Development',
+                        'Developer Preview' => 'Developer Preview',
+                        'Development' => 'Development',
+                        'Basic' => 'Basic',
+                        'Shopify' => 'Shopify',
+                        'Advanced' => 'Advanced',
+                        'Plus' => 'Plus',
+                    ]),
+                TernaryFilter::make('shopify_plus')
+                    ->label('Shopify Plus'),
+                Filter::make('status')
+                    ->form([
+                        Forms\Components\Select::make('status')
+                            ->options([
+                                'installed' => 'Installed',
+                                'uninstalled' => 'Uninstalled',
+                            ])
+                            ->placeholder('All Statuses'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query->where(function ($q) use ($data) {
+                            if ($data['status'] === 'installed') {
+                                $q->whereHas('user', fn (Builder $q) => $q->whereNull('deleted_at'))
+                                  ->orWhereDoesntHave('user');
+                            } elseif ($data['status'] === 'uninstalled') {
+                                $q->whereHas('user', fn (Builder $q) => $q->withTrashed()->whereNotNull('deleted_at'));
+                            }
+                        });
+                    }),
             ])
             ->actions([
                 // View Action is implied if we don't have Pages\Edit
