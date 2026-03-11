@@ -26,7 +26,7 @@ class FeedbackTable
                     ->searchable()
                     ->sortable(query: function (\Illuminate\Database\Eloquent\Builder $query, string $direction): \Illuminate\Database\Eloquent\Builder {
                         return $query->orderBy(
-                            \App\Models\User::select('name')
+                            \App\Models\User::withTrashed()->select('name')
                                 ->whereColumn('users.id', 'feedback.user_id')
                                 ->limit(1),
                             $direction
@@ -42,7 +42,7 @@ class FeedbackTable
                     ->searchable()
                     ->sortable(query: function (\Illuminate\Database\Eloquent\Builder $query, string $direction): \Illuminate\Database\Eloquent\Builder {
                         return $query->orderBy(
-                            \App\Models\User::select('email')
+                            \App\Models\User::withTrashed()->select('email')
                                 ->whereColumn('users.id', 'feedback.user_id')
                                 ->limit(1),
                             $direction
