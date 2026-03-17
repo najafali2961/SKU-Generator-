@@ -55,7 +55,7 @@ export default function CreditWarning({
                             ]);
                         } else {
                             window.open(
-                                "mailto:support@airoapps.com?subject=Need More Credits",
+                                "mailto:sku@airoapps.com?subject=Need More Credits",
                                 "_blank",
                             );
                         }

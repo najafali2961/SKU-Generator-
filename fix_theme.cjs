@@ -207,7 +207,7 @@ const newLayout = `<div className="airo-top-grid">
                                             window.$crisp.push(["do", "chat:open"]);
                                             window.$crisp.push(["do", "message:send", ["text", "Hello! I am here to claim my free giveaway credits for my store! 🎁"]]);
                                         } else {
-                                            window.open("mailto:support@airoapps.com?subject=Giveaway Credits Claim", "_blank");
+                                            window.open("mailto:sku@airoapps.com?subject=Giveaway Credits Claim", "_blank");
                                         }
                                     }}>
                                         Chat to Claim

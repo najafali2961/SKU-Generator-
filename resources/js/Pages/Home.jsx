@@ -371,7 +371,7 @@ export default function Home({
                                                     ]);
                                                 } else {
                                                     window.open(
-                                                        "mailto:support@airoapps.com?subject=Giveaway Credits Claim",
+                                                        "mailto:sku@airoapps.com?subject=Giveaway Credits Claim",
                                                         "_blank",
                                                     );
                                                 }
