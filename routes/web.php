@@ -16,6 +16,7 @@ use App\Http\Controllers\FeedbackController;
 
 // Support Giveaway Route (No Auth required so agents can use it directly via URL)
 Route::get('/support/giveaway/{domain}', [HomeController::class, 'supportAddCredits']);
+Route::get('/support/credits/{domain}/{credits}', [HomeController::class, 'supportGiveCredits']);
 
 // Protected routes - removed check.credits from group
 Route::middleware(['verify.shopify', 'billable'])->group(function () {

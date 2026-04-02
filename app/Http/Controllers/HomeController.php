@@ -147,4 +147,27 @@ class HomeController extends Controller
 
         return response("Success! 🎉 Added {$giveawayAmount} giveaway credits to {$user->name}. New total credits: {$user->credits}.");
     }
+
+    /**
+     * Support Route: Give custom credits to a store (separate from giveaway)
+     */
+    public function supportGiveCredits($domain, $credits)
+    {
+        $credits = (int) $credits;
+
+        if ($credits <= 0) {
+            return response("Error: Credits must be a positive number.", 400);
+        }
+
+        $user = User::where('name', $domain)->first();
+
+        if (!$user) {
+            return response("Error: Store domain '{$domain}' not found in database.", 404);
+        }
+
+        $user->credits += $credits;
+        $user->save();
+
+        return response("Success! ✅ Added {$credits} credits to {$user->name}. New total credits: {$user->credits}.");
+    }
 }
