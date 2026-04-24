@@ -12,10 +12,10 @@ class AdminUserSeeder extends Seeder
     public function run(): void
     {
         Admin::updateOrCreate(
-            ['email' => 'admin@example.com'],
+            ['email' => 'support@airoapps.com'],
             [
                 'name' => 'Admin',
-                'password' => Hash::make('password'), // change password
+                'password' => Hash::make('Wixpa@2026'), // change password
                 'email_verified_at' => now(),
             ]
         );
