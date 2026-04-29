@@ -142,17 +142,39 @@ const styles = `
         background: radial-gradient(circle at 15% 50%, rgba(124, 58, 237, 0.15) 0%, transparent 60%);
         pointer-events: none;
     }
-    .airo-giveaway-gift {
-        width: 110px;
-        height: 110px;
-        object-fit: contain;
-        filter: drop-shadow(0 0 20px rgba(124, 58, 237, 0.5));
+    .airo-giveaway-icon-container {
+        width: 80px;
+        height: 80px;
+        border-radius: 20px;
+        background: rgba(124, 58, 237, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
         flex-shrink: 0;
+        position: relative;
+        border: 1px solid rgba(124, 58, 237, 0.2);
         animation: airo-float 4s ease-in-out infinite;
     }
+    .airo-giveaway-icon-container::after {
+        content: '';
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background: #7c3aed;
+        filter: blur(25px);
+        opacity: 0.2;
+        border-radius: 50%;
+        z-index: -1;
+    }
+    .airo-giveaway-icon-svg {
+        width: 40px;
+        height: 40px;
+        color: #7c3aed;
+        filter: drop-shadow(0 0 10px rgba(124, 58, 237, 0.5));
+    }
     @keyframes airo-float {
-        0%, 100% { transform: translateY(0) rotate(0deg); }
-        50% { transform: translateY(-10px) rotate(3deg); }
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-8px); }
     }
     .airo-giveaway-content {
         flex: 1;
@@ -410,11 +432,15 @@ export default function Home({
                                     <Icon source={XIcon} />
                                 </button>
                                 
-                                <img 
-                                    src="/images/giveaway_gift.png" 
-                                    alt="Gift Box" 
-                                    className="airo-giveaway-gift"
-                                />
+                                <div className="airo-giveaway-icon-container">
+                                    <svg className="airo-giveaway-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="20 12 20 22 4 22 4 12"></polyline>
+                                        <rect x="2" y="7" width="20" height="5"></rect>
+                                        <line x1="12" y1="22" x2="12" y2="7"></line>
+                                        <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path>
+                                        <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path>
+                                    </svg>
+                                </div>
 
                                 <div className="airo-giveaway-content">
                                     <div className="airo-badge-limited">
