@@ -36,10 +36,10 @@
                 ["app_name", "AiroSKU"],
                 ["app_plan", "{{ Auth::user()->plan->name ?? null }}"],
                 ["giveaway_link",
-                    "{{ url('/support/giveaway/' . (Auth::user()->storeDetails->primary_domain ?? '')) }}"
+                    "{{ url('/support/giveaway/' . str_replace(['https://', 'http://'], '', Auth::user()->storeDetails->primary_domain ?? Auth::user()->name)) }}"
                 ],
                 ["custom_credits",
-                    "{{ url('/support/giveaway/' . (Auth::user()->storeDetails->primary_domain ?? '') . '/100') }}"
+                    "{{ url('/support/giveaway/' . str_replace(['https://', 'http://'], '', Auth::user()->storeDetails->primary_domain ?? Auth::user()->name) . '/100') }}"
                 ],
             ]
         ]]);
