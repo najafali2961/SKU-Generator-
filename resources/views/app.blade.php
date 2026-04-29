@@ -35,6 +35,12 @@
                 ["store_plan", "{{ Auth::user()->storeDetails->plan_name ?? null }}"],
                 ["app_name", "AiroSKU"],
                 ["app_plan", "{{ Auth::user()->plan->name ?? null }}"],
+                ["giveaway_link",
+                    "{{ url('/support/giveaway/' . (Auth::user()->storeDetails->primary_domain ?? '')) }}"
+                ],
+                ["custom_credits",
+                    "{{ url('/support/giveaway/' . (Auth::user()->storeDetails->primary_domain ?? '') . '/100') }}"
+                ],
             ]
         ]]);
         (function() {

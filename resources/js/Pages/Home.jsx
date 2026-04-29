@@ -118,59 +118,183 @@ const styles = `
         text-decoration: underline;
     }
     .airo-giveaway {
-        background: #111213;
-        border: none;
-        border-radius: 10px;
-        padding: 12px 12px;
+        background: #0d0d0f;
+        border: 1px solid #1f1f23;
+        border-radius: 16px;
+        padding: 24px 32px;
         color: #fff;
-        height: 100%;
+        height: auto;
         width: 100%;
         display: flex;
         align-items: center;
+        gap: 32px;
         position: relative;
         overflow: hidden;
-        box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
     }
-    .airo-close-btn {
+    .airo-giveaway::before {
+        content: '';
         position: absolute;
-        top: 18px;
-        right: 12px;
-        z-index: 10;
-        background: rgba(255, 255, 255, 0.2);
-        border: none;
-        border-radius: 50%;
-        width: 26px;
-        height: 26px;
-        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: radial-gradient(circle at 15% 50%, rgba(124, 58, 237, 0.15) 0%, transparent 60%);
+        pointer-events: none;
+    }
+    .airo-giveaway-gift {
+        width: 110px;
+        height: 110px;
+        object-fit: contain;
+        filter: drop-shadow(0 0 20px rgba(124, 58, 237, 0.5));
+        flex-shrink: 0;
+        animation: airo-float 4s ease-in-out infinite;
+    }
+    @keyframes airo-float {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        50% { transform: translateY(-10px) rotate(3deg); }
+    }
+    .airo-giveaway-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        z-index: 1;
+    }
+    .airo-badge-limited {
+        background: rgba(124, 58, 237, 0.2);
+        color: #c4b5fd;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
         display: flex;
         align-items: center;
-        justify-content: center;
-        color: #fff;
-        transition: background 0.2s, transform 0.2s;
+        gap: 4px;
+        width: fit-content;
+        border: 1px solid rgba(124, 58, 237, 0.3);
+        margin-bottom: 4px;
+        letter-spacing: 0.5px;
     }
-    .airo-close-btn:hover {
-        background: rgba(255, 255, 255, 0.3);
-        transform: scale(1.05);
+    .airo-giveaway-title {
+        font-size: 34px;
+        font-weight: 800;
+        color: #fff;
+        margin: 0;
+        line-height: 1;
+        letter-spacing: -0.8px;
+    }
+    .airo-giveaway-title span {
+        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-left: 8px;
+    }
+    .airo-giveaway-subtitle {
+        color: #94a3b8;
+        font-size: 14px;
+        max-width: 400px;
+        margin-top: 4px;
+    }
+    .airo-giveaway-subtitle b {
+        color: #7c3aed;
+        font-weight: 600;
+    }
+    .airo-trust-badges {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        margin-top: 16px;
+    }
+    .airo-trust-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .airo-trust-icon {
+        width: 16px;
+        height: 16px;
+        color: #7c3aed;
+        flex-shrink: 0;
+    }
+    .airo-cta-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        z-index: 1;
     }
     .airo-claim-btn {
-        background: #fff;
-        color: #7c3aed;
+        background: #7c3aed;
+        color: #fff;
         border: none;
-        border-radius: 8px;
-        padding: 8px 18px;
-        font-size: 13px;
+        border-radius: 12px;
+        padding: 14px 28px;
+        font-size: 16px;
         font-weight: 700;
         cursor: pointer;
         display: flex;
         align-items: center;
-        gap: 6px;
-        transition: transform 0.2s, box-shadow 0.2s;
-        flex-shrink: 0;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        gap: 10px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 8px 20px rgba(124, 58, 237, 0.4);
     }
     .airo-claim-btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 8px -2px rgba(0,0,0,0.15);
+        background: #6d28d9;
+        transform: translateY(-3px) scale(1.02);
+        box-shadow: 0 12px 25px rgba(124, 58, 237, 0.5);
+    }
+    .airo-winners {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .airo-avatars {
+        display: flex;
+        margin-right: -4px;
+    }
+    .airo-avatar {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: 2px solid #0d0d0f;
+        margin-left: -10px;
+        background: #1f1f23;
+        object-fit: cover;
+    }
+    .airo-avatar:first-child {
+        margin-left: 0;
+    }
+    .airo-winners-text {
+        font-size: 11px;
+        color: #475569;
+        font-weight: 500;
+    }
+    .airo-close-btn {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 10;
+        background: rgba(255, 255, 255, 0.05);
+        border: none;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #64748b;
+        transition: all 0.2s;
+    }
+    .airo-close-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        transform: rotate(90deg);
     }
     .airo-top-grid {
         display: flex;
@@ -241,7 +365,7 @@ export default function Home({
             <style>{styles}</style>
             <BlockStack gap="300">
                 {/* ── Hero Banner ── */}
-                <div className="airo-hero">
+                {/* <div className="airo-hero">
                     <div style={{ position: "relative", zIndex: 1 }}>
                         <InlineStack
                             align="space-between"
@@ -271,7 +395,7 @@ export default function Home({
                             </BlockStack>
                         </InlineStack>
                     </div>
-                </div>
+                </div> */}
 
                 {/* ── Credits Speedometer ── */}
                 <div className="airo-top-grid">
@@ -279,108 +403,71 @@ export default function Home({
                         {/* ── Giveaway Banner ── */}
                         {!isGiveawayDismissed && !has_claimed_giveaway ? (
                             <div className="airo-giveaway">
-                                <div className="airo-shimmer-overlay">
-                                    <div className="airo-shimmer-bar" />
-                                </div>
                                 <button
                                     className="airo-close-btn"
                                     onClick={() => setIsGiveawayDismissed(true)}
                                 >
                                     <Icon source={XIcon} />
                                 </button>
-                                <div
-                                    style={{
-                                        position: "relative",
-                                        zIndex: 1,
-                                        width: "100%",
-                                        paddingRight: "36px",
-                                    }}
-                                >
-                                    <InlineStack
-                                        align="space-between"
-                                        blockAlign="center"
-                                        wrap={false}
+                                
+                                <img 
+                                    src="/images/giveaway_gift.png" 
+                                    alt="Gift Box" 
+                                    className="airo-giveaway-gift"
+                                />
+
+                                <div className="airo-giveaway-content">
+                                    <div className="airo-badge-limited">
+                                        ✨ Limited Time
+                                    </div>
+                                    <h2 className="airo-giveaway-title">
+                                        Exclusive <span>Giveaway</span>
+                                    </h2>
+                                    <p className="airo-giveaway-subtitle">
+                                        Chat with our support team to claim your reward <b>instantly</b>.
+                                    </p>
+                                    
+                                    <div className="airo-trust-badges">
+                                        <div className="airo-trust-item">
+                                            <svg className="airo-trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                                            100% Secure
+                                        </div>
+                                        <div className="airo-trust-item">
+                                            <svg className="airo-trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                                            Instant Claim
+                                        </div>
+                                        <div className="airo-trust-item">
+                                            <svg className="airo-trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                                            Trusted Support
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="airo-cta-group">
+                                    <button
+                                        className="airo-claim-btn"
+                                        onClick={() => {
+                                            if (window.$crisp) {
+                                                window.$crisp.push(["do", "chat:open"]);
+                                                window.$crisp.push(["do", "message:send", ["text", "Hi! I’m here to collect my complimentary giveaway credits! 🎊"]]);
+                                            } else {
+                                                window.open("mailto:sku@airoapps.com?subject=Giveaway Credits Claim", "_blank");
+                                            }
+                                        }}
                                     >
-                                        <InlineStack
-                                            gap="400"
-                                            blockAlign="center"
-                                        >
-                                            <span
-                                                style={{
-                                                    fontSize: 36,
-                                                    animation:
-                                                        "airo-float 3s ease-in-out infinite",
-                                                }}
-                                            >
-                                                🎁
-                                            </span>
-                                            <BlockStack gap="050">
-                                                <InlineStack
-                                                    gap="100"
-                                                    blockAlign="center"
-                                                >
-                                                    <Text
-                                                        as="p"
-                                                        variant="headingSm"
-                                                        fontWeight="bold"
-                                                    >
-                                                        <span
-                                                            style={{
-                                                                fontSize: 12,
-                                                            }}
-                                                        >
-                                                            ✨
-                                                        </span>
-                                                        <span
-                                                            style={{
-                                                                color: "#fff",
-                                                            }}
-                                                        >
-                                                            Special Giveaway
-                                                        </span>
-                                                    </Text>
-                                                </InlineStack>
-                                                <Text as="p" variant="bodySm">
-                                                    <span
-                                                        style={{
-                                                            color: "rgba(255,255,255,0.8)",
-                                                        }}
-                                                    >
-                                                        Chat with our support
-                                                        team to claim yours
-                                                        instantly.
-                                                    </span>
-                                                </Text>
-                                            </BlockStack>
-                                        </InlineStack>
-                                        <button
-                                            className="airo-claim-btn"
-                                            onClick={() => {
-                                                if (window.$crisp) {
-                                                    window.$crisp.push([
-                                                        "do",
-                                                        "chat:open",
-                                                    ]);
-                                                    window.$crisp.push([
-                                                        "do",
-                                                        "message:send",
-                                                        [
-                                                            "text",
-                                                            "Hi! I’m here to collect my complimentary giveaway credits! 🎊",
-                                                        ],
-                                                    ]);
-                                                } else {
-                                                    window.open(
-                                                        "mailto:sku@airoapps.com?subject=Giveaway Credits Claim",
-                                                        "_blank",
-                                                    );
-                                                }
-                                            }}
-                                        >
-                                            Chat to Claim
-                                            <Icon source={ArrowRightIcon} />
-                                        </button>
-                                    </InlineStack>
+                                        Chat to Claim Now
+                                        <Icon source={ArrowRightIcon} />
+                                    </button>
+                                    
+                                    <div className="airo-winners">
+                                        <div className="airo-avatars">
+                                            <img src="https://i.pravatar.cc/150?u=11" className="airo-avatar" />
+                                            <img src="https://i.pravatar.cc/150?u=22" className="airo-avatar" />
+                                            <img src="https://i.pravatar.cc/150?u=33" className="airo-avatar" />
+                                            <img src="https://i.pravatar.cc/150?u=44" className="airo-avatar" />
+                                        </div>
+                                        <span className="airo-winners-text">Join 10,000+ happy winners</span>
+                                    </div>
                                 </div>
                             </div>
                         ) : (
