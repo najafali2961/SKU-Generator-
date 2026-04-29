@@ -120,17 +120,17 @@ const styles = `
     .airo-giveaway {
         background: #0d0d0f;
         border: 1px solid #1f1f23;
-        border-radius: 16px;
-        padding: 24px 32px;
+        border-radius: 12px;
+        padding: 16px 24px;
         color: #fff;
         height: auto;
         width: 100%;
         display: flex;
         align-items: center;
-        gap: 32px;
+        gap: 24px;
         position: relative;
         overflow: hidden;
-        box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+        box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.5);
     }
     .airo-giveaway::before {
         content: '';
@@ -143,16 +143,16 @@ const styles = `
         pointer-events: none;
     }
     .airo-giveaway-icon-container {
-        width: 80px;
-        height: 80px;
-        border-radius: 20px;
-        background: rgba(124, 58, 237, 0.1);
+        width: 60px;
+        height: 60px;
+        border-radius: 14px;
+        background: rgba(124, 58, 237, 0.08);
         display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
         position: relative;
-        border: 1px solid rgba(124, 58, 237, 0.2);
+        border: 1px solid rgba(124, 58, 237, 0.15);
         animation: airo-float 4s ease-in-out infinite;
     }
     .airo-giveaway-icon-container::after {
@@ -167,45 +167,29 @@ const styles = `
         z-index: -1;
     }
     .airo-giveaway-icon-svg {
-        width: 40px;
-        height: 40px;
+        width: 30px;
+        height: 30px;
         color: #7c3aed;
-        filter: drop-shadow(0 0 10px rgba(124, 58, 237, 0.5));
+        filter: drop-shadow(0 0 8px rgba(124, 58, 237, 0.4));
     }
     @keyframes airo-float {
         0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-8px); }
+        50% { transform: translateY(-6px); }
     }
     .airo-giveaway-content {
         flex: 1;
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 2px;
         z-index: 1;
     }
-    .airo-badge-limited {
-        background: rgba(124, 58, 237, 0.2);
-        color: #c4b5fd;
-        padding: 4px 10px;
-        border-radius: 6px;
-        font-size: 10px;
-        font-weight: 800;
-        text-transform: uppercase;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        width: fit-content;
-        border: 1px solid rgba(124, 58, 237, 0.3);
-        margin-bottom: 4px;
-        letter-spacing: 0.5px;
-    }
     .airo-giveaway-title {
-        font-size: 34px;
+        font-size: 26px;
         font-weight: 800;
         color: #fff;
         margin: 0;
-        line-height: 1;
-        letter-spacing: -0.8px;
+        line-height: 1.1;
+        letter-spacing: -0.5px;
     }
     .airo-giveaway-title span {
         background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
@@ -215,9 +199,9 @@ const styles = `
     }
     .airo-giveaway-subtitle {
         color: #94a3b8;
-        font-size: 14px;
-        max-width: 400px;
-        margin-top: 4px;
+        font-size: 13px;
+        max-width: 380px;
+        margin-top: 2px;
     }
     .airo-giveaway-subtitle b {
         color: #7c3aed;
@@ -226,20 +210,20 @@ const styles = `
     .airo-trust-badges {
         display: flex;
         align-items: center;
-        gap: 20px;
-        margin-top: 16px;
+        gap: 16px;
+        margin-top: 10px;
     }
     .airo-trust-item {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         color: #64748b;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
     }
     .airo-trust-icon {
-        width: 16px;
-        height: 16px;
+        width: 14px;
+        height: 14px;
         color: #7c3aed;
         flex-shrink: 0;
     }
@@ -254,37 +238,37 @@ const styles = `
         background: #7c3aed;
         color: #fff;
         border: none;
-        border-radius: 12px;
-        padding: 14px 28px;
-        font-size: 16px;
+        border-radius: 10px;
+        padding: 10px 20px;
+        font-size: 14px;
         font-weight: 700;
         cursor: pointer;
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: 0 8px 20px rgba(124, 58, 237, 0.4);
+        box-shadow: 0 6px 15px rgba(124, 58, 237, 0.35);
     }
     .airo-claim-btn:hover {
         background: #6d28d9;
-        transform: translateY(-3px) scale(1.02);
-        box-shadow: 0 12px 25px rgba(124, 58, 237, 0.5);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(124, 58, 237, 0.4);
     }
     .airo-winners {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
     }
     .airo-avatars {
         display: flex;
         margin-right: -4px;
     }
     .airo-avatar {
-        width: 26px;
-        height: 26px;
+        width: 22px;
+        height: 22px;
         border-radius: 50%;
         border: 2px solid #0d0d0f;
-        margin-left: -10px;
+        margin-left: -8px;
         background: #1f1f23;
         object-fit: cover;
     }
@@ -292,20 +276,20 @@ const styles = `
         margin-left: 0;
     }
     .airo-winners-text {
-        font-size: 11px;
+        font-size: 10px;
         color: #475569;
         font-weight: 500;
     }
     .airo-close-btn {
         position: absolute;
-        top: 20px;
-        right: 20px;
+        top: 14px;
+        right: 14px;
         z-index: 10;
         background: rgba(255, 255, 255, 0.05);
         border: none;
         border-radius: 50%;
-        width: 32px;
-        height: 32px;
+        width: 28px;
+        height: 28px;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -443,9 +427,6 @@ export default function Home({
                                 </div>
 
                                 <div className="airo-giveaway-content">
-                                    <div className="airo-badge-limited">
-                                        ✨ Limited Time
-                                    </div>
                                     <h2 className="airo-giveaway-title">
                                         Exclusive <span>Giveaway</span>
                                     </h2>
