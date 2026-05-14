@@ -315,6 +315,44 @@ const styles = `
     .airo-star:hover {
         transform: scale(1.15);
     }
+    .welcome-banner {
+        padding: 24px 0;
+        margin-bottom: 12px;
+    }
+    .welcome-text-container {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .welcome-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: #1a1c1e;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .welcome-subtitle {
+        font-size: 14px;
+        color: #64748b;
+    }
+    .chat-button {
+        background: #7c3aed;
+        color: white;
+        padding: 10px 24px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 14px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.2);
+    }
+    .chat-button:hover {
+        background: #6d28d9;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(124, 58, 237, 0.3);
+    }
 `;
 
 export default function Home({
@@ -404,9 +442,35 @@ export default function Home({
                 </div> */}
 
                 {/* ── Credits Speedometer ── */}
-                <div className="airo-top-grid">
+                {/* ── Welcome Banner ── */}
+                <div className="welcome-banner">
+                    <InlineStack align="space-between" blockAlign="center">
+                        <div className="welcome-text-container">
+                            <h2 className="welcome-title">
+                                Hi, welcome to Airo SKU & Barcode Generator 👋
+                            </h2>
+                            <p className="welcome-subtitle">
+                                Need help for support? We're here to assist you instantly.
+                            </p>
+                        </div>
+                        <button 
+                            className="chat-button"
+                            onClick={() => {
+                                if (window.$crisp) {
+                                    window.$crisp.push(["do", "chat:open"]);
+                                } else {
+                                    window.open("mailto:sku@airoapps.com", "_blank");
+                                }
+                            }}
+                        >
+                            Start Chat
+                        </button>
+                    </InlineStack>
+                </div>
+
+                {/* ── Credits Speedometer ── */}
+                {/* <div className="airo-top-grid">
                     <div style={{ display: "flex", flex: 1 }}>
-                        {/* ── Giveaway Banner ── */}
                         {!isGiveawayDismissed && !has_claimed_giveaway ? (
                             <div className="airo-giveaway">
                                 <button
@@ -484,7 +548,8 @@ export default function Home({
                     <div style={{ display: "flex", flex: 1 }}>
                         <CreditsSpeedometerCard credits={credits} />
                     </div>
-                </div>
+                </div> */}
+
 
                 {/* ── Stats Grid ── */}
                 <InlineGrid columns={3} gap="400">
