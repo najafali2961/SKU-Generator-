@@ -768,7 +768,7 @@ export default function Home({
                 </InlineGrid>
 
                 {/* ── Recent Jobs ── */}
-                <RecentJobsTable recentJobs={recentJobs} />
+                <RecentJobsTable jobs={recentJobs} />
             </BlockStack>
             <ReviewBanner />
         </Page>
