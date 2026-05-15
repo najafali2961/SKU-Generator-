@@ -337,21 +337,26 @@ const styles = `
         color: #64748b;
     }
     .chat-button {
-        background: #7c3aed;
-        color: white;
-        padding: 10px 24px;
-        border-radius: 10px;
+        background: var(--p-color-bg-fill-brand);
+        color: var(--p-color-text-brand-on-bg-fill);
+        padding: var(--p-space-200) var(--p-space-400);
+        border-radius: var(--p-border-radius-200);
         font-weight: 600;
-        font-size: 14px;
+        font-size: var(--p-font-size-325);
         border: none;
         cursor: pointer;
-        transition: all 0.2s;
-        box-shadow: 0 4px 12px rgba(124, 58, 237, 0.2);
+        transition: background-color 0.15s ease-in-out;
+        box-shadow: var(--p-shadow-100);
     }
     .chat-button:hover {
-        background: #6d28d9;
-        transform: translateY(-1px);
-        box-shadow: 0 6px 16px rgba(124, 58, 237, 0.3);
+        background: var(--p-color-bg-fill-brand-hover);
+    }
+    .chat-button:active {
+        background: var(--p-color-bg-fill-brand-active);
+    }
+    .chat-button:focus-visible {
+        outline: var(--p-border-width-050) solid var(--p-color-border-focus);
+        outline-offset: var(--p-space-050);
     }
 `;
 
