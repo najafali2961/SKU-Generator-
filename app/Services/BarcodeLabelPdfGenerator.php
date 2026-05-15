@@ -243,6 +243,34 @@ class BarcodeLabelPdfGenerator
                 'type' => $this->setting->barcode_type,
                 'error' => $e->getMessage()
             ]);
+
+            // Library-level failure (e.g. Picqer rejects an EAN/UPC checksum or
+            // refuses a value the strict format can't represent). Retry once
+            // with Code128, which accepts any alphanumeric string, so the label
+            // still ships with a scannable barcode.
+            $requestedType = strtolower($this->setting->barcode_type ?? '');
+            if ($requestedType !== 'code128') {
+                try {
+                    $scale = max(1, (int) ($this->setting->barcode_scale ?? 2));
+                    $thickness = max(30, (int) ($this->setting->barcode_line_width ?? 50));
+                    $code128Image = $this->barcodeGenerator->getBarcode(
+                        trim($value),
+                        BarcodeGeneratorPNG::TYPE_CODE_128,
+                        $scale,
+                        $thickness
+                    );
+                    Log::info('Recovered with code128 fallback after library failure', [
+                        'requested_type' => $requestedType,
+                        'value' => $value,
+                    ]);
+                    return 'data:image/png;base64,' . base64_encode($code128Image);
+                } catch (\Exception $fallbackError) {
+                    Log::error('Code128 fallback also failed', [
+                        'error' => $fallbackError->getMessage(),
+                    ]);
+                }
+            }
+
             return $this->generateFallbackBarcode($value);
         }
     }
@@ -251,28 +279,32 @@ class BarcodeLabelPdfGenerator
     {
         switch ($type) {
             case 'ean13':
+                // Give Picqer 12 digits; it auto-appends the EAN-13 checksum.
                 $numeric = preg_replace('/[^0-9]/', '', $value);
                 if (strlen($numeric) < 12)
                     return false;
-                return $this->padOrTruncate($value, 13, '0');
+                return substr($numeric, 0, 12);
 
             case 'ean8':
+                // Give Picqer 7 digits; it auto-appends the EAN-8 checksum.
                 $numeric = preg_replace('/[^0-9]/', '', $value);
                 if (strlen($numeric) < 7)
                     return false;
-                return $this->padOrTruncate($value, 8, '0');
+                return substr($numeric, 0, 7);
 
             case 'upca':
+                // Give Picqer 11 digits; it auto-appends the UPC-A checksum.
                 $numeric = preg_replace('/[^0-9]/', '', $value);
                 if (strlen($numeric) < 11)
                     return false;
-                return $this->padOrTruncate($value, 12, '0');
+                return substr($numeric, 0, 11);
 
             case 'itf14':
+                // Give Picqer 13 digits; it auto-appends the ITF-14 checksum.
                 $numeric = preg_replace('/[^0-9]/', '', $value);
                 if (strlen($numeric) < 13)
                     return false;
-                return $this->padOrTruncate($value, 14, '0');
+                return substr($numeric, 0, 13);
 
             case 'code39':
                 $value = strtoupper($value);
