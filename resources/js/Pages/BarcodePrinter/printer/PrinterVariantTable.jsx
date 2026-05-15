@@ -708,36 +708,27 @@ export default function PrinterVariantTable({
         <>
             <BlockStack gap="400">
                 {!showPreview && (
-                    <div
-                        className="lg:sticky lg:top-4"
-                        style={{ zIndex: 5 }}
-                    >
-                        <Card>
-                            <Box padding="300">
-                                <InlineStack
-                                    align="space-between"
-                                    blockAlign="center"
+                    <Card>
+                        <Box padding="300">
+                            <InlineStack
+                                align="space-between"
+                                blockAlign="center"
+                            >
+                                <Text variant="bodyMd" tone="subdued">
+                                    Live Preview is hidden
+                                </Text>
+                                <Button
+                                    size="slim"
+                                    onClick={() => setShowPreview(true)}
                                 >
-                                    <Text variant="bodyMd" tone="subdued">
-                                        Live Preview is hidden
-                                    </Text>
-                                    <Button
-                                        size="slim"
-                                        onClick={() => setShowPreview(true)}
-                                    >
-                                        Show Preview
-                                    </Button>
-                                </InlineStack>
-                            </Box>
-                        </Card>
-                    </div>
+                                    Show Preview
+                                </Button>
+                            </InlineStack>
+                        </Box>
+                    </Card>
                 )}
                 {showPreview && (
-                    <div
-                        className="lg:sticky lg:top-4"
-                        style={{ zIndex: 5 }}
-                    >
-                        <Card>
+                    <Card>
                         <Box padding="400">
                             <BlockStack gap="400">
                                 <InlineStack
@@ -782,8 +773,7 @@ export default function PrinterVariantTable({
                                             display: "flex",
                                             justifyContent: "center",
                                             overflow: "auto",
-                                            maxHeight:
-                                                "min(280px, calc(45vh - 160px))",
+                                            maxHeight: "600px",
                                         }}
                                     >
                                         {previewTab === 0 ? (
@@ -968,8 +958,7 @@ export default function PrinterVariantTable({
                                 </Box>
                             </BlockStack>
                         </Box>
-                        </Card>
-                    </div>
+                    </Card>
                 )}
 
                 {/* VARIANTS TABLE */}
