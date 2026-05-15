@@ -47,8 +47,8 @@ export default function BarcodeHeader({ onImport, onExport }) {
                         </Button>
                     </Tooltip> */}
 
-                    {/* Export Button */}
-                    <Tooltip
+                    {/* Export Button — hidden temporarily */}
+                    {/* <Tooltip
                         content="Export generated/imported barcodes as CSV"
                         preferredPosition="below"
                     >
@@ -60,7 +60,7 @@ export default function BarcodeHeader({ onImport, onExport }) {
                         >
                             Export CSV
                         </Button>
-                    </Tooltip>
+                    </Tooltip> */}
                 </InlineStack>
             </InlineStack>
         </Box>

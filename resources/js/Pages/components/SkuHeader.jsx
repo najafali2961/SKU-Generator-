@@ -99,14 +99,15 @@ export default function SkuHeader({ onPreset, onExport }) {
                         </Button>
                     </Tooltip>
 
-                    <Button
+                    {/* Export Button — hidden temporarily */}
+                    {/* <Button
                         size="large"
                         tone="critical"
                         icon={<Icon source={ExportIcon} />}
                         onClick={onExport}
                     >
                         Export CSV
-                    </Button>
+                    </Button> */}
                 </InlineStack>
             </InlineStack>
         </Box>
