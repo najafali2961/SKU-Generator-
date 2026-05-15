@@ -23,8 +23,6 @@ class PlanActivatedListener implements ShouldQueue
     public function handle(PlanActivatedEvent $event)
     {
         try {
-            Log::info('PlanActivatedListener: Event received');
-
             $shop = $event->shop;
 
             if (!$shop) {
@@ -58,13 +56,6 @@ class PlanActivatedListener implements ShouldQueue
                 return;
             }
 
-            Log::info('Applying plan to shop', [
-                'shop_id'     => $shop->id,
-                'shop_name'   => $shop->name,
-                'plan_id'     => $plan->id,
-                'plan_name'   => $plan->name,
-            ]);
-
             // Calculate credits
             $credits = $plan->unlimited_credits ? 999999 : ($plan->monthly_credits ?? 0);
 
@@ -81,14 +72,6 @@ class PlanActivatedListener implements ShouldQueue
             if ($updated) {
                 // Refresh model so any future code sees correct values
                 $shop->refresh();
-
-                Log::info('Plan and credits applied successfully!', [
-                    'user_id'   => $shop->id,
-                    'plan_id'   => $plan->id,
-                    'plan_name' => $plan->name,
-                    'credits'   => $credits,
-                    'unlimited' => $plan->unlimited_credits,
-                ]);
             } else {
                 Log::error('No rows updated when applying plan', [
                     'user_id' => $shop->id,

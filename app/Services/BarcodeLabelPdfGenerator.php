@@ -148,18 +148,6 @@ class BarcodeLabelPdfGenerator
                 break;
         }
 
-        Log::info('QR Code Data Source Resolution', [
-            'selected_source' => $dataSource,
-            'resolved_value' => $finalValue,
-            'variant_attributes' => [
-                'sku' => $variant->sku,
-                'barcode' => $variant->barcode,
-                'shopify_variant_id' => $variant->shopify_variant_id,
-                'domain_from_user' => $variant->product->user->name ?? null,
-                'product_handle' => $variant->product->handle ?? null,
-            ]
-        ]);
-
         return $finalValue;
     }
 
@@ -217,10 +205,6 @@ class BarcodeLabelPdfGenerator
             // the original value as Code128 (which accepts any alphanumeric)
             // so the label still has a scannable barcode instead of a blank text fallback.
             if ($validatedValue === false) {
-                Log::info('Barcode value incompatible with selected format; falling back to code128', [
-                    'requested_type' => $barcodeType,
-                    'value' => $value,
-                ]);
                 $barcodeType = 'code128';
                 $validatedValue = trim($value);
             }
@@ -259,10 +243,6 @@ class BarcodeLabelPdfGenerator
                         $scale,
                         $thickness
                     );
-                    Log::info('Recovered with code128 fallback after library failure', [
-                        'requested_type' => $requestedType,
-                        'value' => $value,
-                    ]);
                     return 'data:image/png;base64,' . base64_encode($code128Image);
                 } catch (\Exception $fallbackError) {
                     Log::error('Code128 fallback also failed', [
@@ -516,9 +496,6 @@ class BarcodeLabelPdfGenerator
             // This ensures the PDF page creates a canvas exactly the size of the sticker
             $this->setting->paper_width = $labelW + $mL + $mR;
             $this->setting->paper_height = $labelH + $mT + $mB;
-
-            // Log this override for debugging
-            Log::info("Thermal Mode Detected: Auto-sized PDF page to {$this->setting->paper_width}x{$this->setting->paper_height}mm");
         }
     }
 
@@ -574,15 +551,6 @@ class BarcodeLabelPdfGenerator
             $requiredHeight = ($labelHeight * $maxRows) + ($vGap * ($maxRows - 1));
         } while ($requiredHeight <= $availableHeight + 0.1);  // Add epsilon
         $maxRows = max(1, $maxRows - 1);
-
-        Log::info('PDF Grid Calculation', [
-            'paper_dim' => [$effectiveWidth, $effectiveHeight],
-            'avail_dim' => [$availableWidth, $availableHeight],
-            'label_dim' => [$labelWidth, $labelHeight],
-            'margins' => [$marginLeft, $marginRight, $marginTop, $marginBottom],
-            'gap' => [$hGap, $vGap],
-            'calc_max' => [$maxCols, $maxRows]
-        ]);
 
         return [
             'max_cols' => $maxCols,

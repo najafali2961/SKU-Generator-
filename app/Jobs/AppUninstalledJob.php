@@ -58,34 +58,27 @@ class AppUninstalledJob implements ShouldQueue
         IShopQuery $shopQuery,
         CancelCurrentPlan $cancelCurrentPlanAction
     ): bool {
-        \Illuminate\Support\Facades\Log::info("AppUninstalledJob started for shopDomain: " . json_encode($this->shopDomain));
-        
         try {
             $this->shopDomain = ShopDomain::fromNative($this->shopDomain);
-            \Illuminate\Support\Facades\Log::info("Parsed shopDomain object: " . $this->shopDomain->toNative());
-            
-            $shop = User::where('name', $this->shopDomain->toNative())->first();
-            \Illuminate\Support\Facades\Log::info("Found user using User model: " . ($shop ? $shop->id : 'null'));
-        if ($shop) {
-            // Delete all user logs
-            \App\Models\JobLog::where('user_id', $shop->id)->delete();
-            \App\Models\CreditUsageLog::where('user_id', $shop->id)->delete();
 
-            // Delete all user data
-            \App\Models\Product::where('user_id', $shop->id)->delete();
-            \App\Models\Collection::where('user_id', $shop->id)->delete();
-            \App\Models\LabelTemplate::where('user_id', $shop->id)->delete();
-            \App\Models\BarcodePrinterSetting::where('user_id', $shop->id)->delete();
-        }
-        $shop = $shopQuery->getByDomain($this->shopDomain);
-        $shopId = $shop->getId();
-        \Illuminate\Support\Facades\Log::info("Shop ID to process: " . $shopId->toNative());
-        
-        $cancelCurrentPlanAction($shopId);
-        $shopCommand->clean($shopId);
-        $shopCommand->softDelete($shopId);
-        
-        \Illuminate\Support\Facades\Log::info("Successfully uninstalled and soft deleted shop: " . $this->shopDomain->toNative());
+            $shop = User::where('name', $this->shopDomain->toNative())->first();
+            if ($shop) {
+                // Delete all user logs
+                \App\Models\JobLog::where('user_id', $shop->id)->delete();
+                \App\Models\CreditUsageLog::where('user_id', $shop->id)->delete();
+
+                // Delete all user data
+                \App\Models\Product::where('user_id', $shop->id)->delete();
+                \App\Models\Collection::where('user_id', $shop->id)->delete();
+                \App\Models\LabelTemplate::where('user_id', $shop->id)->delete();
+                \App\Models\BarcodePrinterSetting::where('user_id', $shop->id)->delete();
+            }
+            $shop = $shopQuery->getByDomain($this->shopDomain);
+            $shopId = $shop->getId();
+
+            $cancelCurrentPlanAction($shopId);
+            $shopCommand->clean($shopId);
+            $shopCommand->softDelete($shopId);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error("AppUninstalledJob failed: " . $e->getMessage() . "\n" . $e->getTraceAsString());
             throw $e;

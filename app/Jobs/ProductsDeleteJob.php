@@ -58,11 +58,6 @@ class ProductsDeleteJob implements ShouldQueue
                 return;
             }
 
-            Log::info("ProductsDeleteJob: Deleting product", [
-                'shopify_id' => $shopifyProductId,
-                'shop'       => $shopDomain
-            ]);
-
             // Start transaction for safety
             DB::transaction(function () use ($shop, $shopifyProductId) {
                 // Option 1: Best — if you have foreign keys with ON DELETE CASCADE
@@ -91,11 +86,6 @@ class ProductsDeleteJob implements ShouldQueue
                         ->delete();
                 }
             });
-
-            Log::info("ProductsDeleteJob: Product deleted successfully", [
-                'shopify_id' => $shopifyProductId,
-                'shop'       => $shopDomain
-            ]);
         } catch (\Throwable $e) {
             Log::error("ProductsDeleteJob FAILED", [
                 'shopify_id' => $shopifyProductId ?? 'unknown',

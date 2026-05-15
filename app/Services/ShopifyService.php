@@ -104,7 +104,6 @@ GRAPHQL;
         $variants = Variant::where('product_id', $product->id)->get();
 
         if ($variants->isEmpty()) {
-            Log::warning("[SKU-UPDATE] No variants found for product", ['product_id' => $localProductId]);
             return false;
         }
 
@@ -113,7 +112,6 @@ GRAPHQL;
             $variant = $variants->firstWhere('id', $localVariantId);
 
             if (!$variant || !$variant->shopify_variant_id) {
-                Log::warning("[SKU-UPDATE] Variant not found or missing Shopify ID", ['local_id' => $localVariantId]);
                 continue;
             }
 
@@ -126,7 +124,6 @@ GRAPHQL;
         }
 
         if (empty($bulkVariants)) {
-            Log::warning("[SKU-UPDATE] No valid variants to update for product", ['product_id' => $localProductId]);
             return false;
         }
 
@@ -185,7 +182,6 @@ GRAPHQL;
         $bulkVariants = [];
         foreach ($variants as $variant) {
             if (empty($variant->shopify_variant_id)) {
-                Log::warning("[BARCODE-SYNC] Missing Shopify ID", ['variant_id' => $variant->id]);
                 continue;
             }
 
@@ -199,7 +195,6 @@ GRAPHQL;
         }
 
         if (empty($bulkVariants)) {
-            Log::warning("[BARCODE-SYNC] No valid variants to sync", ['product_id' => $localProductId]);
             return true;
         }
 

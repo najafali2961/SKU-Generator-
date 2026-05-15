@@ -104,9 +104,6 @@ class GenerateSkuJob implements ShouldQueue
             return;
         }
 
-        // LOG START
-        Log::info("{$total} product/variant sku update mutation start run", ['shop_id' => $shop->id, 'job_id' => $jobLog->id]);
-
         $jobLog->update(['total_items' => $total]);
 
         // Reserve Block ONCE for the entire job
@@ -136,30 +133,16 @@ class GenerateSkuJob implements ShouldQueue
         Bus::batch($batches)
             ->name("SKU Generation - Shop {$shop->id}")
             ->then(function (Batch $batch) use ($jobLog) {
-                Log::info("SKU Batch: Callback Started", ['job_log_id' => $jobLog->id]);
-                
                 // All jobs completed successfully
                 $jobLog = JobLog::find($jobLog->id);
-                
+
                 if (!$jobLog) {
                     Log::error("SKU Job Completion: JobLog not found", ['id' => $jobLog->id]);
                     return;
                 }
 
-                // Get accurate counts from Redis
-                $redisKeyProcessed = "job_progress_{$jobLog->id}";
-                $redisKeyFailed    = "job_failed_{$jobLog->id}";
-                $processed = (int) \Illuminate\Support\Facades\Redis::get($redisKeyProcessed);
-                $failed    = (int) \Illuminate\Support\Facades\Redis::get($redisKeyFailed);
-
-                // LOG FINISH
-                Log::info("SKU Batch Success: {$processed} processed", ['shop_id' => $jobLog->user_id]);
-                if ($failed > 0) {
-                    Log::info("SKU Batch Errors: {$failed} failed", ['shop_id' => $jobLog->user_id]);
-                }
-
                 $jobLog->update(['processed_items' => $jobLog->total_items]);
-                
+
                 $jobLog->markAsCompleted();
             })
             ->catch(function (Batch $batch, Throwable $e) use ($jobLog) {

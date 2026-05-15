@@ -37,19 +37,9 @@ class AssignDefaultPlanOnInstall implements ShouldQueue
                 return;
             }
 
-            Log::info('Processing AppInstalledEvent for shop', [
-                'shop_id' => $shop->id,
-                'shop_name' => $shop->name,
-            ]);
-
             // Set freemium on install (no plan needed)
             $shop->shopify_freemium = true;
             $shop->save();
-
-            Log::info('Shop set to freemium on install', [
-                'shop' => $shop->name,
-                'shop_id' => $shop->id,
-            ]);
         } catch (\Exception $e) {
             Log::error('Error in AssignDefaultPlanOnInstall: ' . $e->getMessage(), [
                 'exception' => get_class($e),

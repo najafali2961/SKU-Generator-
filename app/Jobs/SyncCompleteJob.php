@@ -22,6 +22,7 @@ class SyncCompleteJob implements ShouldQueue
 
     public function handle(): void
     {
-        Log::info("Full product + variant sync completed for shop ID: {$this->shopId}");
+        // No-op placeholder. Dispatched at the end of the full sync chain so
+        // downstream listeners or future post-sync hooks have a single signal.
     }
 }

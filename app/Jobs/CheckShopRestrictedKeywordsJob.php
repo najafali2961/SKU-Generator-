@@ -80,8 +80,6 @@ class CheckShopRestrictedKeywordsJob implements ShouldQueue
                 
                 if (!empty($errors)) {
                     Log::error("Failed to uninstall shop via API due to restricted keyword: " . ($errors[0]['message'] ?? 'Unknown error'));
-                } else {
-                    Log::info("Shop successfully uninstalled via Shopify API for restricted keyword matching.");
                 }
 
                 // Call local uninstall job to mark deleted
