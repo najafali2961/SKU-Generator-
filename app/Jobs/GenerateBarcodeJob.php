@@ -2,8 +2,8 @@
 
 namespace App\Jobs;
 
-use App\Models\User;
 use App\Models\JobLog;
+use App\Models\User;
 use Illuminate\Bus\Batch;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -32,10 +32,11 @@ class GenerateBarcodeJob implements ShouldQueue
     public function handle()
     {
         $shop = User::find($this->shopId);
-        if (!$shop) return;
+        if (!$shop)
+            return;
 
         $jobLog = $this->jobLogId
-            ? JobLog::find($this->jobLogId) // Changed failOrFail to find
+            ? JobLog::find($this->jobLogId)  // Changed failOrFail to find
             : JobLog::create([
                 'user_id' => $shop->id,
                 'type' => 'barcode_generation',
@@ -46,7 +47,8 @@ class GenerateBarcodeJob implements ShouldQueue
                 'started_at' => now(),
             ]);
 
-        if (!$jobLog) return;
+        if (!$jobLog)
+            return;
 
         $jobLog->update(['status' => 'running']);
 
@@ -59,10 +61,11 @@ class GenerateBarcodeJob implements ShouldQueue
             $tab = $this->settings['active_tab'] ?? 'all';
 
             if ($tab === 'missing') {
-                $query->where(function($q) {
-                    $q->whereNull('barcode')
-                      ->orWhere('barcode', '')
-                      ->orWhere('barcode', '-');
+                $query->where(function ($q) {
+                    $q
+                        ->whereNull('barcode')
+                        ->orWhere('barcode', '')
+                        ->orWhere('barcode', '-');
                 });
             } elseif ($tab === 'duplicates') {
                 // Subquery for duplicate barcodes
@@ -76,7 +79,7 @@ class GenerateBarcodeJob implements ShouldQueue
 
                 $query->whereIn('barcode', $dupBarcodes);
             }
-            
+
             // Apply Filters (only if not selecting specific IDs)
             if (!empty($this->settings['vendor'])) {
                 $query->whereHas('product', fn($p) => $p->where('vendor', $this->settings['vendor']));
@@ -87,27 +90,30 @@ class GenerateBarcodeJob implements ShouldQueue
             if (!empty($this->settings['search'])) {
                 $term = trim($this->settings['search']);
                 $query->where(function ($q) use ($term) {
-                    $q->where('barcode', 'like', "%{$term}%")
-                      ->orWhere('sku', 'like', "%{$term}%")
-                      ->orWhere('title', 'like', "%{$term}%")
-                      ->orWhereHas('product', function ($pq) use ($term) {
-                          $pq->where('title', 'like', "%{$term}%");
-                      });
+                    $q
+                        ->where('barcode', 'like', "%{$term}%")
+                        ->orWhere('sku', 'like', "%{$term}%")
+                        ->orWhere('title', 'like', "%{$term}%")
+                        ->orWhereHas('product', function ($pq) use ($term) {
+                            $pq->where('title', 'like', "%{$term}%");
+                        });
                 });
             }
             if (!empty($this->settings['collections'])) {
                 $cIds = array_filter($this->settings['collections']);
                 if (count($cIds) > 0) {
-                     $query->whereHas('product.collections', fn($q) => $q->whereIn('collection_id', $cIds));
+                    $query->whereHas('product.collections', fn($q) => $q->whereIn('collection_id', $cIds));
                 }
             }
-             if (!empty($this->settings['tags'])) {
+            if (!empty($this->settings['tags'])) {
                 $tags = $this->settings['tags'];
-                if (is_string($tags)) $tags = explode(',', $tags);
+                if (is_string($tags))
+                    $tags = explode(',', $tags);
                 $tags = array_filter($tags);
                 if (count($tags) > 0) {
-                    $query->whereHas('product', function($q) use ($tags) {
-                        foreach($tags as $t) $q->where('tags', 'LIKE', '%'.trim($t).'%');
+                    $query->whereHas('product', function ($q) use ($tags) {
+                        foreach ($tags as $t)
+                            $q->where('tags', 'LIKE', '%' . trim($t) . '%');
                     });
                 }
             }
@@ -116,7 +122,7 @@ class GenerateBarcodeJob implements ShouldQueue
         $total = $query->count();
 
         if ($total === 0) {
-            $jobLog->markAsCompleted("No variants matched the criteria.");
+            $jobLog->markAsCompleted('No variants matched the criteria.');
             return;
         }
 
@@ -132,14 +138,14 @@ class GenerateBarcodeJob implements ShouldQueue
         // Optimize: Pluck IDs directly
         $allVariantIds = $query->pluck('id');
         $chunks = $allVariantIds->chunk($batchSize);
-        
+
         foreach ($chunks as $chunk) {
             $batches[] = new GenerateBarcodeBatchJob(
                 $shop->id,
                 $this->settings,
                 $chunk->toArray(),
-                $currentBatchStart, 
-                $jobLog->id 
+                $currentBatchStart,
+                $jobLog->id
             );
             $currentBatchStart += $chunk->count();
         }
@@ -147,29 +153,25 @@ class GenerateBarcodeJob implements ShouldQueue
         Bus::batch($batches)
             ->name("Barcode Generation - Shop {$shop->id}")
             ->then(function (Batch $batch) use ($jobLog) {
-                 $jobLog = JobLog::find($jobLog->id);
-                 
-                 // Get accurate counts from Redis
-                 $redisKeyProcessed = "job_progress_{$jobLog->id}";
-                 $redisKeyFailed    = "job_failed_{$jobLog->id}";
-                 $processed = (int) \Illuminate\Support\Facades\Redis::get($redisKeyProcessed);
-                 $failed    = (int) \Illuminate\Support\Facades\Redis::get($redisKeyFailed);
- 
-                 // LOG FINISH
-                 Log::info("{$processed} successfully mutations run and sync with shopify admin", ['shop_id' => $jobLog->user_id]);
-                 if ($failed > 0) {
-                     Log::info("{$failed} have errors etc.", ['shop_id' => $jobLog->user_id]);
-                 }
+                $jobLog = JobLog::find($jobLog->id);
 
-                 if($jobLog) {
+                // Get accurate counts from Redis
+                $redisKeyProcessed = "job_progress_{$jobLog->id}";
+                $redisKeyFailed = "job_failed_{$jobLog->id}";
+                $processed = (int) \Illuminate\Support\Facades\Redis::get($redisKeyProcessed);
+                $failed = (int) \Illuminate\Support\Facades\Redis::get($redisKeyFailed);
+
+                if ($jobLog) {
                     $jobLog->update(['processed_items' => $jobLog->total_items]);
-                 }
-                 if($jobLog) $jobLog->markAsCompleted(); // Fixed: remove argument
+                }
+                if ($jobLog)
+                    $jobLog->markAsCompleted();  // Fixed: remove argument
             })
             ->catch(function (Batch $batch, \Throwable $e) use ($jobLog) {
-                 $jobLog = JobLog::find($jobLog->id);
-                 if($jobLog) $jobLog->markAsFailed("Job failed: " . $e->getMessage());
-                 Log::error("Barcode Batch Job Failed Entirely", ['error' => $e->getMessage()]);
+                $jobLog = JobLog::find($jobLog->id);
+                if ($jobLog)
+                    $jobLog->markAsFailed('Job failed: ' . $e->getMessage());
+                Log::error('Barcode Batch Job Failed Entirely', ['error' => $e->getMessage()]);
             })
             ->dispatch();
     }
@@ -177,8 +179,8 @@ class GenerateBarcodeJob implements ShouldQueue
     private function reserveCounterBlock(int $count): int
     {
         return \Illuminate\Support\Facades\DB::transaction(function () use ($count) {
-             $format = $this->settings['format'] ?? 'UPC';
-             $startNumber = (int)($this->settings['start_number'] ?? 1);
+            $format = $this->settings['format'] ?? 'UPC';
+            $startNumber = (int) ($this->settings['start_number'] ?? 1);
 
             $row = \Illuminate\Support\Facades\DB::table('barcode_counters')
                 ->lockForUpdate()
@@ -190,7 +192,7 @@ class GenerateBarcodeJob implements ShouldQueue
                 \Illuminate\Support\Facades\DB::table('barcode_counters')->insert([
                     'shop_id' => $this->shopId,
                     'format' => $format,
-                    'counter' => $startNumber + $count, // Reserve full block
+                    'counter' => $startNumber + $count,  // Reserve full block
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
@@ -199,15 +201,15 @@ class GenerateBarcodeJob implements ShouldQueue
 
             // Fix: If user has explicitly provided a start number in the settings,
             // we should respect it and RESET the counter to that number.
-            // The frontend now sends the *current* next number if untouched, 
+            // The frontend now sends the *current* next number if untouched,
             // so we can trust `startNumber` from settings as the base.
-            
+
             // Logic:
             // 1. Use `startNumber` from settings as the starting point for this batch.
             // 2. Update DB counter to `startNumber + count`.
-            
-            $start = $startNumber; // Confirmed to be set in handle() from settings
-            
+
+            $start = $startNumber;  // Confirmed to be set in handle() from settings
+
             \Illuminate\Support\Facades\DB::table('barcode_counters')
                 ->where('id', $row->id)
                 ->update(['counter' => $start + $count - 1, 'updated_at' => now()]);

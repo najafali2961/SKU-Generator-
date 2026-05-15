@@ -2,10 +2,10 @@
 
 namespace App\Jobs;
 
-use App\Models\Product;
-use App\Models\Variant;
 use App\Models\Barcode;
+use App\Models\Product;
 use App\Models\User;
+use App\Models\Variant;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -30,8 +30,6 @@ class ProductsCreateJob implements ShouldQueue
 
     public function handle()
     {
-        $start = microtime(true);
-
         try {
             $shopDomain = ShopDomain::fromNative($this->shopDomain)->toNative();
             $shop = User::where('name', $shopDomain)->firstOrFail();
@@ -40,15 +38,14 @@ class ProductsCreateJob implements ShouldQueue
 
             // Detect payload type
             $productData = null;
-            $isGraphQL   = false;
+            $isGraphQL = false;
 
             if (!empty($payload['product'])) {
                 $productData = $payload['product'];
-                $isGraphQL   = true;
+                $isGraphQL = true;
             } elseif (!empty($payload['id'])) {
                 $productData = $payload;
             } elseif (!empty($payload['admin_graphql_api_id'])) {
-                Log::info("ProductsCreateJob: Refetching product via GraphQL (admin_graphql_api_id only)");
                 $gid = $payload['admin_graphql_api_id'];
                 $fresh = $shop->api()->graph(
                     'query($id: ID!) { product(id: $id) { id title handle descriptionHtml status vendor productType tags images(first:20){edges{node{id url altText}}} variants(first:100){edges{node{id title sku barcode price{amount} inventoryQuantity image{url altText} imageId selectedOptions{name value}}}}}}',
@@ -59,7 +56,7 @@ class ProductsCreateJob implements ShouldQueue
             }
 
             if (!$productData) {
-                Log::warning("ProductsCreateJob: No product data", $payload);
+                Log::warning('ProductsCreateJob: No product data', $payload);
                 return;
             }
 
@@ -68,7 +65,7 @@ class ProductsCreateJob implements ShouldQueue
                 : ($productData['id'] ?? null);
 
             if (!$shopifyProductId) {
-                Log::warning("ProductsCreateJob: No product ID extracted");
+                Log::warning('ProductsCreateJob: No product ID extracted');
                 return;
             }
 
@@ -76,17 +73,17 @@ class ProductsCreateJob implements ShouldQueue
             $product = Product::updateOrCreate(
                 ['shopify_id' => $shopifyProductId, 'user_id' => $shop->id],
                 [
-                    'title'            => $productData['title'] ?? 'Untitled Product',
-                    'handle'           => $productData['handle'] ?? null,
+                    'title' => $productData['title'] ?? 'Untitled Product',
+                    'handle' => $productData['handle'] ?? null,
                     'description_html' => $productData['descriptionHtml'] ?? $productData['body_html'] ?? null,
-                    'status'           => strtoupper($productData['status'] ?? 'DRAFT'),
-                    'vendor'           => $productData['vendor'] ?? null,
-                    'product_type'     => $productData['productType'] ?? $productData['product_type'] ?? null,
+                    'status' => strtoupper($productData['status'] ?? 'DRAFT'),
+                    'vendor' => $productData['vendor'] ?? null,
+                    'product_type' => $productData['productType'] ?? $productData['product_type'] ?? null,
                     // 'tags'             => $this->normalizeTags($productData['tags'] ?? []),
                     'tags' => $this->normalizeTags($productData['tags'] ?? null),
-                    'images'           => $this->extractImages($productData, $isGraphQL),
-                    'updated_at'       => now(),
-                    'created_at'       => now(),
+                    'images' => $this->extractImages($productData, $isGraphQL),
+                    'updated_at' => now(),
+                    'created_at' => now(),
                 ]
             );
 
@@ -98,14 +95,16 @@ class ProductsCreateJob implements ShouldQueue
                 : ($productData['variants'] ?? []);
 
             $variantInserts = [];
-            $barcodeInserts  = [];
+            $barcodeInserts = [];
 
             foreach ($variantEdges as $edge) {
                 $v = $isGraphQL ? ($edge['node'] ?? []) : $edge;
-                if (empty($v['id'])) continue;
+                if (empty($v['id']))
+                    continue;
 
                 $shopifyVariantId = $isGraphQL ? $this->extractId($v['id']) : ($v['id'] ?? null);
-                if (!$shopifyVariantId) continue;
+                if (!$shopifyVariantId)
+                    continue;
 
                 // IMAGE RESOLUTION — 100% WORKING
                 $imageSrc = null;
@@ -119,11 +118,11 @@ class ProductsCreateJob implements ShouldQueue
 
                 if (!$imageSrc) {
                     $imageIdField = $isGraphQL ? 'imageId' : 'image_id';
-                    $rawImageId   = $v[$imageIdField] ?? null;
+                    $rawImageId = $v[$imageIdField] ?? null;
                     if ($rawImageId) {
                         $imageId = $isGraphQL ? $this->extractId($rawImageId) : $rawImageId;
                         if ($imageMap->has($imageId)) {
-                            $imgData  = $imageMap->get($imageId);
+                            $imgData = $imageMap->get($imageId);
                             $imageSrc = $imgData['src'];
                             $imageAlt = $imgData['alt'];
                         }
@@ -131,7 +130,7 @@ class ProductsCreateJob implements ShouldQueue
                 }
 
                 if (!$imageSrc && $imageMap->count() > 0) {
-                    $first    = $imageMap->values()->first();
+                    $first = $imageMap->values()->first();
                     $imageSrc = $first['src'];
                     $imageAlt = $first['alt'];
                 }
@@ -143,39 +142,39 @@ class ProductsCreateJob implements ShouldQueue
 
                 // Price
                 $price = $isGraphQL
-                    ? (float)($v['price']['amount'] ?? $v['price'] ?? 0)
-                    : (float)($v['price'] ?? 0);
+                    ? (float) ($v['price']['amount'] ?? $v['price'] ?? 0)
+                    : (float) ($v['price'] ?? 0);
 
                 $sku = trim($v['sku'] ?? '');
                 $barcodeRaw = trim($v['barcode'] ?? '');
                 $finalBarcode = $barcodeRaw ?: ($sku ?: "AUTO-{$shopifyVariantId}");
 
                 $variantInserts[] = [
-                    'product_id'         => $product->id,
+                    'product_id' => $product->id,
                     'shopify_variant_id' => $shopifyVariantId,
-                    'title'              => $v['title'] ?? 'Default Title',
-                    'sku'                => $sku ?: null,
-                    'barcode'            => $barcodeRaw ?: null,
-                    'price'              => $price,
-                    'inventory_quantity' => (int)($v['inventoryQuantity'] ?? $v['inventory_quantity'] ?? 0),
-                    'option1'            => $options[0],
-                    'option2'            => $options[1],
-                    'option3'            => $options[2],
-                    'image'              => $imageSrc,
-                    'image_alt'          => $imageAlt,
-                    'updated_at'         => now(),
-                    'created_at'         => now(),
+                    'title' => $v['title'] ?? 'Default Title',
+                    'sku' => $sku ?: null,
+                    'barcode' => $barcodeRaw ?: null,
+                    'price' => $price,
+                    'inventory_quantity' => (int) ($v['inventoryQuantity'] ?? $v['inventory_quantity'] ?? 0),
+                    'option1' => $options[0],
+                    'option2' => $options[1],
+                    'option3' => $options[2],
+                    'image' => $imageSrc,
+                    'image_alt' => $imageAlt,
+                    'updated_at' => now(),
+                    'created_at' => now(),
                 ];
 
                 $barcodeInserts[] = [
-                    'variant_id'     => $shopifyVariantId,
-                    'product_id'     => $product->id,
-                    'barcode_value'  => $finalBarcode,
-                    'format'         => 'UPC',
-                    'image_url'      => null,
-                    'is_duplicate'   => false,
-                    'updated_at'     => now(),
-                    'created_at'     => now(),
+                    'variant_id' => $shopifyVariantId,
+                    'product_id' => $product->id,
+                    'barcode_value' => $finalBarcode,
+                    'format' => 'UPC',
+                    'image_url' => null,
+                    'is_duplicate' => false,
+                    'updated_at' => now(),
+                    'created_at' => now(),
                 ];
             }
 
@@ -195,20 +194,10 @@ class ProductsCreateJob implements ShouldQueue
                     ['product_id', 'barcode_value', 'format', 'image_url', 'is_duplicate', 'updated_at']
                 );
             }
-
-            $timeMs = round((microtime(true) - $start) * 1000);
-
-            Log::info("ProductsCreateJob SUCCESS", [
-                'product_id'         => $shopifyProductId,
-                'is_graphql'         => $isGraphQL,
-                'variants'           => count($variantInserts),
-                'images_saved'       => collect($variantInserts)->filter(fn($v) => !empty($v['image']))->count(),
-                'time_ms'            => $timeMs
-            ]);
         } catch (\Throwable $e) {
-            Log::error("ProductsCreateJob FAILED", [
+            Log::error('ProductsCreateJob FAILED', [
                 'error' => $e->getMessage(),
-                'line'  => $e->getLine(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString()
             ]);
             throw $e;
@@ -218,9 +207,10 @@ class ProductsCreateJob implements ShouldQueue
     // ———————————————————— HELPERS ————————————————————
     private function extractId($gid): ?int
     {
-        if (!$gid) return null;
-        $parts = explode('/', (string)$gid);
-        return (int)end($parts) ?: null;
+        if (!$gid)
+            return null;
+        $parts = explode('/', (string) $gid);
+        return (int) end($parts) ?: null;
     }
 
     private function extractImages($data, bool $isGraphQL): array
@@ -240,8 +230,8 @@ class ProductsCreateJob implements ShouldQueue
         $images = $isGraphQL ? ($data['images']['edges'] ?? []) : ($data['images'] ?? []);
 
         return collect($images)->mapWithKeys(function ($item) use ($isGraphQL) {
-            $node    = $isGraphQL ? ($item['node'] ?? $item) : $item;
-            $imgId   = $isGraphQL ? $this->extractId($node['id'] ?? null) : ($node['id'] ?? null);
+            $node = $isGraphQL ? ($item['node'] ?? $item) : $item;
+            $imgId = $isGraphQL ? $this->extractId($node['id'] ?? null) : ($node['id'] ?? null);
 
             return [
                 $imgId => [
@@ -262,7 +252,8 @@ class ProductsCreateJob implements ShouldQueue
     // }
     private function normalizeTags($raw): ?string
     {
-        if (empty($raw)) return null;
+        if (empty($raw))
+            return null;
 
         $tags = [];
 
@@ -280,7 +271,7 @@ class ProductsCreateJob implements ShouldQueue
         }
 
         // Clean up and dedupe
-        $tags = array_filter(array_unique(array_map('trim', (array)$tags)));
+        $tags = array_filter(array_unique(array_map('trim', (array) $tags)));
 
         // Return as comma-separated string (exactly like full sync)
         return !empty($tags) ? implode(', ', $tags) : null;
