@@ -277,7 +277,6 @@ class PrinterController extends Controller
                     ->where('id', '!=', $id)
                     ->update(['is_default' => false]);
             }
-
             $template->update($validated);
 
             if ($request->header('X-Inertia')) {
