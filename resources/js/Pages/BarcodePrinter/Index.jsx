@@ -360,9 +360,12 @@ export default function BarcodePrinterIndex({
                         totalVariants={total}
                     />
 
-                    <div className="grid gap-6 mt-6 lg:grid-cols-12">
-                        {/* LEFT SIDEBAR - Configuration */}
-                        <div className="lg:col-span-4">
+                    <div className="grid gap-6 mt-6 items-start lg:grid-cols-12">
+                        {/* LEFT SIDEBAR - Configuration (independently scrollable on desktop) */}
+                        <div
+                            className="lg:col-span-4 lg:sticky lg:top-4 lg:overflow-y-auto lg:pr-2"
+                            style={{ maxHeight: "calc(100vh - 32px)" }}
+                        >
                             <PrinterSidebar
                                 config={config}
                                 handleChange={handleChange}
@@ -373,7 +376,7 @@ export default function BarcodePrinterIndex({
                             />
                         </div>
 
-                        {/* RIGHT SECTION - Variants */}
+                        {/* RIGHT SECTION - Preview + Variants (scrolls with page) */}
                         <div className="lg:col-span-8">
                             {shouldShowCreditWarning() && (
                                 <div className="mb-6">

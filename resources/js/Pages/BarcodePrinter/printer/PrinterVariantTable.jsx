@@ -782,7 +782,8 @@ export default function PrinterVariantTable({
                                             display: "flex",
                                             justifyContent: "center",
                                             overflow: "auto",
-                                            maxHeight: "min(600px, calc(100vh - 320px))",
+                                            maxHeight:
+                                                "min(280px, calc(45vh - 160px))",
                                         }}
                                     >
                                         {previewTab === 0 ? (
