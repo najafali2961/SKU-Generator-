@@ -158,11 +158,6 @@ class PrinterController extends Controller
 
             $setting->update($validated);
 
-            Log::info('Settings updated successfully', [
-                'setting_id' => $setting->id,
-                'updated_fields' => array_keys($validated),
-            ]);
-
             if ($request->header('X-Inertia')) {
                 return back()->with('success', 'Settings updated successfully');
             }
@@ -416,17 +411,6 @@ class PrinterController extends Controller
                     'message' => 'Failed to deduct credits. Please try again.'
                 ], 500);
             }
-
-            // Log settings being used
-            Log::info('Generating PDF with settings', [
-                'setting_id' => $setting->id,
-                'barcode_width' => $setting->barcode_width,
-                'barcode_height' => $setting->barcode_height,
-                'barcode_type' => $setting->barcode_type,
-                'qr_data_source' => $setting->qr_data_source,
-                'label_width' => $setting->label_width,
-                'label_height' => $setting->label_height,
-            ]);
 
             // Verify all variants belong to user
             $variants = Variant::whereIn('id', $validated['variant_ids'])

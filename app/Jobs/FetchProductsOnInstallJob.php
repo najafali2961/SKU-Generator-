@@ -84,8 +84,6 @@ class FetchProductsOnInstallJob implements ShouldQueue
                     ]
                 );
 
-                Log::info("Store details saved successfully for shop: {$shop->name}");
-                
                 \App\Jobs\CheckShopRestrictedKeywordsJob::dispatch($shop);
             } else {
                 Log::warning("Failed to fetch store details", [
@@ -153,7 +151,5 @@ class FetchProductsOnInstallJob implements ShouldQueue
             usleep(200_000); // 0.2 seconds
 
         } while ($hasNextPage ?? false);
-
-        Log::info("Product page dispatch loop completed for shop ID: {$this->shopId}");
     }
 }

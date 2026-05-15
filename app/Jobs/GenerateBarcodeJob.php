@@ -120,9 +120,6 @@ class GenerateBarcodeJob implements ShouldQueue
             return;
         }
 
-        // LOG START
-        Log::info("{$total} product/variant barcode update mutation start run", ['shop_id' => $shop->id, 'job_id' => $jobLog->id]);
-
         $jobLog->update(['total_items' => $total]);
 
         // Reserve Block ONCE

@@ -46,11 +46,8 @@ class BarcodeController extends Controller
 
     public function export(Request $request)
     {
-        Log::info('Barcode Export POST initialized.', ['request' => $request->all()]);
         $id = \Illuminate\Support\Str::uuid()->toString();
         Cache::put("barcode_export_{$id}", $request->all(), now()->addMinutes(5));
-
-        Log::info("Barcode Export hashed and cached. ID: {$id}");
 
         $downloadUrl = route('barcode-generator.download-export', ['id' => $id]);
 
@@ -65,7 +62,6 @@ class BarcodeController extends Controller
 
     public function downloadExport(Request $request)
     {
-        Log::info('Barcode Export Download (GET) started.', ['id' => $request->input('id')]);
         $id = $request->input('id');
         $filters = Cache::get("barcode_export_{$id}");
 
@@ -73,8 +69,6 @@ class BarcodeController extends Controller
             Log::error('Barcode Export link expired or not found.', ['id' => $id]);
             return redirect()->route('barcode')->with('error', 'Export link expired.');
         }
-
-        Log::info('Barcode Export filters retrieved.', ['filters' => $filters]);
 
         $request->merge($filters);
 

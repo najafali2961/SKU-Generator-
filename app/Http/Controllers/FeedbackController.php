@@ -22,10 +22,6 @@ class FeedbackController extends Controller
         $user = $request->user() ?? Auth::user();
 
         if (!$user) {
-            Log::warning('Feedback Auth: Initial check failed, attempting fallback.', [
-                'headers' => $request->headers->all(),
-            ]);
-            
             // Try to find user by shop domain if available in request (fallback)
             // 1. Check query param
             $shopDomain = $request->query('shop');

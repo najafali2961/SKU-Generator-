@@ -104,7 +104,5 @@ class ImportBarcodesJob implements ShouldQueue
                 }
             })
             ->dispatch();
-
-        Log::info("ImportBarcodesJob: Prepared and dispatched " . count($batches) . " sync batches for {$total} variants.");
     }
 }

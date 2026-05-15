@@ -156,14 +156,6 @@ trait HasCredits
         // Log the usage
         $this->logCreditUsage($feature, $totalCost, $description, $metadata, $creditsBefore);
 
-        Log::info('Credits used', [
-            'user_id' => $this->id,
-            'feature' => $feature,
-            'quantity' => $quantity,
-            'cost' => $totalCost,
-            'remaining' => $this->credits - $this->credits_used
-        ]);
-
         return true;
     }
 
@@ -176,13 +168,6 @@ trait HasCredits
         $creditsBefore = $this->credits;
         $this->credits += $amount;
         $this->save();
-
-        Log::info('Credits added', [
-            'user_id' => $this->id,
-            'amount' => $amount,
-            'reason' => $reason,
-            'new_balance' => $this->credits
-        ]);
 
         CreditUsageLog::create([
             'user_id' => $this->id,
@@ -213,13 +198,6 @@ trait HasCredits
         $this->credits_used = 0;
         $this->credits_reset_at = Carbon::now();
         $this->save();
-
-        Log::info('Monthly credits reset', [
-            'user_id' => $this->id,
-            'plan' => $plan->name,
-            'old_credits' => $oldCredits,
-            'new_credits' => $newCredits
-        ]);
 
         CreditUsageLog::create([
             'user_id' => $this->id,

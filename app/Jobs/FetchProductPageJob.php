@@ -115,7 +115,6 @@ class FetchProductPageJob implements ShouldQueue
 
         $products = $response['body']['data']['products']['edges'] ?? [];
         if (empty($products)) {
-            Log::info("No products returned for cursor: {$this->afterCursor}");
             return;
         }
 
@@ -123,7 +122,6 @@ class FetchProductPageJob implements ShouldQueue
             $node = $edge['node'] ?? [];
 
             if (empty($node['id'])) {
-                Log::warning("Skipping product with no ID");
                 continue;
             }
 

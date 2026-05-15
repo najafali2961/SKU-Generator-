@@ -102,13 +102,8 @@ class SkuController extends Controller
 
     public function export(Request $request)
     {
-        Log::info('SKU Export POST initialized.', ['request' => $request->all()]);
         $id = \Illuminate\Support\Str::uuid()->toString();
         Cache::put("sku_export_{$id}", $request->all(), now()->addMinutes(5));
-
-        Log::info("SKU Export hashed and cached. ID: {$id}");
-
-        Log::info("SKU Export hashed and cached. ID: {$id}");
 
         return response()->json([
             'download_url' => route('sku-generator.download-export', ['id' => $id])
@@ -117,7 +112,6 @@ class SkuController extends Controller
 
     public function downloadExport(Request $request)
     {
-        Log::info('SKU Export Download (GET) started.', ['id' => $request->input('id')]);
         $id = $request->input('id');
         $filters = Cache::get("sku_export_{$id}");
 
@@ -125,8 +119,6 @@ class SkuController extends Controller
             Log::error('SKU Export link expired or not found.', ['id' => $id]);
             return redirect()->route('sku-generator')->with('error', 'Export link expired.');
         }
-
-        Log::info('SKU Export filters retrieved.', ['filters' => $filters]);
 
         // Rehydrate request with filters
         $request->merge($filters);
