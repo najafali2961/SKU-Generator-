@@ -71,33 +71,47 @@ export default function PrinterSidebar({
         }));
     };
 
-    const SectionHeader = ({ title, section }) => (
-        <button
-            type="button"
-            onClick={() => toggleSection(section)}
-            style={{
-                width: "100%",
-                background: "none",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-                textAlign: "left",
-            }}
-        >
-            <InlineStack align="space-between" blockAlign="center">
-                <Text variant="headingMd" as="h3">
-                    {title}
-                </Text>
-                <Box>
-                    {expandedSections[section] ? (
-                        <ChevronUpIcon />
-                    ) : (
-                        <ChevronDownIcon />
-                    )}
-                </Box>
-            </InlineStack>
-        </button>
-    );
+    const SectionHeader = ({ title, section }) => {
+        const isOpen = expandedSections[section];
+        return (
+            <button
+                type="button"
+                onClick={() => toggleSection(section)}
+                aria-expanded={isOpen}
+                aria-label={`${isOpen ? "Collapse" : "Expand"} ${title} section`}
+                style={{
+                    width: "100%",
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    textAlign: "left",
+                }}
+            >
+                <InlineStack align="space-between" blockAlign="center">
+                    <Text variant="headingMd" as="h3">
+                        {title}
+                    </Text>
+                    <span
+                        style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 28,
+                            height: 28,
+                            borderRadius: 6,
+                            background: "var(--p-color-bg-surface-secondary)",
+                        }}
+                    >
+                        <Icon
+                            source={isOpen ? ChevronUpIcon : ChevronDownIcon}
+                            tone="base"
+                        />
+                    </span>
+                </InlineStack>
+            </button>
+        );
+    };
 
     // Printer Selection State
     const [printerStep, setPrinterStep] = useState("type"); // type, brand, model
@@ -979,13 +993,27 @@ export default function PrinterSidebar({
                                         Advanced Layout Settings
                                     </Text>
                                 </InlineStack>
-                                <Box>
-                                    {expandedSections.paper ? (
-                                        <ChevronUpIcon />
-                                    ) : (
-                                        <ChevronDownIcon />
-                                    )}
-                                </Box>
+                                <span
+                                    style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        width: 28,
+                                        height: 28,
+                                        borderRadius: 6,
+                                        background:
+                                            "var(--p-color-bg-surface-secondary)",
+                                    }}
+                                >
+                                    <Icon
+                                        source={
+                                            expandedSections.paper
+                                                ? ChevronUpIcon
+                                                : ChevronDownIcon
+                                        }
+                                        tone="base"
+                                    />
+                                </span>
                             </InlineStack>
                         </button>
 
