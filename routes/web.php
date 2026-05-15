@@ -1,18 +1,18 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 use App\Http\Controllers\Api\ProductApiController;
 use App\Http\Controllers\BarcodeController;
-use App\Http\Controllers\PricingController;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\SkuController;
+use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\JobController;
+use App\Http\Controllers\PricingController;
 use App\Http\Controllers\PrinterController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ShopifyWebhookController;
+use App\Http\Controllers\SkuController;
 use App\Http\Controllers\WebhookController;
-use App\Http\Controllers\FeedbackController;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 // Support Giveaway Route (No Auth required so agents can use it directly via URL)
 Route::get('/support/giveaway/{domain}', [HomeController::class, 'supportAddCredits']);
@@ -20,7 +20,6 @@ Route::get('/support/giveaway/{domain}/{credits}', [HomeController::class, 'supp
 
 // Protected routes - removed check.credits from group
 Route::middleware(['verify.shopify', 'billable'])->group(function () {
-
     Route::get('/', [HomeController::class, 'index'])->name('home');
 
     // SKU Generator
@@ -60,7 +59,6 @@ Route::middleware(['verify.shopify', 'billable'])->group(function () {
 
     // Printer templates & presets
     Route::prefix('barcode-printer')->name('barcode-printer.')->group(function () {
-
         Route::get('/', [PrinterController::class, 'index'])->name('index');
         Route::get('/variants', [PrinterController::class, 'variants'])->name('variants');
 
@@ -69,7 +67,7 @@ Route::middleware(['verify.shopify', 'billable'])->group(function () {
 
         // Templates
         Route::post('/save-template', [PrinterController::class, 'saveTemplate'])->name('save-template');
-        Route::get('/load-template/{id}', [PrinterController::class, 'loadTemplate'])->name('load-template');
+        Route::post('/load-template/{id}', [PrinterController::class, 'loadTemplate'])->name('load-template');
         Route::post('/update-template/{id}', [PrinterController::class, 'updateTemplate'])->name('update-template');
         Route::delete('/delete-template/{id}', [PrinterController::class, 'deleteTemplate'])->name('delete-template');
         Route::post('/set-default-template/{id}', [PrinterController::class, 'setDefaultTemplate'])->name('set-default-template');
@@ -102,8 +100,5 @@ Route::middleware(['auth.webhook'])->group(function () {
 
 // Log viewer
 Route::get('logs', [\Rap2hpoutre\LaravelLogViewer\LogViewerController::class, 'index']);
-
-
-
 
 Route::get('/test/shopify', [HomeController::class, 'handleShopifyCall']);

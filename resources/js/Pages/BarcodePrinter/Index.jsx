@@ -57,7 +57,7 @@ export default function BarcodePrinterIndex({
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState(new Set());
     const [printing, setPrinting] = useState(false);
-    const [templates, setTemplates] = useState(initialTemplates);
+    const templates = initialTemplates;
     const [printerPresets] = useState(initialPresets);
 
     const [page, setPage] = useState(1);
@@ -148,6 +148,51 @@ export default function BarcodePrinterIndex({
         selectedTypes,
         selectedTags,
     ]);
+
+    // Sync config from setting prop when it changes (e.g. after loading a template).
+    useEffect(() => {
+        if (!setting) return;
+        setConfig((prev) => ({
+            label_name: setting?.label_name || "Default Label",
+            barcode_type: setting?.barcode_type || "code128",
+            qr_data_source: setting?.qr_data_source || "barcode",
+            qr_custom_format: setting?.qr_custom_format || "",
+            paper_size: setting?.paper_size || "a4",
+            paper_orientation: setting?.paper_orientation || "portrait",
+            paper_width: Number(setting?.paper_width) || 210,
+            paper_height: Number(setting?.paper_height) || 297,
+            margin_top: Number(setting?.page_margin_top) || 10,
+            margin_bottom: Number(setting?.page_margin_bottom) || 10,
+            margin_left: Number(setting?.page_margin_left) || 10,
+            margin_right: Number(setting?.page_margin_right) || 10,
+            label_width: Number(setting?.label_width) || 80,
+            label_height: Number(setting?.label_height) || 40,
+            labels_per_row: Number(setting?.labels_per_row) || 2,
+            labels_per_column: Number(setting?.labels_per_column) || 5,
+            label_spacing_horizontal:
+                Number(setting?.label_spacing_horizontal) || 5,
+            label_spacing_vertical:
+                Number(setting?.label_spacing_vertical) || 5,
+            barcode_width: Number(setting?.barcode_width) || 60,
+            barcode_height: Number(setting?.barcode_height) || 20,
+            barcode_position: setting?.barcode_position || "center",
+            show_barcode_value: setting?.show_barcode_value !== false,
+            show_product_title: setting?.show_product_title !== false,
+            show_sku: setting?.show_sku !== false,
+            show_price: setting?.show_price === true,
+            show_variant: setting?.show_variant !== false,
+            show_vendor: setting?.show_vendor === true,
+            show_product_type: setting?.show_product_type === true,
+            font_family: setting?.font_family || "Arial",
+            font_size: Number(setting?.font_size) || 10,
+            font_color: setting?.font_color || "#000000",
+            title_font_size: Number(setting?.title_font_size) || 12,
+            title_bold: setting?.title_bold !== false,
+            text_layout: setting?.text_layout || null,
+            // Preserve local-only quantity field
+            quantity_per_variant: prev.quantity_per_variant,
+        }));
+    }, [setting]);
 
     const loadVariants = async () => {
         try {
@@ -265,37 +310,45 @@ export default function BarcodePrinterIndex({
         }
 
         // ALWAYS DISPATCH AS JOB
-        try {
-            setPrinting(true);
+        setPrinting(true);
 
-            // Save config first
-            await axios.post(
-                `/barcode-printer/update-setting/${setting.id}`,
-                config,
-            );
+        // Save config first via Inertia (carries Shopify session context)
+        router.post(`/barcode-printer/update-setting/${setting.id}`, config, {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: async () => {
+                try {
+                    const res = await axios.post(
+                        "/barcode-printer/generate-pdf-job",
+                        {
+                            setting_id: setting.id,
+                            variant_ids: variantIds,
+                            quantity_per_variant: parseInt(
+                                config.quantity_per_variant,
+                            ),
+                        },
+                    );
 
-            const res = await axios.post("/barcode-printer/generate-pdf-job", {
-                setting_id: setting.id,
-                variant_ids: variantIds,
-                quantity_per_variant: parseInt(config.quantity_per_variant),
-            });
-
-            if (res.data.success) {
-                showToast("Job started! Redirecting...");
-                // Redirect to the Job Details page
-                router.visit(`/jobs/${res.data.job_id}`);
-            }
-        } catch (error) {
-            console.error("Job start failed:", error);
-            showToast(
-                error.response?.data?.message || "Failed to start job",
-                true,
-            );
-            setPrinting(false);
-        }
-        return;
-
-        // Dead code removed: Standard direct download is no longer used.
+                    if (res.data.success) {
+                        showToast("Job started! Redirecting...");
+                        router.visit(`/jobs/${res.data.job_id}`);
+                    }
+                } catch (error) {
+                    console.error("Job start failed:", error);
+                    showToast(
+                        error.response?.data?.message ||
+                            "Failed to start job",
+                        true,
+                    );
+                    setPrinting(false);
+                }
+            },
+            onError: (errors) => {
+                console.error("Save settings failed:", errors);
+                showToast("Failed to save settings", true);
+                setPrinting(false);
+            },
+        });
     };
 
     return (

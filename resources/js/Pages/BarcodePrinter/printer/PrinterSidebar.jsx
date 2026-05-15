@@ -33,7 +33,6 @@ import {
     EditIcon,
     DuplicateIcon,
 } from "@shopify/polaris-icons";
-import axios from "axios";
 import { router } from "@inertiajs/react";
 
 export default function PrinterSidebar({
@@ -234,140 +233,113 @@ export default function PrinterSidebar({
     };
 
     // Template Management Functions
-    const handleSaveTemplate = async () => {
+    const handleSaveTemplate = () => {
         if (!templateName.trim()) {
             alert("Please enter a template name");
             return;
         }
 
         setSaving(true);
-        try {
-            const response = await axios.post(
-                "/barcode-printer/save-template",
-                {
-                    name: templateName,
-                    description: templateDescription,
-                    settings: config,
-                    is_default: setAsDefault,
+        router.post(
+            "/barcode-printer/save-template",
+            {
+                name: templateName,
+                description: templateDescription,
+                settings: config,
+                is_default: setAsDefault,
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setShowSaveModal(false);
+                    setTemplateName("");
+                    setTemplateDescription("");
+                    setSetAsDefault(false);
                 },
-            );
-
-            if (response.data.success) {
-                setShowSaveModal(false);
-                setTemplateName("");
-                setTemplateDescription("");
-                setSetAsDefault(false);
-
-                if (onTemplatesUpdate) {
-                    onTemplatesUpdate();
-                }
-            }
-        } catch (error) {
-            console.error("Failed to save template:", error);
-            alert("Failed to save template. Please try again.");
-        } finally {
-            setSaving(false);
-        }
+                onError: () => {
+                    alert("Failed to save template. Please try again.");
+                },
+                onFinish: () => setSaving(false),
+            },
+        );
     };
 
-    const handleLoadTemplate = async (template) => {
-        try {
-            const response = await axios.get(
-                `/barcode-printer/load-template/${template.id}`,
-            );
-
-            if (response.data.success) {
-                Object.entries(response.data.settings).forEach(
-                    ([key, value]) => {
-                        handleChange(key, value);
-                    },
-                );
-            }
-        } catch (error) {
-            console.error("Failed to load template:", error);
-            alert("Failed to load template. Please try again.");
-        }
+    const handleLoadTemplate = (template) => {
+        router.post(
+            `/barcode-printer/load-template/${template.id}`,
+            {},
+            {
+                preserveScroll: true,
+                onError: () => {
+                    alert("Failed to load template. Please try again.");
+                },
+            },
+        );
     };
 
-    const handleUpdateTemplate = async () => {
+    const handleUpdateTemplate = () => {
         if (!selectedTemplate || !templateName.trim()) {
             alert("Please enter a template name");
             return;
         }
 
         setSaving(true);
-        try {
-            const response = await axios.post(
-                `/barcode-printer/update-template/${selectedTemplate.id}`,
-                {
-                    name: templateName,
-                    description: templateDescription,
-                    settings: config,
-                    is_default: setAsDefault,
+        router.post(
+            `/barcode-printer/update-template/${selectedTemplate.id}`,
+            {
+                name: templateName,
+                description: templateDescription,
+                settings: config,
+                is_default: setAsDefault,
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setShowEditModal(false);
+                    setSelectedTemplate(null);
+                    setTemplateName("");
+                    setTemplateDescription("");
+                    setSetAsDefault(false);
                 },
-            );
-
-            if (response.data.success) {
-                setShowEditModal(false);
-                setSelectedTemplate(null);
-                setTemplateName("");
-                setTemplateDescription("");
-                setSetAsDefault(false);
-
-                if (onTemplatesUpdate) {
-                    onTemplatesUpdate();
-                }
-
-                alert("Template updated successfully!");
-            }
-        } catch (error) {
-            console.error("Failed to update template:", error);
-            alert("Failed to update template. Please try again.");
-        } finally {
-            setSaving(false);
-        }
+                onError: () => {
+                    alert("Failed to update template. Please try again.");
+                },
+                onFinish: () => setSaving(false),
+            },
+        );
     };
 
-    const handleDeleteTemplate = async () => {
+    const handleDeleteTemplate = () => {
         if (!selectedTemplate) return;
 
         setSaving(true);
-        try {
-            const response = await axios.delete(
-                `/barcode-printer/delete-template/${selectedTemplate.id}`,
-            );
-
-            if (response.data.success) {
-                setShowDeleteModal(false);
-                setSelectedTemplate(null);
-
-                if (onTemplatesUpdate) {
-                    onTemplatesUpdate();
-                }
-            }
-        } catch (error) {
-            console.error("Failed to delete template:", error);
-            alert("Failed to delete template. Please try again.");
-        } finally {
-            setSaving(false);
-        }
+        router.delete(
+            `/barcode-printer/delete-template/${selectedTemplate.id}`,
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setShowDeleteModal(false);
+                    setSelectedTemplate(null);
+                },
+                onError: () => {
+                    alert("Failed to delete template. Please try again.");
+                },
+                onFinish: () => setSaving(false),
+            },
+        );
     };
 
-    const handleSetDefaultTemplate = async (templateId) => {
-        try {
-            const response = await axios.post(
-                `/barcode-printer/set-default-template/${templateId}`,
-            );
-
-            if (response.data.success) {
-                if (onTemplatesUpdate) {
-                    onTemplatesUpdate();
-                }
-            }
-        } catch (error) {
-            console.error("Failed to set default template:", error);
-            alert("Failed to set default template. Please try again.");
-        }
+    const handleSetDefaultTemplate = (templateId) => {
+        router.post(
+            `/barcode-printer/set-default-template/${templateId}`,
+            {},
+            {
+                preserveScroll: true,
+                onError: () => {
+                    alert("Failed to set default template. Please try again.");
+                },
+            },
+        );
     };
 
     const openEditModal = (template) => {

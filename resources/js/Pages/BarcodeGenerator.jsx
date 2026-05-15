@@ -283,37 +283,15 @@ export default function BarcodeGenerator({
             tags: selectedTags,
         };
 
-        axios
-            .post("/barcode-generator/export", params)
-            .then((res) => {
-                const downloadUrl = res.data.download_url;
-                if (downloadUrl) {
-                    const url = new URL(downloadUrl);
-                    const currentParams = new URLSearchParams(
-                        window.location.search,
-                    );
-                    currentParams.forEach((value, key) => {
-                        if (!url.searchParams.has(key)) {
-                            url.searchParams.set(key, value);
-                        }
-                    });
-
-                    console.log(
-                        "Redirecting to download with params:",
-                        url.toString(),
-                    );
-                    window.location.href = url.toString();
-                } else {
-                    console.error("No download_url returned", res.data);
-                }
-            })
-            .catch((err) => {
+        router.post("/barcode-generator/export", params, {
+            preserveScroll: true,
+            preserveState: true,
+            onError: (err) => {
                 console.error("Export failed:", err);
                 alert("Export failed. Check console for details.");
-            })
-            .finally(() => {
-                setLoading(false);
-            });
+            },
+            onFinish: () => setLoading(false),
+        });
     };
 
     const handleTabChange = (tab) => {

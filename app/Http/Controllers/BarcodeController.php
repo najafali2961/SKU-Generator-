@@ -2,17 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Variant;
-use App\Models\Collection;
 use App\Jobs\GenerateBarcodeJob;
 use App\Jobs\ImportBarcodesJob;
+use App\Models\Collection;
 use App\Models\JobLog;
+use App\Models\Variant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Inertia\Inertia;
 
 class BarcodeController extends Controller
 {
@@ -31,7 +32,7 @@ class BarcodeController extends Controller
             ->where('shop_id', $shop->id)
             ->where('format', 'UPC')
             ->first();
-        
+
         $initialStartNumber = $currentCounterRow ? ($currentCounterRow->counter + 1) : 1;
 
         return inertia('BarcodeGenerator', [
@@ -51,10 +52,14 @@ class BarcodeController extends Controller
 
         Log::info("Barcode Export hashed and cached. ID: {$id}");
 
-        Log::info("Barcode Export hashed and cached. ID: {$id}");
+        $downloadUrl = route('barcode-generator.download-export', ['id' => $id]);
+
+        if ($request->header('X-Inertia')) {
+            return Inertia::location($downloadUrl);
+        }
 
         return response()->json([
-            'download_url' => route('barcode-generator.download-export', ['id' => $id])
+            'download_url' => $downloadUrl,
         ]);
     }
 
@@ -81,10 +86,10 @@ class BarcodeController extends Controller
 
         return response()->streamDownload(function () use ($baseQuery, $tab, $request) {
             $handle = fopen('php://output', 'w');
-            
+
             // Add BOM
-            fwrite($handle, "\xEF\xBB\xBF");
-            
+            fwrite($handle, "\u{FEFF}");
+
             fputcsv($handle, [
                 'Barcode',
                 'Format',
@@ -95,7 +100,7 @@ class BarcodeController extends Controller
                 'New Barcode',
             ]);
 
-            $startNumber = (int)($request->input('start_number', 1));
+            $startNumber = (int) ($request->input('start_number', 1));
             $globalCounter = $startNumber;
             $format = $request->input('format', 'UPC');
             $rules = $request->all();
@@ -103,20 +108,22 @@ class BarcodeController extends Controller
             $query = $baseQuery->clone();
 
             if ($tab === 'duplicates') {
-                $dupeBarcodesQuery = $baseQuery->clone()
+                $dupeBarcodesQuery = $baseQuery
+                    ->clone()
                     ->select('barcode')
                     ->whereNotNull('barcode')
                     ->where('barcode', '<>', '')
                     ->where('barcode', '<>', '-')
                     ->groupBy('barcode')
                     ->havingRaw('count(*) > 1');
-                
+
                 $query->whereIn('barcode', $dupeBarcodesQuery)->orderBy('barcode');
             } elseif ($tab === 'missing') {
-                $query->where(function($q) {
-                    $q->whereNull('barcode')
-                      ->orWhere('barcode', '')
-                      ->orWhere('barcode', '-');
+                $query->where(function ($q) {
+                    $q
+                        ->whereNull('barcode')
+                        ->orWhere('barcode', '')
+                        ->orWhere('barcode', '-');
                 });
             }
 
@@ -127,7 +134,7 @@ class BarcodeController extends Controller
                     if (empty(trim($oldBarcode)) || trim($oldBarcode) === '-') {
                         $oldBarcode = '';
                     }
-                    
+
                     fputcsv($handle, [
                         $newBarcode,
                         $format,
@@ -168,14 +175,14 @@ class BarcodeController extends Controller
                     '{{ title }}' => $variant->product->title ?? '',
                     '{{handle}}' => $variant->product->handle ?? '',
                     '{{ handle }}' => $variant->product->handle ?? '',
-                    '{{id}}' => (string)$variant->id,
-                    '{{ id }}' => (string)$variant->id,
+                    '{{id}}' => (string) $variant->id,
+                    '{{ id }}' => (string) $variant->id,
                     '{{sku}}' => $variant->sku ?? '',
                     '{{ sku }}' => $variant->sku ?? '',
-                    '{{product_id}}' => (string)$variant->product_id,
-                    '{{ product_id }}' => (string)$variant->product_id,
-                    '{{variant_id}}' => (string)$variant->id,
-                    '{{ variant_id }}' => (string)$variant->id,
+                    '{{product_id}}' => (string) $variant->product_id,
+                    '{{ product_id }}' => (string) $variant->product_id,
+                    '{{variant_id}}' => (string) $variant->id,
+                    '{{ variant_id }}' => (string) $variant->id,
                 ];
 
                 return str_replace(
@@ -281,12 +288,13 @@ class BarcodeController extends Controller
         if ($request->filled('search')) {
             $term = trim($request->search);
             $query->where(function ($q) use ($term) {
-                $q->where('barcode', 'like', "%{$term}%")
-                  ->orWhere('sku', 'like', "%{$term}%")
-                  ->orWhere('title', 'like', "%{$term}%")
-                  ->orWhereHas('product', function ($pq) use ($term) {
-                      $pq->where('title', 'like', "%{$term}%");
-                  });
+                $q
+                    ->where('barcode', 'like', "%{$term}%")
+                    ->orWhere('sku', 'like', "%{$term}%")
+                    ->orWhere('title', 'like', "%{$term}%")
+                    ->orWhereHas('product', function ($pq) use ($term) {
+                        $pq->where('title', 'like', "%{$term}%");
+                    });
             });
         }
 
@@ -297,32 +305,34 @@ class BarcodeController extends Controller
     {
         /** @var \App\Models\User $shop */
         $shop = Auth::user();
-        $page = max(1, (int)$request->input('page', 1));
+        $page = max(1, (int) $request->input('page', 1));
         $perPage = 8;
         $tab = $request->input('tab', 'all');
 
         // 1. Base Query (Filters applied)
-      
+
         $baseQuery = $this->buildFilteredQuery($request, $shop);
-        
+
         if ($request->boolean('get_all_ids')) {
             $idsQuery = $baseQuery->clone();
-            
+
             if ($tab === 'missing') {
-                $idsQuery->where(function($q) {
-                    $q->whereNull('barcode')
+                $idsQuery->where(function ($q) {
+                    $q
+                        ->whereNull('barcode')
                         ->orWhere('barcode', '')
                         ->orWhere('barcode', '-');
                 });
             } elseif ($tab === 'duplicates') {
-                $dupBarcodes = $baseQuery->clone()
+                $dupBarcodes = $baseQuery
+                    ->clone()
                     ->select('barcode')
                     ->whereNotNull('barcode')
                     ->where('barcode', '<>', '')
                     ->where('barcode', '<>', '-')
                     ->groupBy('barcode')
                     ->havingRaw('count(*) > 1');
-                
+
                 $idsQuery->whereIn('barcode', $dupBarcodes);
             }
 
@@ -330,31 +340,32 @@ class BarcodeController extends Controller
                 'all_variant_ids' => $idsQuery->pluck('variants.id')->toArray(),
             ]);
         }
-        
+
         // 2. Efficient Totals (DB Level)
         $totalVariants = $baseQuery->count();
 
         // 3. Missing Count (DB Level)
         $missingQuery = clone $baseQuery;
-        $missingCount = $missingQuery->where(function($q) {
-            $q->whereNull('barcode')
-              ->orWhere('barcode', '')
-              ->orWhere('barcode', '-');
+        $missingCount = $missingQuery->where(function ($q) {
+            $q
+                ->whereNull('barcode')
+                ->orWhere('barcode', '')
+                ->orWhere('barcode', '-');
         })->count();
 
         // 4. Duplicate Count (DB Level - Optimized)
         // We need the number of variants that belong to a duplicate group
         $dupeStatsQuery = clone $baseQuery;
-        // Optimization: We only check duplicates within the current filtered scope? 
+        // Optimization: We only check duplicates within the current filtered scope?
         // Original code checked duplicates within "$allVariants" (the filtered result).
         // So yes, we scope it to the current filters.
-        
+
         // Complex query to get count of variants that have duplicates
         $duplicateCount = 0;
         // Only run this expensive query if we need to display it
-        // To avoid complexity, we can cache this or calculate it differently, 
+        // To avoid complexity, we can cache this or calculate it differently,
         // but for now let's try a direct aggregation.
-        
+
         // Subquery to find barcodes with > 1 occurrence
         $dupeBarcodes = DB::table('variants')
             ->select('barcode')
@@ -363,7 +374,7 @@ class BarcodeController extends Controller
             ->whereNotNull('barcode')
             ->where('barcode', '<>', '')
             ->where('barcode', '<>', '-')
-            // Apply other filters from request if necessary? 
+            // Apply other filters from request if necessary?
             // The original logic filtered duplicates FROM the filtered set.
             // If I filter by "Vendor A", do I only care about duplicates WITHIN Vendor A?
             // Yes, original code: $duplicateVariants = $allVariants->filter(...)
@@ -374,17 +385,17 @@ class BarcodeController extends Controller
         // Note: Re-applying all `buildFilteredQuery` filters to a raw DB query is hard because of Eloquent scopes.
         // Simplified approach for duplicates count:
         // Use the Eloquent query to get aggregated counts.
-        $dupeCounts = $baseQuery->clone()
+        $dupeCounts = $baseQuery
+            ->clone()
             ->select('barcode', DB::raw('count(*) as total'))
             ->whereNotNull('barcode')
             ->where('barcode', '<>', '')
             ->where('barcode', '<>', '-')
             ->groupBy('barcode')
             ->having('total', '>', 1)
-            ->pluck('total'); // This returns a collection of counts, e.g. [2, 3, 2]
-            
-        $duplicateCount = $dupeCounts->sum();
+            ->pluck('total');  // This returns a collection of counts, e.g. [2, 3, 2]
 
+        $duplicateCount = $dupeCounts->sum();
 
         // 5. Data Fetching based on Tab
         $variants = collect();
@@ -397,21 +408,22 @@ class BarcodeController extends Controller
         // And it incremented for EACH variant in the WHOLE list.
         // So for page 2, start_number should be start_number + (page-1)*perPage.
         // However, this depends on if we are "applying" or just previewing.
-        // For preview, it's visualization. 
+        // For preview, it's visualization.
         // Logic: specific Page 1 shows 1..8, Page 2 shows 9..16.
-        $startNumber = (int)($request->input('start_number', 1));
+        $startNumber = (int) ($request->input('start_number', 1));
         $currentCounter = $startNumber + (($page - 1) * $perPage);
 
         if ($tab === 'duplicates') {
             // Fetch Duplicates Logic
             // We need to paginate "Groups" or "Variants"? Original UI shows Groups.
-            // But pagination was on rows (items)? 
+            // But pagination was on rows (items)?
             // Original: "paginatedGroups = duplicateGroupList.slice..."
             // So pagination is by GROUP.
-            
+
             // 1. Get all duplicate barcodes (paginated)
             // We reuse the $dupeCounts logic but paginated
-            $dupeBarcodesQuery = $baseQuery->clone()
+            $dupeBarcodesQuery = $baseQuery
+                ->clone()
                 ->select('barcode')
                 ->whereNotNull('barcode')
                 ->where('barcode', '<>', '')
@@ -420,59 +432,62 @@ class BarcodeController extends Controller
                 ->havingRaw('count(*) > 1');
 
             // For pagination, we paginate the DISTINCT BARCODES (Groups)
-            $totalGroups = DB::table( DB::raw("({$dupeBarcodesQuery->toSql()}) as sub") )
+            $totalGroups = DB::table(DB::raw("({$dupeBarcodesQuery->toSql()}) as sub"))
                 ->mergeBindings($dupeBarcodesQuery->getQuery())
                 ->count();
-                
+
             $tableTotal = $totalGroups;
-            
+
             $pagedBarcodes = $dupeBarcodesQuery
                 ->skip(($page - 1) * $perPage)
                 ->take($perPage)
                 ->pluck('barcode');
-                
+
             if ($pagedBarcodes->isNotEmpty()) {
                 // Now fetch all variants for these barcodes
-                $variants = $baseQuery->clone()
+                $variants = $baseQuery
+                    ->clone()
                     ->whereIn('barcode', $pagedBarcodes)
-                    ->orderBy('barcode') // Group visually
+                    ->orderBy('barcode')  // Group visually
                     ->get();
-                    
+
                 // Group them for the response
                 foreach ($variants as $v) {
-                    $duplicateGroups[$v->barcode][] = $this->transformVariant($v, $request->all(), $format, 0); 
-                    // Note: Counter logic for duplicates is tricky. 
+                    $duplicateGroups[$v->barcode][] = $this->transformVariant($v, $request->all(), $format, 0);
+                    // Note: Counter logic for duplicates is tricky.
                     // Original code just ran counter++ for every variant in `allVariants`.
                     // We'll leave $newBarcode generation logic for the transformation step.
                 }
             }
-            
+
             // To keep frontend happy, we pass `duplicateGroups` as object { barcode: [variants...] }
             // $variants collection is not really used for rows in "duplicates" mode by my analysis of frontend code?
             // Frontend: `paginatedGroups.map(renderDuplicateGroup)`
             // So we need to return `duplicateGroups` populated.
-            
         } elseif ($tab === 'missing') {
             // Fetch Missing Logic
-            $q = $baseQuery->clone()
-               ->where(function($qq) {
-                    $qq->whereNull('barcode')
-                      ->orWhere('barcode', '')
-                      ->orWhere('barcode', '-');
-               });
-               
+            $q = $baseQuery
+                ->clone()
+                ->where(function ($qq) {
+                    $qq
+                        ->whereNull('barcode')
+                        ->orWhere('barcode', '')
+                        ->orWhere('barcode', '-');
+                });
+
             $tableTotal = $q->count();
-            $variants = $q->skip(($page - 1) * $perPage)
-                          ->take($perPage)
-                          ->get();
-                          
+            $variants = $q
+                ->skip(($page - 1) * $perPage)
+                ->take($perPage)
+                ->get();
         } else {
             // Fetch All Logic
             $tableTotal = $totalVariants;
-            $variants = $baseQuery->clone()
-                          ->skip(($page - 1) * $perPage)
-                          ->take($perPage)
-                          ->get();
+            $variants = $baseQuery
+                ->clone()
+                ->skip(($page - 1) * $perPage)
+                ->take($perPage)
+                ->get();
         }
 
         // Transform variants for response
@@ -482,20 +497,20 @@ class BarcodeController extends Controller
                 $previewData[] = $this->transformVariant($variant, $request->all(), $format, $currentCounter + $index);
             }
         } else {
-             // For duplicates, we already built $duplicateGroups with transformed data?
-             // Wait, I didn't transform yet in the duplicates block loop above efficiently.
-             // Let's iterate the groups to transform.
-             foreach ($duplicateGroups as $bc => $vars) {
-                 // We don't really increment counter for existing duplicates usually?
-                 // Or do we? If we are "fixing" them, we might propose new barcodes.
-                 // Original logic ran counter for ALL.
-                 // For now, let's just pass 0 or handling inside.
-                 // Actually, if we are in duplicates view, we are likely picking ones to fix.
-                 // Let's map them.
-                 // Re-mapping because I stored raw objects or needed transformation?
-                 // In the loop above: `$this->transformVariant($v, ..., 0)`
-                 // I need to correct that.
-             }
+            // For duplicates, we already built $duplicateGroups with transformed data?
+            // Wait, I didn't transform yet in the duplicates block loop above efficiently.
+            // Let's iterate the groups to transform.
+            foreach ($duplicateGroups as $bc => $vars) {
+                // We don't really increment counter for existing duplicates usually?
+                // Or do we? If we are "fixing" them, we might propose new barcodes.
+                // Original logic ran counter for ALL.
+                // For now, let's just pass 0 or handling inside.
+                // Actually, if we are in duplicates view, we are likely picking ones to fix.
+                // Let's map them.
+                // Re-mapping because I stored raw objects or needed transformation?
+                // In the loop above: `$this->transformVariant($v, ..., 0)`
+                // I need to correct that.
+            }
         }
 
         $creditValidation = $shop->validateCreditsForOperation('barcode_generation', $totalVariants);
@@ -507,17 +522,17 @@ class BarcodeController extends Controller
             ->where('format', $format)
             ->first();
 
-        // If no counter exists, next is 1. If exists, next is counter + 1. 
+        // If no counter exists, next is 1. If exists, next is counter + 1.
         $nextStartNumber = $currentCounterRow ? ($currentCounterRow->counter + 1) : 1;
 
         return response()->json([
             // ... existing data ...
-            'data' => $previewData, 
-            'total' => $tableTotal, 
-            'duplicateGroups' => $duplicateGroups, 
+            'data' => $previewData,
+            'total' => $tableTotal,
+            'duplicateGroups' => $duplicateGroups,
             'stats' => [
                 'missing' => $missingCount,
-                'duplicates' => $duplicateCount, 
+                'duplicates' => $duplicateCount,
                 'total' => $totalVariants,
             ],
             'overall_total' => $totalVariants,
@@ -528,7 +543,7 @@ class BarcodeController extends Controller
                 'max_allowed' => $shop->getMaxAllowedItems('barcode_generation'),
                 'can_process_all' => $creditValidation['can_proceed'],
             ],
-            'next_start_number' => $nextStartNumber, // New field
+            'next_start_number' => $nextStartNumber,  // New field
         ]);
     }
 
@@ -600,7 +615,7 @@ class BarcodeController extends Controller
         }
 
         $title = 'Barcode Generation';
-        $itemCount = $itemCount; // Variable available from above
+        $itemCount = $itemCount;  // Variable available from above
 
         if ($applyScope === 'all') {
             switch ($request->input('active_tab')) {
@@ -641,19 +656,20 @@ class BarcodeController extends Controller
                 'enforce_length' => $request->boolean('enforce_length', true),
                 'allow_qr_text' => $request->boolean('allow_qr_text', false),
                 'qr_text' => $request->input('qr_text', ''),
-                'start_number' => (int)$request->input('start_number', 1),
+                'start_number' => (int) $request->input('start_number', 1),
                 'vendor' => $request->input('vendor', ''),
                 'type' => $request->input('type', ''),
                 'collections' => $request->input('collections', []),
                 'tags' => $request->input('tags', ''),
                 'apply_scope' => $applyScope,
-                'active_tab' => $request->input('active_tab', 'all'), // Pass active tab
+                'active_tab' => $request->input('active_tab', 'all'),  // Pass active tab
                 'selected_variant_ids' => $applyScope === 'selected' ? $selectedIds : [],
             ],
             $jobLog->id
         );
 
-        return redirect()->route('jobs.show', $jobLog->id)
+        return redirect()
+            ->route('jobs.show', $jobLog->id)
             ->with('success', "Barcode generation started! {$itemCount} credits deducted.");
     }
 
@@ -752,7 +768,8 @@ class BarcodeController extends Controller
             $jobLog->id
         );
 
-        return redirect()->route('jobs.show', $jobLog->id)
+        return redirect()
+            ->route('jobs.show', $jobLog->id)
             ->with('success', "Barcode import started! {$itemCount} credits deducted.");
     }
 }

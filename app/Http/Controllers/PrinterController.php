@@ -30,7 +30,8 @@ class PrinterController extends Controller
             }
 
             // Load user's templates
-            $templates = $user->labelTemplates()
+            $templates = $user
+                ->labelTemplates()
                 ->orderBy('is_default', 'desc')
                 ->orderBy('created_at', 'desc')
                 ->get();
@@ -49,14 +50,16 @@ class PrinterController extends Controller
                 ->toArray();
 
             // Get unique vendors and product types for filters
-            $vendors = $user->products()
+            $vendors = $user
+                ->products()
                 ->whereNotNull('vendor')
                 ->distinct()
                 ->pluck('vendor')
                 ->filter()
                 ->values();
 
-            $productTypes = $user->products()
+            $productTypes = $user
+                ->products()
                 ->whereNotNull('product_type')
                 ->distinct()
                 ->pluck('product_type')
@@ -85,7 +88,6 @@ class PrinterController extends Controller
         }
     }
 
-
     public function updateSetting(Request $request, $id)
     {
         try {
@@ -97,50 +99,41 @@ class PrinterController extends Controller
                 'label_name' => 'nullable|string|max:255',
                 'barcode_type' => 'nullable|string',
                 'barcode_format' => 'nullable|string',
-
                 // QR Code Settings (NEW)
-                'qr_data_source' => 'nullable|string', // in:barcode,sku,variant_id,product_url,custom (Relaxed for custom)
+                'qr_data_source' => 'nullable|string',  // in:barcode,sku,variant_id,product_url,custom (Relaxed for custom)
                 'qr_custom_format' => 'nullable|string|max:500',
-
                 // Paper Setup
                 'paper_size' => 'nullable|string',
                 'paper_orientation' => 'nullable|in:portrait,landscape',
                 'paper_width' => 'nullable|numeric|min:10|max:1000',
                 'paper_height' => 'nullable|numeric|min:10|max:1000',
-
                 // Margins (Backend expects page_margin_*)
                 'page_margin_top' => 'nullable|numeric|min:0|max:100',
                 'page_margin_bottom' => 'nullable|numeric|min:0|max:100',
                 'page_margin_left' => 'nullable|numeric|min:0|max:100',
                 'page_margin_right' => 'nullable|numeric|min:0|max:100',
-
                 // Also allow old frontend keys for backward compatibility/aliasing if needed, but preferred is page_margin_*
                 'margin_top' => 'nullable|numeric|min:0|max:100',
                 'margin_bottom' => 'nullable|numeric|min:0|max:100',
                 'margin_left' => 'nullable|numeric|min:0|max:100',
                 'margin_right' => 'nullable|numeric|min:0|max:100',
-
                 // Label Dimensions
                 'label_width' => 'nullable|numeric|min:10|max:500',
                 'label_height' => 'nullable|numeric|min:10|max:500',
-
                 // Layout
                 'labels_per_row' => 'nullable|integer|min:1|max:20',
                 'labels_per_column' => 'nullable|integer|min:1|max:50',
                 'label_spacing_horizontal' => 'nullable|numeric|min:0|max:50',
                 'label_spacing_vertical' => 'nullable|numeric|min:0|max:50',
-
                 // Barcode Settings
                 'barcode_width' => 'nullable|numeric|min:5|max:200',
                 'barcode_height' => 'nullable|numeric|min:5|max:200',
                 'barcode_scale' => 'nullable|integer|min:1|max:5',
                 'barcode_line_width' => 'nullable|integer|min:30|max:150',
                 'barcode_position' => 'nullable|in:top,center,bottom',
-
                 // QR Code Settings
                 'qr_error_correction' => 'nullable|integer|in:7,15,25,30',
                 'qr_module_size' => 'nullable|integer|min:1|max:10',
-
                 // Display Options
                 'show_barcode_value' => 'nullable|boolean',
                 'show_product_title' => 'nullable|boolean',
@@ -151,17 +144,14 @@ class PrinterController extends Controller
                 'show_product_type' => 'nullable|boolean',
                 'show_qr_code' => 'nullable|boolean',
                 'show_linear_barcode' => 'nullable|boolean',
-
                 // Typography
                 'font_family' => 'nullable|string',
                 'font_size' => 'nullable|integer|min:6|max:72',
                 'font_color' => 'nullable|string',
                 'title_font_size' => 'nullable|integer|min:8|max:72',
                 'title_bold' => 'nullable|boolean',
-
                 // Text Layout (NEW)
                 'text_layout' => 'nullable|array',
-
                 // Custom Fields
                 'custom_fields' => 'nullable|array',
             ]);
@@ -173,6 +163,10 @@ class PrinterController extends Controller
                 'updated_fields' => array_keys($validated),
             ]);
 
+            if ($request->header('X-Inertia')) {
+                return back()->with('success', 'Settings updated successfully');
+            }
+
             return response()->json([
                 'success' => true,
                 'setting' => $setting->fresh(),
@@ -183,6 +177,10 @@ class PrinterController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
+
+            if ($request->header('X-Inertia')) {
+                return back()->with('error', 'Failed to update settings');
+            }
 
             return response()->json([
                 'error' => 'Failed to update settings',
@@ -212,6 +210,10 @@ class PrinterController extends Controller
 
             $template = $user->labelTemplates()->create($validated);
 
+            if ($request->header('X-Inertia')) {
+                return back()->with('success', 'Template saved successfully');
+            }
+
             return response()->json([
                 'success' => true,
                 'template' => $template,
@@ -232,6 +234,16 @@ class PrinterController extends Controller
         try {
             $user = auth()->user();
             $template = $user->labelTemplates()->findOrFail($id);
+
+            // Update active settings from template
+            $activeSetting = $user->barcodePrinterSettings()->first();
+            if ($activeSetting) {
+                $activeSetting->update($template->settings);
+            }
+
+            if ($request->header('X-Inertia')) {
+                return back()->with('success', 'Template loaded successfully');
+            }
 
             return response()->json([
                 'success' => true,
@@ -260,12 +272,17 @@ class PrinterController extends Controller
 
             // If setting as default, unset other defaults
             if ($validated['is_default'] ?? false) {
-                $user->labelTemplates()
+                $user
+                    ->labelTemplates()
                     ->where('id', '!=', $id)
                     ->update(['is_default' => false]);
             }
 
             $template->update($validated);
+
+            if ($request->header('X-Inertia')) {
+                return back()->with('success', 'Template updated successfully');
+            }
 
             return response()->json([
                 'success' => true,
@@ -279,25 +296,33 @@ class PrinterController extends Controller
         }
     }
 
-    public function deleteTemplate($id)
+    public function deleteTemplate(Request $request, $id)
     {
         try {
             $user = auth()->user();
             $template = $user->labelTemplates()->findOrFail($id);
             $template->delete();
 
+            if ($request->header('X-Inertia')) {
+                return back()->with('success', 'Template deleted successfully');
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Template deleted successfully'
             ]);
         } catch (\Exception $e) {
+            if ($request->header('X-Inertia')) {
+                return back()->with('error', 'Failed to delete template');
+            }
+
             return response()->json([
                 'error' => 'Failed to delete template'
             ], 500);
         }
     }
 
-    public function setDefaultTemplate($id)
+    public function setDefaultTemplate(Request $request, $id)
     {
         try {
             $user = auth()->user();
@@ -309,11 +334,19 @@ class PrinterController extends Controller
             $template = $user->labelTemplates()->findOrFail($id);
             $template->update(['is_default' => true]);
 
+            if ($request->header('X-Inertia')) {
+                return back()->with('success', 'Default template set successfully');
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Default template set successfully'
             ]);
         } catch (\Exception $e) {
+            if ($request->header('X-Inertia')) {
+                return back()->with('error', 'Failed to set default template');
+            }
+
             return response()->json([
                 'error' => 'Failed to set default template'
             ], 500);
@@ -354,7 +387,8 @@ class PrinterController extends Controller
             ]);
 
             // CRITICAL: Refresh settings from database
-            $setting = $user->barcodePrinterSettings()
+            $setting = $user
+                ->barcodePrinterSettings()
                 ->findOrFail($validated['setting_id']);
             $setting->refresh();
 
@@ -366,7 +400,7 @@ class PrinterController extends Controller
                 return response()->json([
                     'error' => 'Insufficient credits',
                     'message' => $validation['message']
-                ], 402); // 402 Payment Required
+                ], 402);  // 402 Payment Required
             }
 
             // Deduct credits
@@ -487,9 +521,9 @@ class PrinterController extends Controller
 
             // Dispatch Job
             \App\Jobs\GenerateLabelPdfJob::dispatch(
-                $user, 
-                $setting, 
-                $validated['variant_ids'], 
+                $user,
+                $setting,
+                $validated['variant_ids'],
                 $jobLog->id,
                 $validated['quantity_per_variant'] ?? 1
             );
@@ -499,7 +533,6 @@ class PrinterController extends Controller
                 'job_id' => $jobLog->id,
                 'message' => 'Label generation started in background'
             ]);
-
         } catch (\Throwable $e) {
             Log::error('PDF Job Dispatch Failed', [
                 'message' => $e->getMessage(),
@@ -548,34 +581,27 @@ class PrinterController extends Controller
             'barcode_type' => 'code128',
             'barcode_format' => 'linear',
             'qr_data_source' => 'barcode',
-
             'paper_size' => 'a4',
             'paper_orientation' => 'portrait',
             'paper_width' => 210,
             'paper_height' => 297,
-
             'page_margin_top' => 10,
             'page_margin_bottom' => 10,
             'page_margin_left' => 10,
             'page_margin_right' => 10,
-
             'label_width' => 80,
             'label_height' => 40,
-
             'labels_per_row' => 2,
             'labels_per_column' => 7,
             'label_spacing_horizontal' => 5,
             'label_spacing_vertical' => 5,
-
             'barcode_width' => 60,
             'barcode_height' => 20,
             'barcode_scale' => 2,
             'barcode_line_width' => 60,
             'barcode_position' => 'center',
-
             'qr_error_correction' => 15,
             'qr_module_size' => 5,
-
             'show_barcode_value' => true,
             'show_product_title' => true,
             'show_sku' => true,
@@ -585,7 +611,6 @@ class PrinterController extends Controller
             'show_product_type' => false,
             'show_qr_code' => false,
             'show_linear_barcode' => true,
-
             'font_family' => 'Arial',
             'font_size' => 10,
             'font_color' => '#000000',
@@ -594,13 +619,12 @@ class PrinterController extends Controller
         ]);
     }
 
-
     public function variants(Request $request)
     {
         try {
             $user = auth()->user();
-            $page = max(1, (int)$request->input('page', 1));
-            $perPage = (int)$request->input('per_page', 20);
+            $page = max(1, (int) $request->input('page', 1));
+            $perPage = (int) $request->input('per_page', 20);
             $tab = $request->input('tab', 'all');
 
             // ✅ BUILD BASE QUERY WITH ALL FILTERS
@@ -610,12 +634,13 @@ class PrinterController extends Controller
             $totalAll = $baseQuery->count();
 
             // Count missing and with barcodes (DB Level)
-            $missingBarcodes = $baseQuery->clone()
+            $missingBarcodes = $baseQuery
+                ->clone()
                 ->where(function ($q) {
                     $q->whereNull('barcode')->orWhere('barcode', '');
                 })
                 ->count();
-                
+
             $withBarcodes = $totalAll - $missingBarcodes;
 
             // Filter by tab
@@ -632,13 +657,15 @@ class PrinterController extends Controller
             if ($request->filled('search')) {
                 $search = strtolower(trim($request->search));
                 $query->where(function ($q) use ($search) {
-                    $q->where('id', 'like', "%{$search}%")
+                    $q
+                        ->where('id', 'like', "%{$search}%")
                         ->orWhere('shopify_variant_id', 'like', "%{$search}%")
                         ->orWhere('sku', 'like', "%{$search}%")
                         ->orWhere('barcode', 'like', "%{$search}%")
                         ->orWhere('title', 'like', "%{$search}%")
                         ->orWhereHas('product', function ($pq) use ($search) {
-                            $pq->where('title', 'like', "%{$search}%")
+                            $pq
+                                ->where('title', 'like', "%{$search}%")
                                 ->orWhere('vendor', 'like', "%{$search}%")
                                 ->orWhere('product_type', 'like', "%{$search}%")
                                 ->orWhere('tags', 'like', "%{$search}%");
@@ -657,7 +684,8 @@ class PrinterController extends Controller
             }
 
             // Paginate
-            $variants = $query->skip(($page - 1) * $perPage)
+            $variants = $query
+                ->skip(($page - 1) * $perPage)
                 ->take($perPage)
                 ->get()
                 ->map(function ($variant) {
