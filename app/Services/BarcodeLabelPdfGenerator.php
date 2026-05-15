@@ -10,11 +10,11 @@ use App\Models\Variant;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Encoding\Encoding;
-use Endroid\QrCode\ErrorCorrectionLevel; // Correct import for v5.x
-use Endroid\QrCode\RoundBlockSizeMode;
 use Endroid\QrCode\Writer\PngWriter;
-use Picqer\Barcode\BarcodeGeneratorPNG;
+use Endroid\QrCode\ErrorCorrectionLevel;  // Correct import for v5.x
+use Endroid\QrCode\RoundBlockSizeMode;
 use Illuminate\Support\Facades\Log;
+use Picqer\Barcode\BarcodeGeneratorPNG;
 
 class BarcodeLabelPdfGenerator
 {
@@ -118,7 +118,7 @@ class BarcodeLabelPdfGenerator
                 break;
 
             case 'variant_id':
-                $finalValue = (string)$variant->shopify_variant_id;
+                $finalValue = (string) $variant->shopify_variant_id;
                 break;
 
             case 'product_url':
@@ -212,17 +212,22 @@ class BarcodeLabelPdfGenerator
             // Validate based on barcode type
             $validatedValue = $this->validateAndFormatBarcode($value, $barcodeType);
 
+            // Graceful fallback: if the variant's value can't satisfy the strict
+            // numeric requirements of EAN-13 / UPC-A / EAN-8 / ITF-14, render
+            // the original value as Code128 (which accepts any alphanumeric)
+            // so the label still has a scannable barcode instead of a blank text fallback.
             if ($validatedValue === false) {
-                Log::warning("Invalid barcode format", [
-                    'type' => $barcodeType,
-                    'value' => $value
+                Log::info('Barcode value incompatible with selected format; falling back to code128', [
+                    'requested_type' => $barcodeType,
+                    'value' => $value,
                 ]);
-                return $this->generateFallbackBarcode($value);
+                $barcodeType = 'code128';
+                $validatedValue = trim($value);
             }
 
             $type = $this->mapBarcodeType($barcodeType);
-            $scale = max(1, (int)($this->setting->barcode_scale ?? 2));
-            $thickness = max(30, (int)($this->setting->barcode_line_width ?? 50));
+            $scale = max(1, (int) ($this->setting->barcode_scale ?? 2));
+            $thickness = max(30, (int) ($this->setting->barcode_line_width ?? 50));
 
             $barcodeImage = $this->barcodeGenerator->getBarcode(
                 $validatedValue,
@@ -247,22 +252,26 @@ class BarcodeLabelPdfGenerator
         switch ($type) {
             case 'ean13':
                 $numeric = preg_replace('/[^0-9]/', '', $value);
-                if (strlen($numeric) < 12) return false;
+                if (strlen($numeric) < 12)
+                    return false;
                 return $this->padOrTruncate($value, 13, '0');
 
             case 'ean8':
                 $numeric = preg_replace('/[^0-9]/', '', $value);
-                if (strlen($numeric) < 7) return false;
+                if (strlen($numeric) < 7)
+                    return false;
                 return $this->padOrTruncate($value, 8, '0');
 
             case 'upca':
                 $numeric = preg_replace('/[^0-9]/', '', $value);
-                if (strlen($numeric) < 11) return false;
+                if (strlen($numeric) < 11)
+                    return false;
                 return $this->padOrTruncate($value, 12, '0');
 
             case 'itf14':
                 $numeric = preg_replace('/[^0-9]/', '', $value);
-                if (strlen($numeric) < 13) return false;
+                if (strlen($numeric) < 13)
+                    return false;
                 return $this->padOrTruncate($value, 14, '0');
 
             case 'code39':
@@ -308,7 +317,7 @@ class BarcodeLabelPdfGenerator
             );
 
             // Convert mm to pixels (300 DPI)
-            $qrSizePixels = max(200, min(600, (int)($minSize * 11.811)));
+            $qrSizePixels = max(200, min(600, (int) ($minSize * 11.811)));
 
             // FIX: In Endroid 5.x, ErrorCorrectionLevel is an Enum
             // Use the enum case directly instead of Medium constant
@@ -457,14 +466,14 @@ class BarcodeLabelPdfGenerator
 
     protected function adjustPaperSizeForThermal()
     {
-        $cols = (int)($this->setting->labels_per_row ?? 1);
-        $rows = (int)($this->setting->labels_per_column ?? 1);
+        $cols = (int) ($this->setting->labels_per_row ?? 1);
+        $rows = (int) ($this->setting->labels_per_column ?? 1);
 
         // Heuristic: If 1x1 grid, assume Thermal/Single Label mode
         if ($cols === 1 && $rows === 1) {
             $labelW = floatval($this->setting->label_width);
             $labelH = floatval($this->setting->label_height);
-            
+
             // Get effective margins EXACTLY matching buildHtml to prevent overflow
             $mT = floatval($this->setting->margin_top ?? $this->setting->page_margin_top ?? 0);
             $mB = floatval($this->setting->margin_bottom ?? $this->setting->page_margin_bottom ?? 0);
@@ -475,7 +484,7 @@ class BarcodeLabelPdfGenerator
             // This ensures the PDF page creates a canvas exactly the size of the sticker
             $this->setting->paper_width = $labelW + $mL + $mR;
             $this->setting->paper_height = $labelH + $mT + $mB;
-            
+
             // Log this override for debugging
             Log::info("Thermal Mode Detected: Auto-sized PDF page to {$this->setting->paper_width}x{$this->setting->paper_height}mm");
         }
@@ -524,14 +533,14 @@ class BarcodeLabelPdfGenerator
         do {
             $maxCols++;
             $requiredWidth = ($labelWidth * $maxCols) + ($hGap * ($maxCols - 1));
-        } while ($requiredWidth <= $availableWidth + 0.1); // Add epsilon
+        } while ($requiredWidth <= $availableWidth + 0.1);  // Add epsilon
         $maxCols = max(1, $maxCols - 1);
 
         $maxRows = 0;
         do {
             $maxRows++;
             $requiredHeight = ($labelHeight * $maxRows) + ($vGap * ($maxRows - 1));
-        } while ($requiredHeight <= $availableHeight + 0.1); // Add epsilon
+        } while ($requiredHeight <= $availableHeight + 0.1);  // Add epsilon
         $maxRows = max(1, $maxRows - 1);
 
         Log::info('PDF Grid Calculation', [
@@ -554,8 +563,8 @@ class BarcodeLabelPdfGenerator
         $s = $this->setting;
 
         // Detect Thermal Mode for CSS adjustments
-        $cols = (int)($s->labels_per_row ?? 1);
-        $rows = (int)($s->labels_per_column ?? 1);
+        $cols = (int) ($s->labels_per_row ?? 1);
+        $rows = (int) ($s->labels_per_column ?? 1);
         $isThermal = ($cols === 1 && $rows === 1);
 
         // Convert all measurements properly
@@ -582,8 +591,8 @@ class BarcodeLabelPdfGenerator
         $maxCols = $grid['max_cols'];
         $maxRows = $grid['max_rows'];
 
-        $userCols = (int)($s->labels_per_row ?? 0);
-        $userRows = (int)($s->labels_per_column ?? 0);
+        $userCols = (int) ($s->labels_per_row ?? 0);
+        $userRows = (int) ($s->labels_per_column ?? 0);
 
         // TRUST: If user specified columns/rows, use them. Otherwise fallback to calc.
         $cols = $userCols > 0 ? $userCols : $maxCols;
@@ -602,8 +611,8 @@ class BarcodeLabelPdfGenerator
 
         $labelsPerPage = $cols * $rows;
 
-        $fontSize = max(6, (int)($s->font_size ?? 10));
-        $titleSize = max(7, (int)($s->title_font_size ?? 12));
+        $fontSize = max(6, (int) ($s->font_size ?? 10));
+        $titleSize = max(7, (int) ($s->title_font_size ?? 12));
         $fontColor = $s->font_color ?? '#000000';
         $fontFamily = $s->font_family ?? 'Arial';
         $titleBold = $s->title_bold ? 'bold' : 'normal';
@@ -617,223 +626,222 @@ class BarcodeLabelPdfGenerator
         $cssHeight = max(0, $labelHeight - ($labelPadding * 2));
 
         $html = <<<HTML
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset='utf-8'>
-    <style>
-        @page {
-            margin: 0;
-            size: {$s->paper_width}mm {$s->paper_height}mm;
-        }
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset='utf-8'>
+                <style>
+                    @page {
+                        margin: 0;
+                        size: {$s->paper_width}mm {$s->paper_height}mm;
+                    }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+                    * {
+                        margin: 0;
+                        padding: 0;
+                        box-sizing: border-box;
+                    }
 
-        body {
-            margin: {$marginTop}pt {$marginRight}pt {$marginBottom}pt {$marginLeft}pt;
-            font-family: {$fontFamily}, Arial, sans-serif;
-            font-size: {$fontSize}pt;
-            color: {$fontColor};
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-            line-height: 1.1;
-        }
+                    body {
+                        margin: {$marginTop}pt {$marginRight}pt {$marginBottom}pt {$marginLeft}pt;
+                        font-family: {$fontFamily}, Arial, sans-serif;
+                        font-size: {$fontSize}pt;
+                        color: {$fontColor};
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                        line-height: 1.1;
+                    }
 
-        .page {
-            page-break-after: always;
-            width: 100%;
-        }
+                    .page {
+                        page-break-after: always;
+                        width: 100%;
+                    }
 
-        .page:last-child {
-            page-break-after: avoid;
-        }
+                    .page:last-child {
+                        page-break-after: avoid;
+                    }
 
-        .label-grid-table {
-            border-collapse: collapse;
-        }
+                    .label-grid-table {
+                        border-collapse: collapse;
+                    }
 
-        .label-content {
-            width: {$cssWidth}pt;
-            height: {$cssHeight}pt;
-            border: {$borderStyle};
-            padding: {$labelPadding}pt;
-            overflow: hidden;
-            display: block;
-            background: white;
-            position: relative;
-            box-sizing: content-box;
-        }
+                    .label-content {
+                        width: {$cssWidth}pt;
+                        height: {$cssHeight}pt;
+                        border: {$borderStyle};
+                        padding: {$labelPadding}pt;
+                        overflow: hidden;
+                        display: block;
+                        background: white;
+                        position: relative;
+                        box-sizing: content-box;
+                    }
 
-        .label-header {
-            height: auto;
-            margin-bottom: 2pt;
-        }
+                    .label-header {
+                        height: auto;
+                        margin-bottom: 2pt;
+                    }
 
-        .label-body {
-            height: auto;
-            text-align: center;
-            min-height: 40%;
-            /* Vertical centering is hard without flexbox or table, relying on natural stacking */
-        }
+                    .label-body {
+                        height: auto;
+                        text-align: center;
+                        min-height: 40%;
+                        /* Vertical centering is hard without flexbox or table, relying on natural stacking */
+                    }
 
-        .label-footer {
-            height: auto;
-            margin-top: 1pt;
-            flex-shrink: 0; 
-        }
+                    .label-footer {
+                        height: auto;
+                        margin-top: 1pt;
+                        flex-shrink: 0; 
+                    }
 
-        .product-title {
-            font-weight: {$titleBold};
-            font-size: {$titleSize}pt;
-            line-height: 1.1;
-            overflow: hidden;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            word-break: break-word;
-            margin-bottom: 1pt;
-        }
+                    .product-title {
+                        font-weight: {$titleBold};
+                        font-size: {$titleSize}pt;
+                        line-height: 1.1;
+                        overflow: hidden;
+                        display: -webkit-box;
+                        -webkit-line-clamp: 2;
+                        -webkit-box-orient: vertical;
+                        word-break: break-word;
+                        margin-bottom: 1pt;
+                    }
 
-        .variant-title {
-            font-size: {$fontSize}pt;
-            color: #666;
-            line-height: 1.1;
-            margin-bottom: 0.5pt;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
+                    .variant-title {
+                        font-size: {$fontSize}pt;
+                        color: #666;
+                        line-height: 1.1;
+                        margin-bottom: 0.5pt;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
 
-        .sku {
-            font-size: {$fontSize}pt;
-            font-family: 'Courier New', monospace;
-            color: #333;
-            line-height: 1.1;
-            margin-bottom: 0.5pt;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
+                    .sku {
+                        font-size: {$fontSize}pt;
+                        font-family: 'Courier New', monospace;
+                        color: #333;
+                        line-height: 1.1;
+                        margin-bottom: 0.5pt;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
 
-        .price {
-            font-weight: bold;
-            font-size: {$titleSize}pt;
-            color: #000;
-            line-height: 1.1;
-            margin: 1pt 0;
-        }
+                    .price {
+                        font-weight: bold;
+                        font-size: {$titleSize}pt;
+                        color: #000;
+                        line-height: 1.1;
+                        margin: 1pt 0;
+                    }
 
-        .vendor,
-        .product-type {
-            font-size: " . ($fontSize - 1) . "pt;
-            color: #888;
-            line-height: 1.1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
+                    .vendor,
+                    .product-type {
+                        font-size: " . ($fontSize - 1) . "pt;
+                        color: #888;
+                        line-height: 1.1;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
 
-        .barcode-container {
-            width: 100%;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
+                    .barcode-container {
+                        width: 100%;
+                        text-align: center;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                    }
 
-        .barcode-img {
-            max-width: {$barcodeWidth}pt !important;
-            max-height: {$barcodeHeight}pt !important;
-            width: auto !important;
-            height: auto !important;
-            display: block;
-            margin: 0 auto;
-        }
+                    .barcode-img {
+                        max-width: {$barcodeWidth}pt !important;
+                        max-height: {$barcodeHeight}pt !important;
+                        width: auto !important;
+                        height: auto !important;
+                        display: block;
+                        margin: 0 auto;
+                    }
 
-        .qr-code {
-            width: {$qrSize}pt !important;
-            height: {$qrSize}pt !important;
-            display: block;
-            margin: 0 auto;
-            image-rendering: -webkit-optimize-contrast;
-            image-rendering: crisp-edges;
-            image-rendering: pixelated;
-            -ms-interpolation-mode: nearest-neighbor;
-        }
+                    .qr-code {
+                        width: {$qrSize}pt !important;
+                        height: {$qrSize}pt !important;
+                        display: block;
+                        margin: 0 auto;
+                        image-rendering: -webkit-optimize-contrast;
+                        image-rendering: crisp-edges;
+                        image-rendering: pixelated;
+                        -ms-interpolation-mode: nearest-neighbor;
+                    }
 
-        .barcode-value {
-            font-family: 'Courier New', monospace;
-            font-size: " . ($fontSize - 1) . "pt;
-            line-height: 1.1;
-            margin-top: 1pt;
-            text-align: center;
-            letter-spacing: 0.2pt;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            width: 100%;
-        }
-    </style>
-</head>
-<body>
-HTML;
+                    .barcode-value {
+                        font-family: 'Courier New', monospace;
+                        font-size: " . ($fontSize - 1) . "pt;
+                        line-height: 1.1;
+                        margin-top: 1pt;
+                        text-align: center;
+                        letter-spacing: 0.2pt;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                        width: 100%;
+                    }
+                </style>
+            </head>
+            <body>
+            HTML;
 
         $pages = array_chunk($labels, $labelsPerPage);
 
         foreach ($pages as $pageLabels) {
             $html .= "<div class='page'>";
-            
+
             // Use a table for the grid to enforce layout strictly
-            // collapse: separate is needed for border-spacing if we used it, 
+            // collapse: separate is needed for border-spacing if we used it,
             // but we are using spacer cells/rows.
             $html .= "<table class='label-grid-table' style='width: auto; border-collapse: collapse; table-layout: fixed;'>";
-            
+
             // Chunk into rows
             $gridRows = array_chunk($pageLabels, $cols);
-            
+
             foreach ($gridRows as $rowIndex => $rowLabels) {
-                $html .= "<tr>";
+                $html .= '<tr>';
                 foreach ($rowLabels as $colIndex => $label) {
                     $html .= "<td style='padding: 0; vertical-align: top;'>";
                     $html .= $this->buildLabelHtml($label);
-                    $html .= "</td>";
-                    
+                    $html .= '</td>';
+
                     // Add horizontal spacer if not last column
                     if ($colIndex < count($rowLabels) - 1) {
                         $html .= "<td style='width: {$hGap}pt; padding: 0;'></td>";
                     }
                 }
-                
+
                 // Fill empty cells if row is incomplete (for border consistency if needed, generally not needed for layout unless background)
                 $remainingCols = $cols - count($rowLabels);
                 if ($remainingCols > 0) {
-                     for ($i = 0; $i < $remainingCols; $i++) {
-                         $html .= "<td style='width: {$hGap}pt; padding: 0;'></td>"; // gap
-                         $html .= "<td style='width: {$labelWidth}pt; padding: 0;'></td>"; // empty label slot
-                     }
+                    for ($i = 0; $i < $remainingCols; $i++) {
+                        $html .= "<td style='width: {$hGap}pt; padding: 0;'></td>";  // gap
+                        $html .= "<td style='width: {$labelWidth}pt; padding: 0;'></td>";  // empty label slot
+                    }
                 }
 
-                $html .= "</tr>";
-                
+                $html .= '</tr>';
+
                 // Add vertical spacer row if not last row and gap > 0
                 if ($rowIndex < count($gridRows) - 1 && $vGap > 0.1) {
                     $html .= "<tr style='height: {$vGap}pt; line-height: 0;'><td colspan='" . ($cols * 2 - 1) . "' style='padding:0; height:{$vGap}pt;'></td></tr>";
                 }
             }
-            
-            $html .= "</table></div>";
+
+            $html .= '</table></div>';
         }
-        
-        $html .= "</body></html>";
-        
+
+        $html .= '</body></html>';
+
         return $html;
     }
-    
 
     protected function buildLabelHtml($label)
     {
@@ -850,52 +858,54 @@ HTML;
             usort($textLayout, fn($a, $b) => ($a['order'] ?? 0) - ($b['order'] ?? 0));
 
             foreach ($textLayout as $line) {
-                if (!($line['enabled'] ?? true)) continue;
+                if (!($line['enabled'] ?? true))
+                    continue;
 
                 $fontSize = $line['size'] ?? 10;
                 $fontWeight = ($line['bold'] ?? false) ? 'bold' : 'normal';
                 $value = $this->getFieldValue($label, $line['field']);
 
-                if (empty($value)) continue;
+                if (empty($value))
+                    continue;
 
                 $html .= "<div style='font-size: {$fontSize}pt; font-weight: {$fontWeight}; line-height: 1.2; margin-bottom: 1pt;'>";
                 $html .= htmlspecialchars($value);
-                $html .= "</div>";
+                $html .= '</div>';
             }
         } else {
             // Fallback to old logic
             if ($s->show_product_title) {
-                $html .= "<div class='product-title'>" . htmlspecialchars($label['product_title']) . "</div>";
+                $html .= "<div class='product-title'>" . htmlspecialchars($label['product_title']) . '</div>';
             }
             if ($s->show_variant && $label['variant_title'] !== 'Default Title') {
-                $html .= "<div class='variant-title'>" . htmlspecialchars($label['variant_title']) . "</div>";
+                $html .= "<div class='variant-title'>" . htmlspecialchars($label['variant_title']) . '</div>';
             }
             if ($s->show_sku && !empty($label['sku'])) {
-                $html .= "<div class='sku'>SKU: " . htmlspecialchars($label['sku']) . "</div>";
+                $html .= "<div class='sku'>SKU: " . htmlspecialchars($label['sku']) . '</div>';
             }
             if ($s->show_price && !empty($label['price'])) {
-                $html .= "<div class='price'>$" . number_format((float)$label['price'], 2) . "</div>";
+                $html .= "<div class='price'>\$" . number_format((float) $label['price'], 2) . '</div>';
             }
         }
 
-        $html .= "</div>";
+        $html .= '</div>';
 
         // BODY (Barcode/QR)
         $html .= "<div class='label-body'>";
         $html .= $this->buildBarcodeHtml($label);
-        $html .= "</div>";
+        $html .= '</div>';
 
         // FOOTER
         $html .= "<div class='label-footer'>";
         if ($s->show_vendor && !empty($label['vendor'])) {
-            $html .= "<div class='vendor'>" . htmlspecialchars($label['vendor']) . "</div>";
+            $html .= "<div class='vendor'>" . htmlspecialchars($label['vendor']) . '</div>';
         }
         if ($s->show_product_type && !empty($label['product_type'])) {
-            $html .= "<div class='product-type'>" . htmlspecialchars($label['product_type']) . "</div>";
+            $html .= "<div class='product-type'>" . htmlspecialchars($label['product_type']) . '</div>';
         }
-        $html .= "</div>";
+        $html .= '</div>';
 
-        $html .= "</div>";
+        $html .= '</div>';
 
         return $html;
     }
@@ -920,7 +930,7 @@ HTML;
             case 'sku':
                 return !empty($label['sku']) ? "SKU: {$label['sku']}" : '';
             case 'price':
-                return !empty($label['price']) ? "$" . number_format((float)$label['price'], 2) : '';
+                return !empty($label['price']) ? '$' . number_format((float) $label['price'], 2) : '';
             case 'vendor':
                 return $label['vendor'] ?? '';
             case 'product_type':
@@ -946,7 +956,7 @@ HTML;
                 if (strlen($displayValue) > 30) {
                     $displayValue = substr($displayValue, 0, 30) . '...';
                 }
-                $html .= "<div class='barcode-value'>" . htmlspecialchars($displayValue) . "</div>";
+                $html .= "<div class='barcode-value'>" . htmlspecialchars($displayValue) . '</div>';
             }
         }
         // Show linear barcode
@@ -954,17 +964,17 @@ HTML;
             $html .= "<img src='{$label['barcode_html']}' class='barcode-img' alt='Barcode' />";
 
             if ($showValue) {
-                $html .= "<div class='barcode-value'>" . htmlspecialchars($label['barcode_value']) . "</div>";
+                $html .= "<div class='barcode-value'>" . htmlspecialchars($label['barcode_value']) . '</div>';
             }
         }
         // Fallback text
         else {
-            $html .= "<div class='barcode-value' style='padding: 5pt 0; font-size: 9pt;'>" .
-                htmlspecialchars($label['barcode_value']) .
-                "</div>";
+            $html .= "<div class='barcode-value' style='padding: 5pt 0; font-size: 9pt;'>"
+                . htmlspecialchars($label['barcode_value'])
+                . '</div>';
         }
 
-        $html .= "</div>";
+        $html .= '</div>';
 
         return $html;
     }
