@@ -1,5 +1,5 @@
 // resources/js/Pages/BarcodePrinter/components/printer/PrinterVariantTable.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Card,
     IndexTable,
@@ -24,6 +24,8 @@ import {
 import { ArrowRightIcon, PrintIcon } from "@shopify/polaris-icons";
 import ConfirmModal from "../../components/ConfirmModal";
 import { analyzeLayout } from "./utils/LayoutOptimizer";
+
+const PREVIEW_VISIBILITY_KEY = "airo-printer-show-preview";
 
 // New Feedback Component
 // New Feedback Component - Compact Badge Version
@@ -89,7 +91,20 @@ export default function PrinterVariantTable({
     disablePrint = false,
 }) {
     const [selectedVariant, setSelectedVariant] = useState(null);
-    const [showPreview, setShowPreview] = useState(true);
+    const [showPreview, setShowPreview] = useState(() => {
+        if (typeof window === "undefined") return true;
+        const saved = window.localStorage.getItem(PREVIEW_VISIBILITY_KEY);
+        return saved === null ? true : saved === "true";
+    });
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        window.localStorage.setItem(
+            PREVIEW_VISIBILITY_KEY,
+            String(showPreview),
+        );
+    }, [showPreview]);
+
     const [tagsInput, setTagsInput] = useState("");
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [confirmScope, setConfirmScope] = useState(null);
@@ -692,8 +707,37 @@ export default function PrinterVariantTable({
     return (
         <>
             <BlockStack gap="400">
+                {!showPreview && (
+                    <div
+                        className="lg:sticky lg:top-4"
+                        style={{ zIndex: 5 }}
+                    >
+                        <Card>
+                            <Box padding="300">
+                                <InlineStack
+                                    align="space-between"
+                                    blockAlign="center"
+                                >
+                                    <Text variant="bodyMd" tone="subdued">
+                                        Live Preview is hidden
+                                    </Text>
+                                    <Button
+                                        size="slim"
+                                        onClick={() => setShowPreview(true)}
+                                    >
+                                        Show Preview
+                                    </Button>
+                                </InlineStack>
+                            </Box>
+                        </Card>
+                    </div>
+                )}
                 {showPreview && (
-                    <Card>
+                    <div
+                        className="lg:sticky lg:top-4"
+                        style={{ zIndex: 5 }}
+                    >
+                        <Card>
                         <Box padding="400">
                             <BlockStack gap="400">
                                 <InlineStack
@@ -738,7 +782,7 @@ export default function PrinterVariantTable({
                                             display: "flex",
                                             justifyContent: "center",
                                             overflow: "auto",
-                                            maxHeight: "600px",
+                                            maxHeight: "min(600px, calc(100vh - 320px))",
                                         }}
                                     >
                                         {previewTab === 0 ? (
@@ -923,7 +967,8 @@ export default function PrinterVariantTable({
                                 </Box>
                             </BlockStack>
                         </Box>
-                    </Card>
+                        </Card>
+                    </div>
                 )}
 
                 {/* VARIANTS TABLE */}

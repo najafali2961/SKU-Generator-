@@ -3,7 +3,7 @@
 client_id = "7d4945412c07915efc0b23fd85ee1d69"
 application_url = "https://sku.airoapps.com"
 embedded = true
-name = "Airo SKU & Barcode Generator"
+name = "Airo SKU & Barcode"
 handle = "airo-sku-barcode-generator-1"
 
 [build]

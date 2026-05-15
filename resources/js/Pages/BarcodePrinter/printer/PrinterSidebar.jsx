@@ -51,6 +51,7 @@ export default function PrinterSidebar({
         barcode: true,
         attributes: true,
         typography: false,
+        quantity: true,
     });
 
     // Template Management State
@@ -361,10 +362,15 @@ export default function PrinterSidebar({
             <Card>
                 <Box padding="400">
                     <BlockStack gap="400">
-                        <Text variant="headingMd" as="h3">
-                            🖨️ Printer Setup
-                        </Text>
-
+                        <SectionHeader
+                            title="🖨️ Printer Setup"
+                            section="printerSetup"
+                        />
+                        <Collapsible
+                            open={expandedSections.printerSetup}
+                            id="printer-setup-section"
+                        >
+                            <BlockStack gap="400">
                         {/* STEP 1: PRINTER TYPE */}
                         <BlockStack gap="200">
                             <Text variant="bodyMd" fontWeight="semibold">
@@ -450,6 +456,8 @@ export default function PrinterSidebar({
                             onChange={(v) => loadPrinterPreset(v)}
                             disabled={!selectedBrand}
                         />
+                            </BlockStack>
+                        </Collapsible>
                     </BlockStack>
                 </Box>
             </Card>
@@ -1228,23 +1236,36 @@ export default function PrinterSidebar({
             {/* QUANTITY */}
             <Card>
                 <Box padding="400">
-                    <FormLayout>
-                        <TextField
-                            label="Labels per Variant"
-                            type="number"
-                            min="1"
-                            max="100"
-                            value={String(config.quantity_per_variant)}
-                            onChange={(v) =>
-                                handleChange(
-                                    "quantity_per_variant",
-                                    Math.max(1, +v),
-                                )
-                            }
-                            helpText="How many labels to print for each variant"
-                            autoComplete="off"
+                    <BlockStack gap="400">
+                        <SectionHeader
+                            title="🔢 Quantity"
+                            section="quantity"
                         />
-                    </FormLayout>
+                        <Collapsible
+                            open={expandedSections.quantity}
+                            id="quantity-section"
+                        >
+                            <FormLayout>
+                                <TextField
+                                    label="Labels per Variant"
+                                    type="number"
+                                    min="1"
+                                    max="100"
+                                    value={String(
+                                        config.quantity_per_variant,
+                                    )}
+                                    onChange={(v) =>
+                                        handleChange(
+                                            "quantity_per_variant",
+                                            Math.max(1, +v),
+                                        )
+                                    }
+                                    helpText="How many labels to print for each variant"
+                                    autoComplete="off"
+                                />
+                            </FormLayout>
+                        </Collapsible>
+                    </BlockStack>
                 </Box>
             </Card>
 
