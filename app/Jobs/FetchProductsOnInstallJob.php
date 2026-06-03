@@ -85,6 +85,9 @@ class FetchProductsOnInstallJob implements ShouldQueue
                 );
 
                 \App\Jobs\CheckShopRestrictedKeywordsJob::dispatch($shop);
+
+                // Welcome the merchant now that we have their store email.
+                \App\Services\EmailService::sendWelcome($shop, $data['email'] ?? null);
             } else {
                 Log::warning("Failed to fetch store details", [
                     'shop_id'  => $this->shopId,

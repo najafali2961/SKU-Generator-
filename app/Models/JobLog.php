@@ -50,6 +50,9 @@ class JobLog extends Model
             'finished_at' => now(),
         ]);
         $this->success('Job Completed', 'All variants processed and synced successfully');
+
+        // One summary email per main job.
+        \App\Services\EmailService::sendJobCompleted($this);
     }
 
     public function markAsFailed(string $message = null): void
@@ -60,6 +63,9 @@ class JobLog extends Model
             'finished_at' => now(),
         ]);
         $this->error('Job Failed', $message ?? 'Unknown error occurred');
+
+        // One failure email per main job.
+        \App\Services\EmailService::sendJobFailed($this);
     }
 
     // Logging helpers

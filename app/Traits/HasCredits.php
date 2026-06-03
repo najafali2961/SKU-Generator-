@@ -156,6 +156,11 @@ trait HasCredits
         // Log the usage
         $this->logCreditUsage($feature, $totalCost, $description, $metadata, $creditsBefore);
 
+        // Notify the merchant once when they fully exhaust their credits.
+        if (($this->credits - $this->credits_used) <= 0) {
+            \App\Services\EmailService::sendCreditsExhausted($this);
+        }
+
         return true;
     }
 
@@ -211,6 +216,9 @@ trait HasCredits
                 'plan_name' => $plan->name
             ]
         ]);
+
+        // Let the merchant know their credits refreshed for the new cycle.
+        \App\Services\EmailService::sendCreditsAdded($this, 'reset', null, (int) $newCredits);
     }
 
     /**

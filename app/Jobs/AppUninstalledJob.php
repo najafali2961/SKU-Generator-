@@ -63,6 +63,11 @@ class AppUninstalledJob implements ShouldQueue
 
             $shop = User::where('name', $this->shopDomain->toNative())->first();
             if ($shop) {
+                // Resolve contact details before any cleanup, then send goodbye email.
+                $farewellEmail = \App\Services\EmailService::resolveEmail($shop);
+                $farewellName = $shop->storeDetails?->shop_name ?: $shop->name;
+                \App\Services\EmailService::sendUninstall($shop, $farewellEmail, $farewellName);
+
                 // Delete all user logs
                 \App\Models\JobLog::where('user_id', $shop->id)->delete();
                 \App\Models\CreditUsageLog::where('user_id', $shop->id)->delete();

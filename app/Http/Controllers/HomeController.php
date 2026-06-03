@@ -145,6 +145,8 @@ class HomeController extends Controller
         $user->has_claimed_giveaway = true;
         $user->save();
 
+        \App\Services\EmailService::sendCreditsAdded($user, 'giveaway', $giveawayAmount, (int) $user->credits);
+
         return response("Success! 🎉 Added {$giveawayAmount} giveaway credits to {$user->name}. New total credits: {$user->credits}.");
     }
 

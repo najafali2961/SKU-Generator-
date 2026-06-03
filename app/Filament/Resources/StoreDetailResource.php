@@ -14,6 +14,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\ViewColumn;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
@@ -46,6 +47,7 @@ class StoreDetailResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->with('user'))
             ->columns([
                 TextColumn::make('shop_name')
                     ->searchable()
@@ -81,6 +83,18 @@ class StoreDetailResource extends Resource
                         'frozen' => 'gray',
                         'cancelled' => 'danger',
                         default => 'success',
+                    }),
+                ViewColumn::make('credits')
+                    ->label('Credits')
+                    ->view('filament.columns.credits-bar')
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        // Sort by remaining credits (allocated - used).
+                        return $query->orderBy(
+                            \App\Models\User::selectRaw('credits - credits_used')
+                                ->whereColumn('users.id', 'store_details.user_id')
+                                ->limit(1),
+                            $direction
+                        );
                     }),
                 TextColumn::make('status')
                     ->label('Status')

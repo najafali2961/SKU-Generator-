@@ -72,6 +72,27 @@ class PlanActivatedListener implements ShouldQueue
             if ($updated) {
                 // Refresh model so any future code sees correct values
                 $shop->refresh();
+
+                // Notify the merchant. A plan with a trial gets the trial email;
+                // otherwise a straight plan-activated confirmation.
+                $trialDays = (int) ($plan->trial_days ?? 0);
+                $planName = $plan->name ?? 'your';
+
+                if ($trialDays > 0) {
+                    \App\Services\EmailService::sendTrialStarted(
+                        $shop,
+                        $planName,
+                        $trialDays,
+                        Carbon::now()->addDays($trialDays)->format('M j, Y')
+                    );
+                } else {
+                    \App\Services\EmailService::sendPlanActivated(
+                        $shop,
+                        $planName,
+                        (int) ($plan->monthly_credits ?? 0),
+                        (bool) $plan->unlimited_credits
+                    );
+                }
             } else {
                 Log::error('No rows updated when applying plan', [
                     'user_id' => $shop->id,
