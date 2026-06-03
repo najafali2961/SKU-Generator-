@@ -60,19 +60,55 @@ class EmailService
      * in the merchant's own store, e.g.
      * https://admin.shopify.com/store/{store}/apps/{app_handle}
      *
+     * The app identifier prefers the configured app handle but falls back
+     * to the API key (client id) — which is always present — so the link
+     * keeps working even when SHOPIFY_APP_HANDLE is missing from the
+     * (possibly cached) production config. Both forms open the embedded
+     * app with shop context instead of hitting the bare /authenticate route.
+     *
      * Falls back to the bare app URL only when we can't derive the store.
      */
     public static function appUrl(?User $user): string
     {
-        $handle = config('shopify-app.app_handle');
-        $domain = $user?->storeDetails?->shopify_domain ?: $user?->name;
-        $store = $domain ? str_replace('.myshopify.com', '', trim($domain)) : null;
+        $store = self::storeHandle($user);
+        if (! $store) {
+            return config('app.url');
+        }
 
-        if ($handle && $store) {
+        // Preferred: the human-readable app handle on the new admin host.
+        $handle = trim((string) config('shopify-app.app_handle'));
+        if ($handle !== '') {
             return "https://admin.shopify.com/store/{$store}/apps/{$handle}";
         }
 
+        // Fallback: the API key (client id) is always configured and is
+        // accepted as the app identifier on the legacy admin host.
+        $apiKey = trim((string) config('shopify-app.api_key'));
+        if ($apiKey !== '') {
+            return "https://{$store}.myshopify.com/admin/apps/{$apiKey}";
+        }
+
         return config('app.url');
+    }
+
+    /**
+     * Derive the bare store handle (without scheme or .myshopify.com)
+     * used to build admin deep links.
+     */
+    protected static function storeHandle(?User $user): ?string
+    {
+        $domain = $user?->storeDetails?->shopify_domain ?: $user?->name;
+        if (! $domain) {
+            return null;
+        }
+
+        // Strip any scheme, trailing slash and the .myshopify.com suffix.
+        $domain = trim((string) $domain);
+        $domain = preg_replace('#^https?://#i', '', $domain);
+        $domain = rtrim($domain, '/');
+        $domain = str_replace('.myshopify.com', '', $domain);
+
+        return $domain !== '' ? $domain : null;
     }
 
     /**
@@ -81,8 +117,9 @@ class EmailService
      */
     protected static function send(?string $email, $mailable, string $context, ?User $user = null): void
     {
-        if (!$email) {
+        if (! $email) {
             Log::info("EmailService: skipped {$context} — no valid recipient email.");
+
             return;
         }
 
@@ -93,7 +130,7 @@ class EmailService
         try {
             Mail::to($email)->send($mailable);
         } catch (\Throwable $e) {
-            Log::error("EmailService: failed to send {$context}: " . $e->getMessage());
+            Log::error("EmailService: failed to send {$context}: ".$e->getMessage());
         }
     }
 
@@ -125,7 +162,7 @@ class EmailService
      */
     public static function sendCreditsExhausted(?User $user): void
     {
-        if (!$user) {
+        if (! $user) {
             return;
         }
 
@@ -138,7 +175,7 @@ class EmailService
         }
 
         $email = self::resolveEmail($user);
-        if (!$email) {
+        if (! $email) {
             return;
         }
 
