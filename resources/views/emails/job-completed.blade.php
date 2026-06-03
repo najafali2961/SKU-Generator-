@@ -34,9 +34,9 @@
     @if (!empty($downloadUrl))
         @include('emails.partials.button', ['url' => $downloadUrl, 'label' => '⬇  Download labels (ZIP)'])
         <p style="margin: 14px 0 0; text-align: center;">
-            <a href="{{ config('app.url') }}" style="font-size: 13px; color: #6b7280; text-decoration: underline;">Or open the app</a>
+            <a href="{{ ($appUrl ?? config('app.url')) }}" style="font-size: 13px; color: #6b7280; text-decoration: underline;">Or open the app</a>
         </p>
     @else
-        @include('emails.partials.button', ['url' => config('app.url'), 'label' => 'View results'])
+        @include('emails.partials.button', ['url' => ($appUrl ?? config('app.url')), 'label' => 'View results'])
     @endif
 @endsection

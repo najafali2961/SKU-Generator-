@@ -27,5 +27,5 @@
             : 'Your credits have been topped up and your monthly cycle has been reset. You\'re all set!',
     ])
 
-    @include('emails.partials.button', ['url' => config('app.url'), 'label' => 'Start using your plan'])
+    @include('emails.partials.button', ['url' => ($appUrl ?? config('app.url')), 'label' => 'Start using your plan'])
 @endsection

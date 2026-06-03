@@ -90,7 +90,7 @@
                                     style="color: #0b6b54; text-decoration: none; font-weight: 600;">{{ config('mail.from.address') }}</a>
                             </p>
                             <p style="margin: 0 0 14px; font-size: 13px; line-height: 1.6;">
-                                <a href="{{ config('app.url') }}"
+                                <a href="{{ ($appUrl ?? config('app.url')) }}"
                                     style="color: #6b7280; text-decoration: underline;">Open the app</a>
                                 &nbsp;·&nbsp;
                                 <a href="mailto:{{ config('mail.from.address') }}"

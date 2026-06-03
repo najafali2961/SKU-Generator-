@@ -30,5 +30,5 @@
         </tr>
     </table>
 
-    @include('emails.partials.button', ['url' => config('app.url'), 'label' => 'Open the app'])
+    @include('emails.partials.button', ['url' => ($appUrl ?? config('app.url')), 'label' => 'Open the app'])
 @endsection

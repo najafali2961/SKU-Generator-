@@ -24,5 +24,5 @@
         'text' => 'No charge during your trial. You can cancel anytime before it ends and you won\'t be billed.',
     ])
 
-    @include('emails.partials.button', ['url' => config('app.url'), 'label' => 'Explore the app'])
+    @include('emails.partials.button', ['url' => ($appUrl ?? config('app.url')), 'label' => 'Explore the app'])
 @endsection

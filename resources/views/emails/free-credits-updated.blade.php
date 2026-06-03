@@ -22,5 +22,5 @@
         'text' => 'Use your credits to generate barcodes, build SKUs and print labels. They refresh with your monthly cycle.',
     ])
 
-    @include('emails.partials.button', ['url' => config('app.url'), 'label' => 'Start generating'])
+    @include('emails.partials.button', ['url' => ($appUrl ?? config('app.url')), 'label' => 'Start generating'])
 @endsection

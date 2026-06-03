@@ -30,5 +30,5 @@
         we'll jump in to help.
     </p>
 
-    @include('emails.partials.button', ['url' => config('app.url'), 'label' => 'Retry in the app'])
+    @include('emails.partials.button', ['url' => ($appUrl ?? config('app.url')), 'label' => 'Retry in the app'])
 @endsection

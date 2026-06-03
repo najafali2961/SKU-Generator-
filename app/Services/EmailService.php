@@ -56,13 +56,38 @@ class EmailService
     }
 
     /**
-     * Low-level guarded send.
+     * Build the Shopify admin deep link that opens the embedded app
+     * in the merchant's own store, e.g.
+     * https://admin.shopify.com/store/{store}/apps/{app_handle}
+     *
+     * Falls back to the bare app URL only when we can't derive the store.
      */
-    protected static function send(?string $email, $mailable, string $context): void
+    public static function appUrl(?User $user): string
+    {
+        $handle = config('shopify-app.app_handle');
+        $domain = $user?->storeDetails?->shopify_domain ?: $user?->name;
+        $store = $domain ? str_replace('.myshopify.com', '', trim($domain)) : null;
+
+        if ($handle && $store) {
+            return "https://admin.shopify.com/store/{$store}/apps/{$handle}";
+        }
+
+        return config('app.url');
+    }
+
+    /**
+     * Low-level guarded send. When a user is supplied, the mailable's
+     * "open the app" URL is set to that merchant's admin deep link.
+     */
+    protected static function send(?string $email, $mailable, string $context, ?User $user = null): void
     {
         if (!$email) {
             Log::info("EmailService: skipped {$context} — no valid recipient email.");
             return;
+        }
+
+        if ($user !== null && property_exists($mailable, 'appUrl')) {
+            $mailable->appUrl = self::appUrl($user);
         }
 
         try {
@@ -77,14 +102,14 @@ class EmailService
     public static function sendWelcome(?User $user, ?string $email = null): void
     {
         $email = self::resolveEmail($user, $email);
-        self::send($email, new WelcomeMail(self::shopName($user)), 'welcome email');
+        self::send($email, new WelcomeMail(self::shopName($user)), 'welcome email', $user);
     }
 
     public static function sendUninstall(?User $user, ?string $email = null, ?string $shopName = null): void
     {
         $email = self::resolveEmail($user, $email);
         $name = $shopName ?: self::shopName($user);
-        self::send($email, new AppUninstalledMail($name), 'uninstall email');
+        self::send($email, new AppUninstalledMail($name), 'uninstall email', $user);
     }
 
     // ───────────────────────── Credits ─────────────────────────
@@ -92,7 +117,7 @@ class EmailService
     public static function sendFreeCreditsUpdated(?User $user, int $credits): void
     {
         $email = self::resolveEmail($user);
-        self::send($email, new FreeCreditsUpdatedMail($credits, self::shopName($user)), 'free-credits-updated email');
+        self::send($email, new FreeCreditsUpdatedMail($credits, self::shopName($user)), 'free-credits-updated email', $user);
     }
 
     /**
@@ -122,7 +147,8 @@ class EmailService
         self::send(
             $email,
             new CreditsExhaustedMail((int) $user->credits, (int) $user->credits_used, self::shopName($user)),
-            'credits-exhausted email'
+            'credits-exhausted email',
+            $user
         );
     }
 
@@ -146,7 +172,8 @@ class EmailService
                 shopName: self::shopName($user),
                 downloadUrl: $downloadUrl,
             ),
-            'job-completed email'
+            'job-completed email',
+            $user
         );
     }
 
@@ -161,7 +188,8 @@ class EmailService
         self::send(
             $email,
             new PlanActivatedMail($planName, $credits, $unlimited, self::shopName($user)),
-            'plan-activated email'
+            'plan-activated email',
+            $user
         );
     }
 
@@ -174,7 +202,8 @@ class EmailService
         self::send(
             $email,
             new TrialStartedMail($planName, $trialDays, $trialEndsAt, self::shopName($user)),
-            'trial-started email'
+            'trial-started email',
+            $user
         );
     }
 
@@ -188,7 +217,8 @@ class EmailService
         self::send(
             $email,
             new CreditsAddedMail($type, $amount, $newBalance, self::shopName($user)),
-            'credits-added email'
+            'credits-added email',
+            $user
         );
     }
 
@@ -206,7 +236,8 @@ class EmailService
                 error: $jobLog->error_message,
                 shopName: self::shopName($user),
             ),
-            'job-failed email'
+            'job-failed email',
+            $user
         );
     }
 }

@@ -23,7 +23,7 @@
         'text' => 'Upgrade your plan for more monthly credits, or wait for your credits to refresh on your next cycle.',
     ])
 
-    @include('emails.partials.button', ['url' => config('app.url'), 'label' => 'Upgrade plan'])
+    @include('emails.partials.button', ['url' => ($appUrl ?? config('app.url')), 'label' => 'Upgrade plan'])
 
     <p style="margin: 22px 0 0; font-size: 13px; line-height: 1.6; color: #6b7280; text-align: center;">
         Questions about credits? <a href="mailto:{{ config('mail.from.address') }}"

@@ -8,10 +8,11 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
+use App\Mail\Concerns\HasAppUrl;
 
 class TrialStartedMail extends Mailable implements ShouldQueue
 {
-    use Queueable, SerializesModels;
+    use Queueable, SerializesModels, HasAppUrl;
 
     public function __construct(
         public string $planName,
