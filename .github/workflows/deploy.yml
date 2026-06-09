@@ -11,7 +11,25 @@ jobs:
     steps:
       - name: Trigger Webhook Pull
         run: |
-          # -f fail on HTTP error, -L follow http->https redirect, -k accept self-signed cert
-          curl -fsSL -k -X POST \
-            --connect-timeout 15 --retry 2 --retry-delay 5 \
-            "${{ secrets.AAPANEL_WEBHOOK_URL }}"
+          URL="${{ secrets.AAPANEL_WEBHOOK_URL }}"
+          if [ -z "$URL" ]; then
+            echo "::error::Secret AAPANEL_WEBHOOK_URL is empty — set it in repo Settings → Secrets → Actions."
+            exit 1
+          fi
+
+          # NOTE: aaPanel returns HTTP 200 even when the access_key is WRONG (body
+          # {"status":false}). So we must inspect the body, not just the HTTP code.
+          # -L follows http->https redirect, -k accepts the panel's self-signed cert.
+          echo "POSTing to aaPanel webhook…"
+          resp=$(curl -sS -L -k -X POST \
+                 --connect-timeout 15 --retry 2 --retry-delay 5 \
+                 -w $'\n---HTTP %{http_code}---' "$URL")
+          echo "$resp"
+
+          # Fail loudly if the panel rejected the key (so the Action goes RED, not a
+          # silent green that never deployed).
+          if echo "$resp" | grep -qi '"status" *: *false'; then
+            echo "::error::aaPanel rejected the call (status:false) — the access_key in AAPANEL_WEBHOOK_URL is wrong or points at the wrong hook."
+            exit 1
+          fi
+          echo "Webhook accepted. Verify in aaPanel → WebHook → sku_auto_pull → Log."
