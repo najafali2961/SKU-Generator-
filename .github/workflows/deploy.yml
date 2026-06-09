@@ -1,0 +1,17 @@
+name: Deploy to aaPanel
+
+on:
+  push:
+    branches: [ main ]   # deploys from main — change to "mailing" here if you deploy from that
+  workflow_dispatch: {}  # manual "Run workflow" button in the Actions tab
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Webhook Pull
+        run: |
+          # -f fail on HTTP error, -L follow http->https redirect, -k accept self-signed cert
+          curl -fsSL -k -X POST \
+            --connect-timeout 15 --retry 2 --retry-delay 5 \
+            "${{ secrets.AAPANEL_WEBHOOK_URL }}"
