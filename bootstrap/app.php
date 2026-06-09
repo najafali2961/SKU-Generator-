@@ -17,6 +17,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            // Logs each auto-deploy into the admin "Deploy Log" the first time a
+            // request is served after a new commit goes live. Runs in terminate().
+            \App\Http\Middleware\RecordDeployment::class,
         ]);
 
         // Middleware alias registration (IMPORTANT: must be outside web())

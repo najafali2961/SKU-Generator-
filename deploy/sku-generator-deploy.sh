@@ -54,6 +54,11 @@ php artisan route:cache
 # 8. Reload queue workers so new code is live
 php artisan queue:restart
 
+# 8a. Log this deploy into the admin "Deploy Log" (System → Deploy Log).
+# Records the now-live commit (hash, message, author, time). Safe/no-op if the
+# commit was already logged. Never fails the deploy.
+php artisan deploy:record --source=webhook || true
+
 # 8b. Octane reset on port 8000 (Supervisor relaunches octane:start after the kill)
 echo "Clearing Octane workers on port 8000..."
 php artisan octane:stop || true

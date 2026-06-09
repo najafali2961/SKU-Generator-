@@ -60,6 +60,7 @@ php artisan migrate --force
 php artisan config:cache
 php artisan route:cache
 php artisan queue:restart
+php artisan deploy:record --source=webhook || true
 find "\$APP_DIR" -name ".user.ini" -prune -o -exec chown www:www {} +
 echo "Deployment complete!"
 EOF
