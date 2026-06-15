@@ -20,7 +20,9 @@ class FeedbackResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-chat-bubble-left-ellipsis';
     
-    protected static string|\UnitEnum|null $navigationGroup = 'Store Management';
+    protected static string|\UnitEnum|null $navigationGroup = 'System';
+
+    protected static ?int $navigationSort = 2;
 
     public static function form(Schema $schema): Schema
     {
