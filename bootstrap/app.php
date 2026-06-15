@@ -31,6 +31,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             '*',
         ]);
+
+        // Send unauthenticated visitors (e.g. the admin-only /logs route) to the
+        // Filament admin login rather than the non-existent default `login` route.
+        $middleware->redirectGuestsTo(fn () => route('filament.admin.auth.login'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

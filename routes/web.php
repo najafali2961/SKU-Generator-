@@ -98,7 +98,9 @@ Route::middleware(['auth.webhook'])->group(function () {
     Route::post('/webhook/products-create', [WebhookController::class, 'productsCreate']);
 });
 
-// Log viewer
-Route::get('logs', [\Rap2hpoutre\LaravelLogViewer\LogViewerController::class, 'index']);
+// Log viewer (admin only — logs may contain access tokens, shop domains, customer data)
+Route::middleware(['auth:admin'])->group(function () {
+    Route::get('logs', [\Rap2hpoutre\LaravelLogViewer\LogViewerController::class, 'index']);
+});
 
 Route::get('/test/shopify', [HomeController::class, 'handleShopifyCall']);
