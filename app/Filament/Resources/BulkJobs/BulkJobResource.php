@@ -6,8 +6,10 @@ use App\Filament\Resources\BulkJobs\Pages\ListBulkJobs;
 use App\Models\JobLog;
 use App\Models\User;
 use BackedEnum;
+use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -34,13 +36,61 @@ class BulkJobResource extends Resource
     /** Active (in-flight) statuses. */
     protected const ACTIVE = ['pending', 'running'];
 
+    /**
+     * Job types that can be safely re-dispatched from the stored payload.
+     * label_generation is excluded: its variant_ids are not persisted in
+     * the JobLog payload, so it cannot be reconstructed.
+     */
+    protected const RETRYABLE_TYPES = ['sku_generation', 'barcode_generation', 'barcode_import'];
+
+    /** Statuses from which a re-run is allowed (stuck or failed jobs). */
+    protected const RETRYABLE_STATUSES = ['pending', 'running', 'failed'];
+
+    protected static function canRetry(JobLog $record): bool
+    {
+        return in_array($record->type, static::RETRYABLE_TYPES, true)
+            && in_array($record->status, static::RETRYABLE_STATUSES, true);
+    }
+
+    /**
+     * Re-dispatch the underlying queued job for a stuck/failed JobLog,
+     * reusing the same JobLog row. Does NOT deduct credits again — they
+     * were charged when the job was first started.
+     */
+    protected static function rerun(JobLog $record): bool
+    {
+        if (! static::canRetry($record)) {
+            return false;
+        }
+
+        $payload = $record->payload ?? [];
+
+        $record->update([
+            'status' => 'pending',
+            'processed_items' => 0,
+            'failed_items' => 0,
+            'error_message' => null,
+            'started_at' => null,
+            'finished_at' => null,
+        ]);
+
+        match ($record->type) {
+            'sku_generation' => \App\Jobs\GenerateSkuJob::dispatch($record->user_id, $payload, $record->id),
+            'barcode_generation' => \App\Jobs\GenerateBarcodeJob::dispatch($record->user_id, $payload, $record->id),
+            'barcode_import' => \App\Jobs\ImportBarcodesJob::dispatch($record->user_id, $payload['custom_barcodes'] ?? [], $record->id),
+            default => null,
+        };
+
+        return true;
+    }
+
     protected static function typeColor(?string $type): string
     {
         return match ($type) {
             'sku_generation' => 'info',
             'barcode_generation' => 'success',
             'barcode_import' => 'warning',
-            'label_printing' => 'primary',
+            'label_printing', 'label_generation' => 'primary',
             default => 'gray',
         };
     }
@@ -172,8 +222,8 @@ class BulkJobResource extends Resource
                     ->options([
                         'sku_generation' => 'SKU generation',
                         'barcode_generation' => 'Barcode generation',
-                        'barcode_import' => 'Barcode import',
-                        'label_printing' => 'Label printing',
+                        'barcode_import' => 'Barcode / CSV import',
+                        'label_generation' => 'Label generation',
                     ]),
 
                 SelectFilter::make('user')
@@ -184,6 +234,29 @@ class BulkJobResource extends Resource
             ])
             ->recordActions([
                 ViewAction::make()->slideOver(),
+
+                Action::make('rerun')
+                    ->label('Re-run')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->visible(fn (JobLog $record): bool => static::canRetry($record))
+                    ->requiresConfirmation()
+                    ->modalHeading('Re-run this job')
+                    ->modalDescription('Re-dispatches the job to the queue and resets its progress. Credits are NOT charged again. Make sure the queue worker is running, or it will stay pending.')
+                    ->action(function (JobLog $record): void {
+                        if (static::rerun($record)) {
+                            Notification::make()
+                                ->title('Job re-queued')
+                                ->body('It will start once the queue worker picks it up.')
+                                ->success()
+                                ->send();
+                        } else {
+                            Notification::make()
+                                ->title('This job type cannot be re-run')
+                                ->danger()
+                                ->send();
+                        }
+                    }),
             ]);
     }
 
