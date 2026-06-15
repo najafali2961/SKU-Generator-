@@ -8,8 +8,14 @@ import {
     Tooltip,
     Box,
 } from "@shopify/polaris";
-import { ArrowLeftIcon, MagicIcon, ExportIcon } from "@shopify/polaris-icons";
+import {
+    ArrowLeftIcon,
+    MagicIcon,
+    ExportIcon,
+    RefreshIcon,
+} from "@shopify/polaris-icons";
 import { Link } from "@inertiajs/react";
+import { triggerProductSync } from "../../Components/SyncProducts";
 
 const SMART_PRESETS = [
     {
@@ -96,6 +102,20 @@ export default function SkuHeader({ onPreset, onExport }) {
                             icon={<Icon source={MagicIcon} />}
                         >
                             Smart Preset
+                        </Button>
+                    </Tooltip>
+
+                    <Tooltip
+                        content="Re-pull the latest products & variants from Shopify"
+                        preferredPosition="below"
+                    >
+                        <Button
+                            size="large"
+                            variant="primary"
+                            icon={RefreshIcon}
+                            onClick={triggerProductSync}
+                        >
+                            Sync products
                         </Button>
                     </Tooltip>
 

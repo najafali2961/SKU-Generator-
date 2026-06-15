@@ -8,26 +8,11 @@ import {
     Tooltip,
     Box,
 } from "@shopify/polaris";
-import {
-    ArrowLeftIcon,
-    ImportIcon,
-    ExportIcon,
-    FolderDownIcon,
-} from "@shopify/polaris-icons";
+import { ArrowLeftIcon, ExportIcon, RefreshIcon } from "@shopify/polaris-icons";
 import { Link } from "@inertiajs/react";
+import { triggerProductSync } from "../../../Components/SyncProducts";
 
 export default function BarcodeHeader({ onImport, onExport }) {
-    const downloadTemplate = () => {
-        const csv = `shopify_variant_id,barcode\n="47718466191611",="0123456789012"\n="47718466191612",="0123456789013"`;
-        const blob = new Blob([csv], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "barcode-import-template.csv";
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-
     return (
         <Box paddingBlockStart="100" paddingBlockEnd="10">
             <InlineStack align="space-between" blockAlign="center" gap="400">
@@ -47,32 +32,19 @@ export default function BarcodeHeader({ onImport, onExport }) {
                     </div>
                 </InlineStack>
 
-                {/* Right side – Import & Export buttons */}
+                {/* Right side – Sync products */}
                 <InlineStack gap="200">
                     <Tooltip
-                        content="Download a sample CSV template"
-                        preferredPosition="below"
-                    >
-                        <Button
-                            size="large"
-                            icon={FolderDownIcon}
-                            onClick={downloadTemplate}
-                        >
-                            Download Template
-                        </Button>
-                    </Tooltip>
-
-                    <Tooltip
-                        content="Import barcodes from a CSV file"
+                        content="Re-pull the latest products & variants from Shopify"
                         preferredPosition="below"
                     >
                         <Button
                             size="large"
                             variant="primary"
-                            icon={ImportIcon}
-                            onClick={onImport}
+                            icon={RefreshIcon}
+                            onClick={triggerProductSync}
                         >
-                            Import CSV
+                            Sync products
                         </Button>
                     </Tooltip>
 

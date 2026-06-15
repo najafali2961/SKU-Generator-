@@ -1,17 +1,24 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Card, BlockStack, InlineStack, Text, Button, Badge, Box } from "@shopify/polaris";
 import { router } from "@inertiajs/react";
 import axios from "axios";
 
 /**
- * Manual "Sync from Shopify" control + live progress.
+ * Live product-sync progress widget.
  *
- * The inline card is the trigger (start a re-pull of products/variants when a
- * webhook was missed). While a sync runs, a floating widget appears bottom-left
- * — a full progress card that can be minimized to a compact animated circle
- * (progress ring + spinning icon) or dismissed (sync keeps running in the
- * background). Minimized/dismissed state persists across page changes.
+ * This component renders nothing inline — it's triggered from elsewhere (a
+ * "Sync products" button in the page header) via the `start-product-sync`
+ * window event, which callers fire through {@link triggerProductSync}. While a
+ * sync runs it shows a floating widget bottom-left: a full progress card that
+ * can be minimized to a compact animated circle (progress ring + spinning icon)
+ * or dismissed (sync keeps running in the background). Minimized/dismissed
+ * state persists across page changes.
  */
+
+const SYNC_EVENT = "start-product-sync";
+
+/** Fire from anywhere (e.g. a header button) to kick off a product sync. */
+export const triggerProductSync = () =>
+    window.dispatchEvent(new CustomEvent(SYNC_EVENT));
 
 // Inline design tokens (this app has no shared theme module).
 const T = {
@@ -203,78 +210,52 @@ export default function SyncProducts() {
     };
 
     const running = !!status?.running;
+
+    // Listen for the global trigger fired by the header "Sync products" button.
+    useEffect(() => {
+        const onTrigger = () => {
+            if (!running && !starting) handleSync();
+        };
+        window.addEventListener(SYNC_EVENT, onTrigger);
+        return () => window.removeEventListener(SYNC_EVENT, onTrigger);
+    }, [handleSync, running, starting]);
+
     const total = status?.total ?? 0;
     const processed = status?.processed ?? 0;
     const rawPercent =
         status?.percent ?? (total > 0 ? Math.round((processed / total) * 100) : 0);
-    const percent = justFinished
+    const finishedFailed = justFinished && status?.status === "failed";
+    const finishedOk = justFinished && !finishedFailed;
+    const percent = finishedOk
         ? 100
         : Math.min(100, Math.max(0, Math.round(rawPercent)));
     const indeterminate = running && total === 0 && !justFinished && !isStarting;
 
+    const accent = finishedFailed ? "#D92D20" : T.purple;
+    const accentSoft = finishedFailed ? "#FDECEA" : T.purpleSoft;
+
     const showWidget = (running || isStarting || justFinished) && !dismissed;
-    const failed = !running && status?.status === "failed";
 
     const title = isStarting
         ? "Starting sync…"
-        : justFinished
-          ? "Sync complete"
-          : "Syncing products";
+        : finishedFailed
+          ? "Sync failed"
+          : finishedOk
+            ? "Sync complete"
+            : "Syncing products";
     const subtitle = isStarting
         ? "Preparing to sync products…"
-        : justFinished
-          ? "Products are up to date"
-          : total > 0
-            ? `${processed} of ${total} synced`
-            : "Fetching from Shopify…";
+        : finishedFailed
+          ? "Something went wrong — please try again"
+          : finishedOk
+            ? "Products are up to date"
+            : total > 0
+              ? `${processed} of ${total} synced`
+              : "Fetching from Shopify…";
 
     return (
         <>
-            {/* Inline trigger card */}
-            <Card>
-                <InlineStack
-                    align="space-between"
-                    blockAlign="center"
-                    wrap={false}
-                    gap="400"
-                >
-                    <BlockStack gap="050">
-                        <Text as="h2" variant="headingMd">
-                            Product data sync
-                        </Text>
-                        <Text as="p" tone="subdued" variant="bodySm">
-                            Re-pull the latest products & variants from Shopify.
-                            Use this if data looks out of date, or items stay in
-                            "Missing" after a webhook was missed.
-                        </Text>
-                    </BlockStack>
-                    <Button
-                        variant="primary"
-                        onClick={handleSync}
-                        loading={starting || running}
-                        disabled={running}
-                    >
-                        {running ? "Syncing…" : "Sync from Shopify"}
-                    </Button>
-                </InlineStack>
-
-                {!running && !justFinished && status?.status === "completed" && status?.finished_at && (
-                    <Box paddingBlockStart="300">
-                        <Badge tone="success" progress="complete">
-                            Up to date
-                        </Badge>
-                    </Box>
-                )}
-                {failed && (
-                    <Box paddingBlockStart="300">
-                        <Badge tone="critical">
-                            Sync failed — please try again
-                        </Badge>
-                    </Box>
-                )}
-            </Card>
-
-            {/* Floating progress widget */}
+            {/* Floating progress widget (triggered from the header button) */}
             {showWidget &&
                 (isMinimized ? (
                     <div
@@ -304,14 +285,14 @@ export default function SyncProducts() {
                         }}
                     >
                         <div
-                            className="syncw-icon-spin"
+                            className={finishedFailed ? "" : "syncw-icon-spin"}
                             style={{
                                 display: "flex",
                                 position: "relative",
                                 zIndex: 1,
                             }}
                         >
-                            <SyncSvg size={22} />
+                            <SyncSvg size={22} color={accent} />
                         </div>
                         <svg
                             viewBox="0 0 56 56"
@@ -330,7 +311,7 @@ export default function SyncProducts() {
                                 cy="28"
                                 r={RING_R}
                                 fill="none"
-                                stroke={T.purpleSoft}
+                                stroke={accentSoft}
                                 strokeWidth="3"
                             />
                             <circle
@@ -338,7 +319,7 @@ export default function SyncProducts() {
                                 cy="28"
                                 r={RING_R}
                                 fill="none"
-                                stroke={T.purple}
+                                stroke={accent}
                                 strokeWidth="3"
                                 strokeLinecap="round"
                                 strokeDasharray={RING_C}
@@ -384,7 +365,7 @@ export default function SyncProducts() {
                                             width: 34,
                                             height: 34,
                                             borderRadius: T.radiusMd,
-                                            background: T.purpleSoft,
+                                            background: accentSoft,
                                             display: "flex",
                                             alignItems: "center",
                                             justifyContent: "center",
@@ -399,7 +380,7 @@ export default function SyncProducts() {
                                             }
                                             style={{ display: "flex" }}
                                         >
-                                            <SyncSvg size={18} />
+                                            <SyncSvg size={18} color={accent} />
                                         </span>
                                     </div>
                                     <div style={{ minWidth: 0 }}>
@@ -497,15 +478,17 @@ export default function SyncProducts() {
                                         style={{
                                             fontSize: 12,
                                             fontWeight: 600,
-                                            color: T.purple,
-                                            background: T.purpleSoft,
+                                            color: accent,
+                                            background: accentSoft,
                                             borderRadius: 999,
                                             padding: "2px 9px",
                                         }}
                                     >
-                                        {total > 0 || justFinished
-                                            ? `${percent}%`
-                                            : `${processed} synced`}
+                                        {finishedFailed
+                                            ? "Failed"
+                                            : total > 0 || justFinished
+                                              ? `${percent}%`
+                                              : `${processed} synced`}
                                     </span>
                                 </div>
 
@@ -515,7 +498,7 @@ export default function SyncProducts() {
                                         width: "100%",
                                         borderRadius: 999,
                                         overflow: "hidden",
-                                        background: T.purpleSoft,
+                                        background: accentSoft,
                                         position: "relative",
                                     }}
                                 >
@@ -539,7 +522,9 @@ export default function SyncProducts() {
                                                 position: "relative",
                                                 height: "100%",
                                                 width: `${percent}%`,
-                                                background: `linear-gradient(90deg, ${T.purpleStrong} 0%, ${T.purple} 100%)`,
+                                                background: finishedFailed
+                                                    ? accent
+                                                    : `linear-gradient(90deg, ${T.purpleStrong} 0%, ${T.purple} 100%)`,
                                                 borderRadius: 999,
                                                 transition: "width 300ms ease",
                                                 overflow: "hidden",

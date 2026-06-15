@@ -355,9 +355,7 @@ export default function SkuGenerator({
                     onExport={handleExport}
                 />
 
-                <div className="mt-6">
-                    <SyncProducts />
-                </div>
+                <SyncProducts />
 
                 <div className="grid gap-6 mt-6 lg:grid-cols-12">
                     <div className="lg:col-span-4">
