@@ -30,54 +30,10 @@ class AfterAuthenticateJob implements ShouldQueue
      */
     public function handle(): void
     {
-        $query = "query GetStoreDetails {
-                        shop {
-                            id
-                            name
-                            email
-                            description
-                            plan {
-                                displayName
-                                shopifyPlus
-                            }
-                            myshopifyDomain
-                            primaryDomain {
-                                url
-                            }
-                            billingAddress {
-                                country
-                                phone
-                            }
-                            currencyCode
-                            customerAccountsV2{
-                                url
-                            }
-                        }
-                    }";
+        $storeDetails = app(\App\Services\StoreDetailService::class)->sync($this->shop);
 
-        $response = $this->shop->api()->graph($query);
-        if ($response['status'] == 200 && $response['errors'] == false) {
-            $data = $response['body']['container']['data']['shop'];
-            $storeDetails = StoreDetail::updateOrCreate(
-                ['user_id' => $this->shop->id],
-                [
-                    'shop_id' => $data['id'] ?? "",
-                    'shop_name' => $data['name'] ?? "",
-                    'email' => $data['email'] ?? "",
-                    'phone' => $data['billingAddress']['phone'] ?? "",
-                    'description' => $data['description'] ?? "",
-                    'plan_name' => $data['plan']['displayName'] ?? "",
-                    'shopify_plus' => $data['plan']['shopifyPlus'] ?? "",
-                    'shopify_domain' => $data['myshopifyDomain'] ?? "",
-                    'primary_domain' => $data['primaryDomain']['url'] ?? "",
-                    'currency' => $data['currencyCode'] ?? "",
-                    'country' => $data['billingAddress']['country'] ?? "",
-            
-                ]
-            );
-
+        if ($storeDetails) {
             \App\Jobs\CheckShopRestrictedKeywordsJob::dispatch($this->shop);
-          
         }
     }
 }
