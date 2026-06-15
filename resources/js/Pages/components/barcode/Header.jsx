@@ -8,10 +8,26 @@ import {
     Tooltip,
     Box,
 } from "@shopify/polaris";
-import { ArrowLeftIcon, ImportIcon, ExportIcon } from "@shopify/polaris-icons";
+import {
+    ArrowLeftIcon,
+    ImportIcon,
+    ExportIcon,
+    FolderDownIcon,
+} from "@shopify/polaris-icons";
 import { Link } from "@inertiajs/react";
 
 export default function BarcodeHeader({ onImport, onExport }) {
+    const downloadTemplate = () => {
+        const csv = `shopify_variant_id,barcode\n="47718466191611",="0123456789012"\n="47718466191612",="0123456789013"`;
+        const blob = new Blob([csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "barcode-import-template.csv";
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <Box paddingBlockStart="100" paddingBlockEnd="10">
             <InlineStack align="space-between" blockAlign="center" gap="400">
@@ -33,19 +49,32 @@ export default function BarcodeHeader({ onImport, onExport }) {
 
                 {/* Right side – Import & Export buttons */}
                 <InlineStack gap="200">
-                    {/* Import Button */}
-                    {/* <Tooltip
-                        content="Import purchased EAN/UPC/ISBN numbers (CSV)"
+                    <Tooltip
+                        content="Download a sample CSV template"
                         preferredPosition="below"
                     >
                         <Button
                             size="large"
-                            icon={<Icon source={ImportIcon} />}
+                            icon={FolderDownIcon}
+                            onClick={downloadTemplate}
+                        >
+                            Download Template
+                        </Button>
+                    </Tooltip>
+
+                    <Tooltip
+                        content="Import barcodes from a CSV file"
+                        preferredPosition="below"
+                    >
+                        <Button
+                            size="large"
+                            variant="primary"
+                            icon={ImportIcon}
                             onClick={onImport}
                         >
-                            Import Codes
+                            Import CSV
                         </Button>
-                    </Tooltip> */}
+                    </Tooltip>
 
                     {/* Export Button — hidden temporarily */}
                     {/* <Tooltip
