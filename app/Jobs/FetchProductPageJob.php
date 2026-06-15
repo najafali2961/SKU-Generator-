@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\Variant;
 use App\Models\Collection;
 use App\Models\Barcode;
+use App\Models\JobLog;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -34,11 +35,15 @@ class FetchProductPageJob implements ShouldQueue
      */
     protected $isResync;
 
-    public function __construct($shopId, $afterCursor = null, $isResync = false)
+    /** JobLog row id mirrored for the admin Bulk Jobs panel (re-sync only). */
+    protected $jobLogId;
+
+    public function __construct($shopId, $afterCursor = null, $isResync = false, $jobLogId = null)
     {
         $this->shopId = $shopId;
         $this->afterCursor = $afterCursor;
         $this->isResync = $isResync;
+        $this->jobLogId = $jobLogId;
     }
 
     public function handle(): void
@@ -385,12 +390,23 @@ class FetchProductPageJob implements ShouldQueue
             // Keep the running flag alive while the chain makes progress.
             Redis::setex("product_sync:{$this->shopId}:status", 3600, 'running');
 
+            // Mirror progress into the admin JobLog (cheap keyed update).
+            if ($this->jobLogId) {
+                $processed = (int) Redis::get("product_sync:{$this->shopId}:processed");
+                $total     = (int) Redis::get("product_sync:{$this->shopId}:total");
+                JobLog::whereKey($this->jobLogId)->update([
+                    'status'          => 'running',
+                    'processed_items' => $processed,
+                    'total_items'     => $total,
+                ]);
+            }
+
             $hasNext   = $pageInfo['hasNextPage'] ?? false;
             $endCursor = $pageInfo['endCursor'] ?? null;
 
             if ($hasNext && $endCursor) {
                 // Small delay keeps us comfortably under Shopify's GraphQL rate limit.
-                self::dispatch($this->shopId, $endCursor, true)->delay(now()->addSecond());
+                self::dispatch($this->shopId, $endCursor, true, $this->jobLogId)->delay(now()->addSecond());
             } else {
                 $this->markSyncCompleted();
             }
@@ -401,6 +417,19 @@ class FetchProductPageJob implements ShouldQueue
     {
         Redis::setex("product_sync:{$this->shopId}:status", 86400, 'completed');
         Redis::setex("product_sync:{$this->shopId}:finished_at", 86400, now()->toIso8601String());
+
+        if ($this->jobLogId && ($log = JobLog::find($this->jobLogId))) {
+            $total = (int) Redis::get("product_sync:{$this->shopId}:total");
+            $processed = (int) Redis::get("product_sync:{$this->shopId}:processed");
+            $log->update([
+                'status'          => 'completed',
+                'processed_items' => $processed,
+                'total_items'     => $total ?: $processed,
+                'finished_at'     => now(),
+            ]);
+            // Direct activity log (no completion email for an internal sync).
+            $log->success('Sync completed', 'Products & variants re-pulled from Shopify');
+        }
     }
 
     public function failed(\Throwable $e): void
@@ -408,6 +437,15 @@ class FetchProductPageJob implements ShouldQueue
         if ($this->isResync) {
             Redis::setex("product_sync:{$this->shopId}:status", 86400, 'failed');
             Redis::setex("product_sync:{$this->shopId}:finished_at", 86400, now()->toIso8601String());
+
+            if ($this->jobLogId && ($log = JobLog::find($this->jobLogId))) {
+                $log->update([
+                    'status'        => 'failed',
+                    'error_message' => $e->getMessage(),
+                    'finished_at'   => now(),
+                ]);
+                $log->error('Sync failed', $e->getMessage());
+            }
         }
     }
 

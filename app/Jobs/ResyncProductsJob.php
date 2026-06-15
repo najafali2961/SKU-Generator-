@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\JobLog;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -29,9 +30,12 @@ class ResyncProductsJob implements ShouldQueue
 
     public int $shopId;
 
-    public function __construct(int $shopId)
+    public ?int $jobLogId;
+
+    public function __construct(int $shopId, ?int $jobLogId = null)
     {
         $this->shopId = $shopId;
+        $this->jobLogId = $jobLogId;
         $this->onQueue('default');
     }
 
@@ -39,20 +43,31 @@ class ResyncProductsJob implements ShouldQueue
     {
         $shop = User::find($this->shopId);
         if (!$shop) {
-            $this->markFailed();
+            $this->markFailed('Shop not found');
             return;
+        }
+
+        // Flip the mirrored JobLog to "running" (no email — markAsStarted only
+        // writes an activity log).
+        if ($this->jobLogId && ($log = JobLog::find($this->jobLogId))) {
+            $log->markAsStarted();
         }
 
         try {
             // Total product count drives the "X of Y synced" display. Best-effort:
             // if it fails we just show an indeterminate count.
-            Redis::setex("product_sync:{$this->shopId}:total", 86400, $this->fetchProductCount($shop));
+            $total = $this->fetchProductCount($shop);
+            Redis::setex("product_sync:{$this->shopId}:total", 86400, $total);
+
+            if ($this->jobLogId) {
+                JobLog::whereKey($this->jobLogId)->update(['total_items' => $total]);
+            }
 
             // Start the sequential page chain.
-            FetchProductPageJob::dispatch($this->shopId, null, true);
+            FetchProductPageJob::dispatch($this->shopId, null, true, $this->jobLogId);
         } catch (Throwable $e) {
             Log::error('[RESYNC] coordinator failed: ' . $e->getMessage(), ['shop' => $this->shopId]);
-            $this->markFailed();
+            $this->markFailed($e->getMessage());
         }
     }
 
@@ -67,14 +82,25 @@ class ResyncProductsJob implements ShouldQueue
         }
     }
 
-    private function markFailed(): void
+    private function markFailed(?string $message = null): void
     {
         Redis::setex("product_sync:{$this->shopId}:status", 86400, 'failed');
         Redis::setex("product_sync:{$this->shopId}:finished_at", 86400, now()->toIso8601String());
+
+        // Update the mirrored JobLog directly (avoids the failure email that
+        // JobLog::markAsFailed() would send for every internal sync).
+        if ($this->jobLogId && ($log = JobLog::find($this->jobLogId))) {
+            $log->update([
+                'status' => 'failed',
+                'error_message' => $message,
+                'finished_at' => now(),
+            ]);
+            $log->error('Sync failed', $message ?? 'Unknown error occurred');
+        }
     }
 
     public function failed(Throwable $e): void
     {
-        $this->markFailed();
+        $this->markFailed($e->getMessage());
     }
 }

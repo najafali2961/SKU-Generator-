@@ -91,6 +91,7 @@ class BulkJobResource extends Resource
             'barcode_generation' => 'success',
             'barcode_import' => 'warning',
             'label_printing', 'label_generation' => 'primary',
+            'product_sync' => 'gray',
             default => 'gray',
         };
     }
@@ -224,6 +225,7 @@ class BulkJobResource extends Resource
                         'barcode_generation' => 'Barcode generation',
                         'barcode_import' => 'Barcode / CSV import',
                         'label_generation' => 'Label generation',
+                        'product_sync' => 'Product sync',
                     ]),
 
                 SelectFilter::make('user')

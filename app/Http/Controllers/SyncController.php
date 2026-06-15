@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\ResyncProductsJob;
+use App\Models\JobLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redis;
@@ -34,7 +35,23 @@ class SyncController extends Controller
         Redis::del($this->key($shop->id, 'total'));
         Redis::del($this->key($shop->id, 'finished_at'));
 
-        ResyncProductsJob::dispatch($shop->id);
+        // Mirror the sync into a JobLog so it shows up in the admin Bulk Jobs
+        // panel alongside generation/import jobs. The queued jobs update this
+        // row as they progress (the live widget still reads Redis for speed).
+        $jobLog = JobLog::create([
+            'user_id'         => $shop->id,
+            'type'            => 'product_sync',
+            'title'           => 'Product sync from Shopify',
+            'description'     => 'Re-pull the latest products & variants from Shopify',
+            'status'          => 'pending',
+            'total_items'     => 0,
+            'processed_items' => 0,
+            'failed_items'    => 0,
+            'payload'         => ['source' => 'manual'],
+        ]);
+        Redis::setex($this->key($shop->id, 'job_log_id'), 86400, $jobLog->id);
+
+        ResyncProductsJob::dispatch($shop->id, $jobLog->id);
 
         return $this->status($request);
     }
