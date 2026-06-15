@@ -88,6 +88,7 @@ class ProductsUpdateJob implements ShouldQueue
 
             $variantUpserts = [];
             $barcodeUpserts = [];
+            $incomingVariantIds = [];
 
             foreach ($variantsList as $vNode) {
                 $v = $isGraphQL ? ($vNode['node'] ?? []) : $vNode;
@@ -95,6 +96,8 @@ class ProductsUpdateJob implements ShouldQueue
 
                 $shopifyVariantId = $isGraphQL ? $this->extractId($v['id']) : ($v['id'] ?? null);
                 if (!$shopifyVariantId) continue;
+
+                $incomingVariantIds[] = $shopifyVariantId;
 
                 // Image Resolution
                 $imageSrc = null;
@@ -178,6 +181,34 @@ class ProductsUpdateJob implements ShouldQueue
                     ['variant_id'],
                     ['product_id', 'barcode_value', 'format', 'image_url', 'is_duplicate', 'updated_at']
                 );
+            }
+
+            // Prune local variants that no longer exist on Shopify. The webhook
+            // payload carries the product's COMPLETE current variant set, so any
+            // local variant for this product not in it has been deleted remotely
+            // and would otherwise be stuck forever in the "Missing" tab.
+            // Guard on a non-empty incoming set so a malformed/partial payload
+            // can never wipe a product's variants.
+            if (!empty($incomingVariantIds)) {
+                $orphans = Variant::where('product_id', $product->id)
+                    ->whereNotIn('shopify_variant_id', $incomingVariantIds)
+                    ->get(['id', 'shopify_variant_id']);
+
+                if ($orphans->isNotEmpty()) {
+                    $orphanLocalIds   = $orphans->pluck('id')->all();
+                    $orphanShopifyIds = $orphans->pluck('shopify_variant_id')->filter()->all();
+
+                    Variant::whereIn('id', $orphanLocalIds)->delete();
+                    if (!empty($orphanShopifyIds)) {
+                        // barcodes.variant_id stores the Shopify variant id.
+                        Barcode::whereIn('variant_id', $orphanShopifyIds)->delete();
+                    }
+
+                    Log::warning("[ProductsUpdateJob] Pruned variants deleted on Shopify", [
+                        'product_id' => $product->id,
+                        'count' => count($orphanLocalIds),
+                    ]);
+                }
             }
 
         } catch (\Throwable $e) {

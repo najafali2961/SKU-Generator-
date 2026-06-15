@@ -133,15 +133,31 @@ class GenerateSkuJob implements ShouldQueue
         Bus::batch($batches)
             ->name("SKU Generation - Shop {$shop->id}")
             ->then(function (Batch $batch) use ($jobLog) {
-                // All jobs completed successfully
                 $jobLog = JobLog::find($jobLog->id);
 
                 if (!$jobLog) {
-                    Log::error("SKU Job Completion: JobLog not found", ['id' => $jobLog->id]);
+                    Log::error("SKU Job Completion: JobLog not found");
                     return;
                 }
 
-                $jobLog->update(['processed_items' => $jobLog->total_items]);
+                // Report the REAL number of variants synced — not the total —
+                // so the UI no longer shows 100% while some SKUs stay missing.
+                $processed = (int) \Illuminate\Support\Facades\Redis::get("job_progress_{$jobLog->id}");
+                $failed    = (int) \Illuminate\Support\Facades\Redis::get("job_failed_{$jobLog->id}");
+
+                $jobLog->update([
+                    'processed_items' => $processed,
+                    'failed_items'    => $failed,
+                ]);
+
+                if ($failed > 0) {
+                    $jobLog->activityLogs()->create([
+                        'level' => 'warning',
+                        'title' => 'Completed with warnings',
+                        'message' => "Synced {$processed} variant(s). {$failed} could not be synced to Shopify and remain unchanged — re-run to retry them.",
+                        'logged_at' => now(),
+                    ]);
+                }
 
                 $jobLog->markAsCompleted();
             })

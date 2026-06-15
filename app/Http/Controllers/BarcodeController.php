@@ -543,8 +543,8 @@ class BarcodeController extends Controller
 
     private function transformVariant($variant, $rules, $format, $counter)
     {
-        $rawBarcode = $variant->barcode;
-        $cleanBarcode = (!empty(trim($rawBarcode)) && trim($rawBarcode) !== '-') ? trim($rawBarcode) : null;
+        $trimmed = trim((string) ($variant->barcode ?? ''));
+        $cleanBarcode = ($trimmed !== '' && $trimmed !== '-') ? $trimmed : null;
         $newBarcode = $this->generateBarcode($variant, $rules, $counter);
 
         return [

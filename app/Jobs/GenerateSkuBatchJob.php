@@ -150,29 +150,33 @@ class GenerateSkuBatchJob implements ShouldQueue
 
             if (!empty($skuMap)) {
                 try {
-                $success = $shopify->updateVariantSkus((int)$productId, $skuMap);
-                
-                if ($success) {
-                    usleep(100000); // 0.1s Throttle (Reduced)
+                // Returns the local variant IDs Shopify actually accepted.
+                $syncedIds = $shopify->updateVariantSkus((int)$productId, $skuMap);
+                $syncedSet = array_flip($syncedIds);
 
-                    // OPTIMISTIC LOCAL UPDATE
-                    // Immediately update local DB so UI reflects changes without waiting for webhooks
-                    foreach ($skuMap as $variantId => $newSku) {
-                        try {
-                            Variant::where('id', $variantId)->update(['sku' => $newSku]);
-                        } catch (\Exception $e) {
-                            // Ignore local update errors, webhook will fix eventually
-                        }
+                // OPTIMISTIC LOCAL UPDATE — only for variants confirmed synced.
+                // Anything not confirmed stays "missing" and is counted as failed.
+                foreach ($skuMap as $variantId => $newSku) {
+                    if (!isset($syncedSet[$variantId])) continue;
+                    try {
+                        Variant::where('id', $variantId)->update(['sku' => $newSku]);
+                    } catch (\Exception $e) {
+                        // Ignore local update errors, webhook will fix eventually
                     }
-                    
-                    // Atomic increment for the whole product batch
-                    if ($batchProcessed > 0) {
-                        \Illuminate\Support\Facades\Redis::incrby($redisKeyProcessed, $batchProcessed);
-                        $processed += $batchProcessed;
-                    }
-                } else {
-                     // Shopify returned false (User Errors)
-                     throw new \Exception("Shopify rejected the SKU update for Product {$productId}");
+                }
+
+                $okCount   = count($syncedIds);
+                $failCount = count($skuMap) - $okCount;
+
+                if ($okCount > 0) {
+                    \Illuminate\Support\Facades\Redis::incrby($redisKeyProcessed, $okCount);
+                    $processed += $okCount;
+                    usleep(100000); // 0.1s Throttle (Reduced)
+                }
+                if ($failCount > 0) {
+                    $failed += $failCount;
+                    \Illuminate\Support\Facades\Redis::incrby($redisKeyFailed, $failCount);
+                    $this->logWarning($jobLog, "Shopify did not accept {$failCount} SKU(s) for product {$productId}; they remain unchanged.");
                 }
                 } catch (\Exception $e) {
                     // Failed to sync

@@ -154,18 +154,30 @@ class GenerateBarcodeJob implements ShouldQueue
             ->name("Barcode Generation - Shop {$shop->id}")
             ->then(function (Batch $batch) use ($jobLog) {
                 $jobLog = JobLog::find($jobLog->id);
+                if (!$jobLog) return;
 
-                // Get accurate counts from Redis
-                $redisKeyProcessed = "job_progress_{$jobLog->id}";
-                $redisKeyFailed = "job_failed_{$jobLog->id}";
-                $processed = (int) \Illuminate\Support\Facades\Redis::get($redisKeyProcessed);
-                $failed = (int) \Illuminate\Support\Facades\Redis::get($redisKeyFailed);
+                // Report the REAL number of variants synced — not the total.
+                // The old code forced processed_items = total_items, so the UI
+                // always showed 100% ("1000 fixed") even when some variants never
+                // got a barcode and stayed in the "missing" tab.
+                $processed = (int) \Illuminate\Support\Facades\Redis::get("job_progress_{$jobLog->id}");
+                $failed    = (int) \Illuminate\Support\Facades\Redis::get("job_failed_{$jobLog->id}");
 
-                if ($jobLog) {
-                    $jobLog->update(['processed_items' => $jobLog->total_items]);
+                $jobLog->update([
+                    'processed_items' => $processed,
+                    'failed_items'    => $failed,
+                ]);
+
+                if ($failed > 0) {
+                    $jobLog->activityLogs()->create([
+                        'level' => 'warning',
+                        'title' => 'Completed with warnings',
+                        'message' => "Synced {$processed} variant(s). {$failed} could not be synced to Shopify and remain unchanged — re-run to retry them.",
+                        'logged_at' => now(),
+                    ]);
                 }
-                if ($jobLog)
-                    $jobLog->markAsCompleted();  // Fixed: remove argument
+
+                $jobLog->markAsCompleted();
             })
             ->catch(function (Batch $batch, \Throwable $e) use ($jobLog) {
                 $jobLog = JobLog::find($jobLog->id);

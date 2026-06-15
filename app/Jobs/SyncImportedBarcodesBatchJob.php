@@ -52,21 +52,23 @@ class SyncImportedBarcodesBatchJob implements ShouldQueue
 
         foreach ($this->syncData as $productId => $barcodeMap) {
             try {
-                // Call Shopify Bulk Update (GraphQL)
-                $success = $shopify->updateVariantBarcodes((int)$productId, $barcodeMap);
+                // Call Shopify Bulk Update (GraphQL) — returns the variant IDs
+                // Shopify actually accepted, so partial failures are counted honestly.
+                $syncedIds = $shopify->updateVariantBarcodes((int)$productId, $barcodeMap);
+                $okCount   = count($syncedIds);
+                $failCount = count($barcodeMap) - $okCount;
 
-                if ($success) {
-                    $count = count($barcodeMap);
-                    Redis::incrby($redisKeyProcessed, $count);
-                    $processed += $count;
-                    
+                if ($okCount > 0) {
+                    Redis::incrby($redisKeyProcessed, $okCount);
+                    $processed += $okCount;
+
                     // Throttle slightly to be safe
                     usleep(100000); // 0.1s
-                } else {
-                    $count = count($barcodeMap);
-                    $failed += $count;
-                    Redis::incrby($redisKeyFailed, $count);
-                    $this->logWarning($jobLog, "Shopify update failed for product {$productId}");
+                }
+                if ($failCount > 0) {
+                    $failed += $failCount;
+                    Redis::incrby($redisKeyFailed, $failCount);
+                    $this->logWarning($jobLog, "Shopify did not accept {$failCount} variant(s) for product {$productId}");
                 }
             } catch (\Exception $e) {
                 $count = count($barcodeMap);

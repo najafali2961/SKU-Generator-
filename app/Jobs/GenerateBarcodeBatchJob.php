@@ -83,30 +83,36 @@ class GenerateBarcodeBatchJob implements ShouldQueue
 
         foreach ($productsToSync as $productId => $barcodeMap) {
             try {
-                $success = $shopify->updateVariantBarcodes((int)$productId, $barcodeMap);
+                // Returns the local variant IDs Shopify actually accepted, so a
+                // transient throttle or a single bad/deleted variant can no longer
+                // silently drop the whole product.
+                $syncedIds = $shopify->updateVariantBarcodes((int)$productId, $barcodeMap);
+                $syncedSet = array_flip($syncedIds);
 
-                if ($success) {
+                // OPTIMISTIC LOCAL UPDATE — but ONLY for variants confirmed synced.
+                // Anything not confirmed stays "missing" and is counted as failed,
+                // instead of being marked done while Shopify never got the barcode.
+                foreach ($barcodeMap as $variantId => $newBarcode) {
+                    if (!isset($syncedSet[$variantId])) continue;
+                    try {
+                        Variant::where('id', $variantId)->update(['barcode' => $newBarcode]);
+                    } catch (\Exception $e) {
+                        // Ignore local update errors, webhook will fix eventually
+                    }
+                }
+
+                $okCount   = count($syncedIds);
+                $failCount = count($barcodeMap) - $okCount;
+
+                if ($okCount > 0) {
+                    \Illuminate\Support\Facades\Redis::incrby($redisKeyProcessed, $okCount);
+                    $processed += $okCount;
                     usleep(100000); // 0.1s Throttle (Reduced)
-                    
-                    // OPTIMISTIC LOCAL UPDATE
-                    // Immediately update local DB so UI reflects changes without waiting for webhooks
-                    foreach ($barcodeMap as $variantId => $newBarcode) {
-                        try {
-                            Variant::where('id', $variantId)->update(['barcode' => $newBarcode]);
-                        } catch (\Exception $e) {
-                             // Ignore local update errors, webhook will fix eventually
-                        }
-                    }
-
-                    // Increment processed count in Redis for live UI updates
-                    if (count($barcodeMap) > 0) {
-                         \Illuminate\Support\Facades\Redis::incrby($redisKeyProcessed, count($barcodeMap));
-                         $processed += count($barcodeMap);
-                    }
-                } else {
-                     $failed += count($barcodeMap); // Silent fail count
-                     \Illuminate\Support\Facades\Redis::incrby($redisKeyFailed, count($barcodeMap));
-                     $this->logWarning($jobLog, "Shopify update returned false for product {$productId}");
+                }
+                if ($failCount > 0) {
+                    $failed += $failCount;
+                    \Illuminate\Support\Facades\Redis::incrby($redisKeyFailed, $failCount);
+                    $this->logWarning($jobLog, "Shopify did not accept {$failCount} variant(s) for product {$productId}; they remain unchanged.");
                 }
             } catch (\Exception $e) {
                 $failed += count($barcodeMap);
