@@ -34,11 +34,17 @@ class CreditSettings extends Page
 
     /**
      * Settings keys persisted to the settings table, with their defaults.
+     * credit_cost_* keys are read by HasCredits::getCreditCosts() and drive
+     * how many credits each action consumes.
      *
      * @var array<string, mixed>
      */
     protected const DEFAULTS = [
-        'credits_per_edit' => 1,
+        'credit_cost_sku_generation' => 1,
+        'credit_cost_barcode_generation' => 1,
+        'credit_cost_barcode_import' => 1,
+        'credit_cost_label_printing' => 2,
+        'credit_cost_template_save' => 0,
         'notify_on_limit' => true,
         'limit_reached_message' => 'You have used all of your credits for this billing period. Upgrade your plan to keep editing.',
         'support_email' => '',
@@ -52,9 +58,9 @@ class CreditSettings extends Page
         foreach (static::DEFAULTS as $key => $default) {
             $value = Setting::getValue($key, $default);
 
-            $state[$key] = match ($key) {
-                'notify_on_limit' => (bool) $value,
-                'credits_per_edit', 'giveaway_credits' => (int) $value,
+            $state[$key] = match (true) {
+                $key === 'notify_on_limit' => (bool) $value,
+                str_starts_with($key, 'credit_cost_'), $key === 'giveaway_credits' => (int) $value,
                 default => $value,
             };
         }
@@ -66,16 +72,36 @@ class CreditSettings extends Page
     {
         return $schema
             ->components([
-                Section::make('Credit metering')
-                    ->description('How credits are consumed and how merchants are warned near the limit.')
+                Section::make('Credit cost per action')
+                    ->description('How many credits each action consumes. Applies to both the merchant app and the deduction logic. Set to 0 to make an action free.')
+                    ->columns(2)
                     ->schema([
-                        TextInput::make('credits_per_edit')
-                            ->label('Credits per product edit')
-                            ->numeric()
-                            ->minValue(0)
-                            ->default(1)
-                            ->required(),
+                        TextInput::make('credit_cost_sku_generation')
+                            ->label('SKU generation (per SKU)')
+                            ->numeric()->minValue(0)->required(),
 
+                        TextInput::make('credit_cost_barcode_generation')
+                            ->label('Barcode generation (per barcode)')
+                            ->numeric()->minValue(0)->required(),
+
+                        TextInput::make('credit_cost_barcode_import')
+                            ->label('Barcode / CSV import (per item)')
+                            ->numeric()->minValue(0)->required()
+                            ->helperText('Used for CSV barcode imports too.'),
+
+                        TextInput::make('credit_cost_label_printing')
+                            ->label('Label printing (per label)')
+                            ->numeric()->minValue(0)->required(),
+
+                        TextInput::make('credit_cost_template_save')
+                            ->label('Template save (per save)')
+                            ->numeric()->minValue(0)->required()
+                            ->helperText('Usually 0 (free).'),
+                    ]),
+
+                Section::make('Limit notifications')
+                    ->description('What happens when a merchant runs out of credits.')
+                    ->schema([
                         Toggle::make('notify_on_limit')
                             ->label('Email merchants when they hit their credit limit'),
 
@@ -95,8 +121,7 @@ class CreditSettings extends Page
                         TextInput::make('giveaway_credits')
                             ->label('Free credits per giveaway')
                             ->numeric()
-                            ->minValue(0)
-                            ->default(100),
+                            ->minValue(0),
                     ]),
             ])
             ->statePath('data');

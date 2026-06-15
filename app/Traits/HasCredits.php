@@ -9,17 +9,40 @@ use Illuminate\Support\Facades\Log;
 trait HasCredits
 {
     /**
-     * Get the credit costs for each feature
+     * Default credit cost per feature, used when no admin override is set.
+     */
+    public const DEFAULT_CREDIT_COSTS = [
+        'sku_generation' => 1,
+        'barcode_generation' => 1,
+        'barcode_import' => 1, // also covers CSV barcode import
+        'label_printing' => 2,
+        'template_save' => 0, // Free
+    ];
+
+    /**
+     * Get the credit cost for each feature.
+     *
+     * Costs are admin-configurable from the Credit Settings page (stored in the
+     * settings table as credit_cost_<feature>). Any feature without an override
+     * falls back to DEFAULT_CREDIT_COSTS. Read fresh each call so changes apply
+     * immediately (important under long-running Octane workers).
      */
     protected function getCreditCosts(): array
     {
-        return [
-            'sku_generation' => config('credits.costs.sku_generation', 1),
-            'barcode_generation' => config('credits.costs.barcode_generation', 1),
-            'barcode_import' => config('credits.costs.barcode_import', 1),
-            'label_printing' => config('credits.costs.label_printing', 2),
-            'template_save' => config('credits.costs.template_save', 0), // Free
-        ];
+        $keys = array_map(
+            fn (string $feature): string => "credit_cost_{$feature}",
+            array_keys(self::DEFAULT_CREDIT_COSTS)
+        );
+
+        $overrides = \App\Models\Setting::whereIn('key', $keys)->pluck('value', 'key');
+
+        $costs = [];
+        foreach (self::DEFAULT_CREDIT_COSTS as $feature => $default) {
+            $value = $overrides["credit_cost_{$feature}"] ?? null;
+            $costs[$feature] = is_numeric($value) ? (int) $value : $default;
+        }
+
+        return $costs;
     }
 
     /**
