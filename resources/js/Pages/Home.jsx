@@ -32,7 +32,6 @@ import { useState, useCallback } from "react";
 import RecentJobsTable from "./RecentJobsTable";
 import CreditsSpeedometerCard from "./CreditsSpeedometerCard";
 import ReviewBanner from "./ReviewBanner";
-import SyncProducts from "../Components/SyncProducts";
 
 const styles = `
     .airo-hero {
@@ -414,9 +413,6 @@ export default function Home({
         <Page>
             <style>{styles}</style>
             <BlockStack gap="300">
-                {/* ── Manual product re-sync ── */}
-                <SyncProducts />
-
                 {/* ── Hero Banner ── */}
                 {/* <div className="airo-hero">
                     <div style={{ position: "relative", zIndex: 1 }}>

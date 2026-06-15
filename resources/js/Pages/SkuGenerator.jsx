@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
 import { router } from "@inertiajs/react";
 import SkuHeader from "./components/SkuHeader";
+import SyncProducts from "../Components/SyncProducts";
 import SkuSidebar from "./components/SkuSidebar";
 import SkuPreviewTable from "./components/SkuPreviewTable";
 import CreditWarning from "./components/CreditWarning";
@@ -353,6 +354,10 @@ export default function SkuGenerator({
                     onPreset={applySmartPreset}
                     onExport={handleExport}
                 />
+
+                <div className="mt-6">
+                    <SyncProducts />
+                </div>
 
                 <div className="grid gap-6 mt-6 lg:grid-cols-12">
                     <div className="lg:col-span-4">

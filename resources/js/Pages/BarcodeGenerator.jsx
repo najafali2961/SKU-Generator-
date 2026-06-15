@@ -3,6 +3,7 @@ import axios from "axios";
 import { router } from "@inertiajs/react";
 
 import BarcodeHeader from "./components/barcode/Header";
+import SyncProducts from "../Components/SyncProducts";
 import BarcodeSidebar from "./components/barcode/BarcodeSidebar";
 import BarcodePreviewTable from "./components/barcode/BarcodePreviewTable";
 import BarcodeImportModal from "./components/barcode/BarcodeImportModal";
@@ -308,6 +309,10 @@ export default function BarcodeGenerator({
                     onImport={handleImport}
                     onExport={handleExport}
                 />
+
+                <div className="mt-6">
+                    <SyncProducts />
+                </div>
 
                 <div className="grid gap-6 mt-6 lg:grid-cols-12">
                     <div className="lg:col-span-4">
