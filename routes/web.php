@@ -10,6 +10,7 @@ use App\Http\Controllers\PrinterController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ShopifyWebhookController;
 use App\Http\Controllers\SkuController;
+use App\Http\Controllers\SyncController;
 use App\Http\Controllers\WebhookController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -89,6 +90,10 @@ Route::middleware(['verify.shopify', 'billable'])->group(function () {
 
     // Feedback
     Route::post('/feedback', [FeedbackController::class, 'store'])->name('feedback.store');
+
+    // Manual product re-sync (recover from missed webhooks / cleanup orphans)
+    Route::post('/sync/products', [SyncController::class, 'start'])->name('sync.products');
+    Route::get('/sync/status', [SyncController::class, 'status'])->name('sync.status');
 });
 
 // Shopify webhooks (protected)

@@ -13,6 +13,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 
 class FetchProductPageJob implements ShouldQueue
 {
@@ -25,10 +26,19 @@ class FetchProductPageJob implements ShouldQueue
     protected $shopId;
     protected $afterCursor;
 
-    public function __construct($shopId, $afterCursor = null)
+    /**
+     * When true this page is part of a manual re-sync: it tracks progress in
+     * Redis, prunes variants deleted on Shopify, and self-chains to the next
+     * page. When false (install flow) behaviour is unchanged — the install
+     * coordinator drives pagination itself.
+     */
+    protected $isResync;
+
+    public function __construct($shopId, $afterCursor = null, $isResync = false)
     {
         $this->shopId = $shopId;
         $this->afterCursor = $afterCursor;
+        $this->isResync = $isResync;
     }
 
     public function handle(): void
@@ -109,12 +119,21 @@ class FetchProductPageJob implements ShouldQueue
             );
         } catch (\Exception $e) {
             Log::error("GraphQL failed in FetchProductPageJob: " . $e->getMessage());
+            if ($this->isResync) {
+                // Let the queue retry transient Shopify errors (tries + backoff)
+                // before giving up; failed() marks the sync failed if exhausted.
+                throw $e;
+            }
             $this->fail($e);
             return;
         }
 
         $products = $response['body']['data']['products']['edges'] ?? [];
+        $pageInfo = $response['body']['data']['products']['pageInfo'] ?? null;
         if (empty($products)) {
+            if ($this->isResync) {
+                $this->markSyncCompleted();
+            }
             return;
         }
 
@@ -316,6 +335,37 @@ class FetchProductPageJob implements ShouldQueue
                             ['product_id', 'barcode_value', 'format', 'image_url', 'is_duplicate', 'updated_at']
                         );
                     }
+
+                    // On a re-sync, prune local variants that no longer exist on
+                    // Shopify (deleted remotely while a webhook was missed) so
+                    // they stop sitting forever in the "Missing" tab. Guard: we
+                    // fetch variants(first:100); if a product has 100+ variants
+                    // the list may be truncated, so skip pruning to be safe.
+                    if ($this->isResync) {
+                        $incomingShopifyVariantIds = array_column($variantsData, 'shopify_variant_id');
+                        if (!empty($incomingShopifyVariantIds) && count($incomingShopifyVariantIds) < 100) {
+                            $orphans = Variant::where('product_id', $product->id)
+                                ->whereNotIn('shopify_variant_id', $incomingShopifyVariantIds)
+                                ->get(['id', 'shopify_variant_id']);
+
+                            if ($orphans->isNotEmpty()) {
+                                $orphanLocalIds   = $orphans->pluck('id')->all();
+                                $orphanShopifyIds = $orphans->pluck('shopify_variant_id')->filter()->all();
+
+                                Variant::whereIn('id', $orphanLocalIds)->delete();
+                                // barcodes.variant_id is the local id here but the
+                                // shopify id in the webhook job — clear both.
+                                Barcode::where('product_id', $product->id)
+                                    ->whereIn('variant_id', array_merge($orphanLocalIds, $orphanShopifyIds))
+                                    ->delete();
+
+                                Log::warning('[RESYNC] Pruned variants deleted on Shopify', [
+                                    'product_id' => $product->id,
+                                    'count' => count($orphanLocalIds),
+                                ]);
+                            }
+                        }
+                    }
                 }
             } catch (\Throwable $e) {
                 Log::error("Failed to process product {$shopifyProductId}: " . $e->getMessage(), [
@@ -325,6 +375,40 @@ class FetchProductPageJob implements ShouldQueue
             }
         }
 
+        // Re-sync only: advance progress and hand off to the next page.
+        if ($this->isResync) {
+            $count = count($products);
+            if ($count > 0) {
+                Redis::incrby("product_sync:{$this->shopId}:processed", $count);
+            }
+            Redis::expire("product_sync:{$this->shopId}:processed", 86400);
+            // Keep the running flag alive while the chain makes progress.
+            Redis::setex("product_sync:{$this->shopId}:status", 3600, 'running');
+
+            $hasNext   = $pageInfo['hasNextPage'] ?? false;
+            $endCursor = $pageInfo['endCursor'] ?? null;
+
+            if ($hasNext && $endCursor) {
+                // Small delay keeps us comfortably under Shopify's GraphQL rate limit.
+                self::dispatch($this->shopId, $endCursor, true)->delay(now()->addSecond());
+            } else {
+                $this->markSyncCompleted();
+            }
+        }
+    }
+
+    private function markSyncCompleted(): void
+    {
+        Redis::setex("product_sync:{$this->shopId}:status", 86400, 'completed');
+        Redis::setex("product_sync:{$this->shopId}:finished_at", 86400, now()->toIso8601String());
+    }
+
+    public function failed(\Throwable $e): void
+    {
+        if ($this->isResync) {
+            Redis::setex("product_sync:{$this->shopId}:status", 86400, 'failed');
+            Redis::setex("product_sync:{$this->shopId}:finished_at", 86400, now()->toIso8601String());
+        }
     }
 
     /**
