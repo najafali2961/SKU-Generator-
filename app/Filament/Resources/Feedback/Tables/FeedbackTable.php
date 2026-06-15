@@ -32,7 +32,7 @@ class FeedbackTable
                             $direction
                         );
                     })
-                    ->url(fn (Feedback $record) => $record->user_id ? \App\Filament\Resources\Users\UserResource::getUrl('edit', ['record' => $record->user_id]) : null),
+                    ->url(fn (Feedback $record) => $record->user_id ? \App\Filament\Resources\Stores\StoreResource::getUrl('index') : null),
                     
                 TextColumn::make('user.email')
                     ->label('Email')
@@ -48,7 +48,7 @@ class FeedbackTable
                             $direction
                         );
                     })
-                    ->url(fn (Feedback $record) => $record->user_id ? \App\Filament\Resources\Users\UserResource::getUrl('edit', ['record' => $record->user_id]) : null),
+                    ->url(fn (Feedback $record) => $record->user_id ? \App\Filament\Resources\Stores\StoreResource::getUrl('index') : null),
                     
                 TextColumn::make('rating')
                     ->sortable()

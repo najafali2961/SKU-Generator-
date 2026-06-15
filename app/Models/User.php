@@ -79,6 +79,14 @@ class User extends Authenticatable implements IShopModel
     }
 
     /**
+     * Get bulk job logs (SKU/barcode/label jobs)
+     */
+    public function jobLogs()
+    {
+        return $this->hasMany(JobLog::class);
+    }
+
+    /**
      * Get default label template
      */
     public function defaultLabelTemplate()
