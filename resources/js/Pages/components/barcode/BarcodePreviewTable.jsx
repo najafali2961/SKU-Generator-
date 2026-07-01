@@ -308,13 +308,24 @@ export default function BarcodePreviewTable({
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
                             }}
-                            title={item.variant_title}
+                            title={item.title}
                         >
-                            {item.variant_title || "Untitled Variant"}
+                            {item.title || "Untitled Product"}
                         </div>
                     </button>
                     <Text variant="bodySm" tone="subdued">
-                        {item.vendor} {item.sku && `• SKU: ${item.sku}`}
+                        {[
+                            // Only show the variant name when it's a real option,
+                            // not Shopify's "Default Title" single-variant label.
+                            item.variant_title &&
+                            !/^default/i.test(item.variant_title)
+                                ? item.variant_title
+                                : null,
+                            item.vendor || null,
+                            item.sku ? `SKU: ${item.sku}` : null,
+                        ]
+                            .filter(Boolean)
+                            .join(" • ")}
                     </Text>
                 </BlockStack>
             </IndexTable.Cell>
@@ -436,13 +447,27 @@ export default function BarcodePreviewTable({
                                             />
                                             <BlockStack gap="050">
                                                 <Text fontWeight="medium">
-                                                    {v.variant_title}
+                                                    {v.title ||
+                                                        "Untitled Product"}
                                                 </Text>
                                                 <Text
                                                     variant="bodySm"
                                                     tone="subdued"
                                                 >
-                                                    {v.vendor}
+                                                    {[
+                                                        v.variant_title &&
+                                                        !/^default/i.test(
+                                                            v.variant_title,
+                                                        )
+                                                            ? v.variant_title
+                                                            : null,
+                                                        v.vendor || null,
+                                                        v.sku
+                                                            ? `SKU: ${v.sku}`
+                                                            : null,
+                                                    ]
+                                                        .filter(Boolean)
+                                                        .join(" • ")}
                                                 </Text>
                                             </BlockStack>
                                         </InlineStack>
