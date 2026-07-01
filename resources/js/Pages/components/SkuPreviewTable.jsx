@@ -71,7 +71,7 @@ export default function SkuPreviewTable({
 
     // ✅ TAB CONFIGURATION - USE STATS FROM BACKEND FOR EXACT COUNTS
     const tabs = [
-        { id: "all", content: `All Products (${stats.total})` },
+        { id: "all", content: `All Variants (${stats.total})` },
         { id: "duplicates", content: `Duplicates (${stats.duplicates})` },
         { id: "missing", content: `Missing SKUs (${stats.missing})` },
     ];
@@ -496,7 +496,7 @@ export default function SkuPreviewTable({
         ) : preview.length === 0 ? (
             <IndexTable.Row key="empty-preview">
                 <IndexTable.Cell colSpan={4}>
-                    <EmptyState heading="No products found">
+                    <EmptyState heading="No variants found">
                         <Text tone="subdued">
                             Try adjusting your search or filters
                         </Text>
@@ -540,7 +540,7 @@ export default function SkuPreviewTable({
                         filters={filters}
                         appliedFilters={appliedFilters}
                         onClearAll={handleClearAll}
-                        queryPlaceholder="Search products, vendors, SKUs..."
+                        queryPlaceholder="Search by ID, title, vendor, SKU..."
                     />
                 </Box>
 
