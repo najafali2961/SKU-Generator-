@@ -342,7 +342,10 @@ export default function SkuPreviewTable({
     );
 
     const renderDuplicateGroup = (group) => (
-        <IndexTable.Row key={group.sku || `blank-${group.variants[0]?.id}`}>
+        <IndexTable.Row
+            key={group.sku || `blank-${group.variants[0]?.id}`}
+            id={group.sku || `blank-${group.variants[0]?.id}`}
+        >
             <IndexTable.Cell colSpan={4}>
                 <Box padding="400">
                     <BlockStack gap="400">
@@ -419,12 +422,22 @@ export default function SkuPreviewTable({
                                         align="space-between"
                                     >
                                         <InlineStack gap="300">
-                                            <Checkbox
-                                                checked={selected.has(v.id)}
-                                                onChange={() => {
-                                                    toggleRowSelection(v.id);
-                                                }}
-                                            />
+                                            {/* stopPropagation so the checkbox's
+                                                own click doesn't ALSO bubble to
+                                                the row onClick (double toggle). */}
+                                            <span
+                                                onClick={(e) =>
+                                                    e.stopPropagation()
+                                                }
+                                            >
+                                                <Checkbox
+                                                    checked={selected.has(v.id)}
+                                                    onChange={() => {
+                                                        toggleRowSelection(v.id);
+                                                    }}
+                                                    ariaLabel={`Select ${v.title || "variant"}`}
+                                                />
+                                            </span>
                                             <Thumbnail
                                                 source={mediaUrl(v) || ""}
                                                 size="small"
@@ -531,7 +544,41 @@ export default function SkuPreviewTable({
                     />
                 </Box>
 
+                {/* Duplicates use a custom per-variant layout, so IndexTable's
+                    built-in selection is turned off there (its phantom group-row
+                    checkbox polluted the selection set). This toolbar restores
+                    Select Visible / Clear for that tab. */}
+                {activeTab === "duplicates" && duplicateGroups.length > 0 && (
+                    <Box paddingInline="400" paddingBlockEnd="300">
+                        <InlineStack align="space-between" blockAlign="center">
+                            <Text fontWeight="medium">
+                                {selected.size} selected
+                            </Text>
+                            <ButtonGroup>
+                                <Button
+                                    onClick={() => {
+                                        const ids = paginatedGroups.flatMap((g) =>
+                                            g.variants.map((v) => v.id),
+                                        );
+                                        setSelected((prev) => {
+                                            const next = new Set(prev);
+                                            ids.forEach((id) => next.add(id));
+                                            return next;
+                                        });
+                                    }}
+                                >
+                                    Select Visible
+                                </Button>
+                                <Button onClick={() => setSelected(new Set())}>
+                                    Clear Selection
+                                </Button>
+                            </ButtonGroup>
+                        </InlineStack>
+                    </Box>
+                )}
+
                 <IndexTable
+                    selectable={activeTab !== "duplicates"}
                     resourceName={{ singular: "variant", plural: "variants" }}
                     itemCount={itemCount}
                     selectedItemsCount={

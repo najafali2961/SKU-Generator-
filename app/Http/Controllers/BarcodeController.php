@@ -445,12 +445,14 @@ class BarcodeController extends Controller
                     ->orderBy('barcode')  // Group visually
                     ->get();
 
-                // Group them for the response
+                // Group them for the response. Assign a sequential proposed
+                // number to each conflicting variant (starting from the real
+                // next counter) so the preview shows the distinct unique barcode
+                // each will receive — previously every row was passed counter 0
+                // and rendered as "000000000000".
+                $dupCounter = $currentCounter;
                 foreach ($variants as $v) {
-                    $duplicateGroups[$v->barcode][] = $this->transformVariant($v, $request->all(), $format, 0);
-                    // Note: Counter logic for duplicates is tricky.
-                    // Original code just ran counter++ for every variant in `allVariants`.
-                    // We'll leave $newBarcode generation logic for the transformation step.
+                    $duplicateGroups[$v->barcode][] = $this->transformVariant($v, $request->all(), $format, $dupCounter++);
                 }
             }
 
@@ -484,26 +486,12 @@ class BarcodeController extends Controller
                 ->get();
         }
 
-        // Transform variants for response
+        // Transform variants for response. For duplicates the rows were already
+        // built (with sequential proposed barcodes) into $duplicateGroups above.
         $previewData = [];
         if ($tab !== 'duplicates') {
             foreach ($variants as $index => $variant) {
                 $previewData[] = $this->transformVariant($variant, $request->all(), $format, $currentCounter + $index);
-            }
-        } else {
-            // For duplicates, we already built $duplicateGroups with transformed data?
-            // Wait, I didn't transform yet in the duplicates block loop above efficiently.
-            // Let's iterate the groups to transform.
-            foreach ($duplicateGroups as $bc => $vars) {
-                // We don't really increment counter for existing duplicates usually?
-                // Or do we? If we are "fixing" them, we might propose new barcodes.
-                // Original logic ran counter for ALL.
-                // For now, let's just pass 0 or handling inside.
-                // Actually, if we are in duplicates view, we are likely picking ones to fix.
-                // Let's map them.
-                // Re-mapping because I stored raw objects or needed transformation?
-                // In the loop above: `$this->transformVariant($v, ..., 0)`
-                // I need to correct that.
             }
         }
 
