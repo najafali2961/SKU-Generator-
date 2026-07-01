@@ -176,7 +176,10 @@ class GenerateSkuBatchJob implements ShouldQueue
                 if ($failCount > 0) {
                     $failed += $failCount;
                     \Illuminate\Support\Facades\Redis::incrby($redisKeyFailed, $failCount);
-                    $this->logWarning($jobLog, "Shopify did not accept {$failCount} SKU(s) for product {$productId}; they remain unchanged.");
+                    $reasons = !empty($shopify->lastSkuErrors)
+                        ? ' Reason: ' . implode('; ', array_unique($shopify->lastSkuErrors))
+                        : '';
+                    $this->logWarning($jobLog, "Shopify did not accept {$failCount} SKU(s) for product {$productId}; they remain unchanged.{$reasons}");
                 }
                 } catch (\Exception $e) {
                     // Failed to sync

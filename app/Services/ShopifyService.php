@@ -11,6 +11,17 @@ class ShopifyService
 {
     protected $shop;
 
+    /**
+     * Human-readable reasons the most recent updateVariantSkus() call rejected
+     * one or more SKUs (Shopify userErrors / top-level GraphQL errors /
+     * exceptions). Reset at the start of every updateVariantSkus() call so the
+     * batch job can surface the REAL reason to the merchant's Job History
+     * instead of a generic "they remain unchanged".
+     *
+     * @var string[]
+     */
+    public array $lastSkuErrors = [];
+
     public function __construct($shop)
     {
         $this->shop = $shop;
@@ -104,6 +115,8 @@ GRAPHQL;
      */
     public function updateVariantSkus(int $localProductId, array $skuMap): array
     {
+        $this->lastSkuErrors = [];
+
         $product = Product::find($localProductId);
 
         if (!$product || !$product->shopify_id) {
@@ -205,6 +218,7 @@ GRAPHQL;
                     'product_id' => $localProductId,
                     'error' => $e->getMessage(),
                 ]);
+                $this->lastSkuErrors[] = 'Shopify request failed: ' . $e->getMessage();
                 return null;
             }
 
@@ -218,6 +232,9 @@ GRAPHQL;
                     'product_id' => $localProductId,
                     'errors' => $topErrors,
                 ]);
+                foreach ($topErrors as $te) {
+                    $this->lastSkuErrors[] = $te['message'] ?? 'Shopify GraphQL error';
+                }
                 return null;
             }
 
@@ -227,6 +244,11 @@ GRAPHQL;
                     'product_id' => $localProductId,
                     'errors' => $userErrors,
                 ]);
+                foreach ($userErrors as $ue) {
+                    $field = is_array($ue['field'] ?? null) ? implode('.', $ue['field']) : ($ue['field'] ?? '');
+                    $msg = $ue['message'] ?? 'rejected';
+                    $this->lastSkuErrors[] = $field ? "{$field}: {$msg}" : $msg;
+                }
                 // Remove the local orphan if Shopify says this variant is gone.
                 $this->reconcileOrphanFromErrors($userErrors, $bulkVariants, $gidToLocalId, $localProductId);
                 return null;
