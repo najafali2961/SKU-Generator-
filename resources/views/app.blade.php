@@ -14,6 +14,8 @@
 
 @section('content')
     @inertia
+    {{-- Airo partner-apps pull-tab (right edge). Self-contained partial. --}}
+    @include('partner-apps-dock', ['exclude' => 'barcode'])
 @endsection
 
 
