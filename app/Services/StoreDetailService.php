@@ -74,7 +74,11 @@ GRAPHQL;
             return null;
         }
 
-        $data = $response['body']['container']['data']['shop'] ?? null;
+        // Osiset wraps the GraphQL body under body.data (matches the install
+        // flow in FetchProductsOnInstallJob). The old body.container.data path
+        // was always null, so every admin "Sync details" reported failure even
+        // when Shopify responded fine.
+        $data = $response['body']['data']['shop'] ?? null;
 
         if (! $data) {
             return null;

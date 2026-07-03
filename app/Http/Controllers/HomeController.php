@@ -10,6 +10,7 @@ use Inertia\Inertia;
 use Illuminate\Http\Request;
 use App\Models\Product;
 use App\Models\Variant;
+use App\Models\StoreDetail;
 use Illuminate\Support\Facades\Auth;
 
 class HomeController extends Controller
@@ -129,7 +130,7 @@ class HomeController extends Controller
      */
     public function supportAddCredits($domain)
     {
-        $user = User::where('name', $domain)->first();
+        $user = $this->resolveShopByDomain($domain);
 
         if (!$user) {
             return response("Error: Store domain '{$domain}' not found in database.", 404);
@@ -161,7 +162,7 @@ class HomeController extends Controller
             return response("Error: Credits must be a positive number.", 400);
         }
 
-        $user = User::where('name', $domain)->first();
+        $user = $this->resolveShopByDomain($domain);
 
         if (!$user) {
             return response("Error: Store domain '{$domain}' not found in database.", 404);
@@ -171,5 +172,49 @@ class HomeController extends Controller
         $user->save();
 
         return response("Success! ✅ Added {$credits} credits to {$user->name}. New total credits: {$user->credits}.");
+    }
+
+    /**
+     * Resolve a shop from whatever domain a support giveaway link carries.
+     *
+     * The Crisp giveaway link is built from the store's primary/custom domain
+     * (e.g. coyotemoondesignco.com) when one exists, but the .myshopify.com
+     * domain lives on users.name — so a plain name lookup 404s for every store
+     * with a custom domain. Match the myshopify domain first, then fall back to
+     * the custom/primary domain stored on store_details.
+     */
+    private function resolveShopByDomain($domain): ?User
+    {
+        $domain = trim((string) $domain);
+        if ($domain === '') {
+            return null;
+        }
+
+        // Bare host: no protocol, no trailing slash.
+        $bare = rtrim(preg_replace('#^https?://#i', '', $domain), '/');
+
+        // 1. The .myshopify.com domain is stored on users.name.
+        $user = User::where('name', $bare)->orWhere('name', $domain)->first();
+        if ($user) {
+            return $user;
+        }
+
+        // 2. Custom/primary or myshopify domain on store_details. These are often
+        //    stored WITH the protocol, so match a few normalized variants.
+        $candidates = array_values(array_unique([
+            $bare,
+            $domain,
+            "https://{$bare}",
+            "http://{$bare}",
+            "https://{$bare}/",
+            "http://{$bare}/",
+        ]));
+
+        $detail = StoreDetail::where(function ($q) use ($candidates) {
+            $q->whereIn('primary_domain', $candidates)
+              ->orWhereIn('shopify_domain', $candidates);
+        })->first();
+
+        return $detail ? User::find($detail->user_id) : null;
     }
 }
