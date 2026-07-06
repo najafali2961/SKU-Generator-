@@ -27,6 +27,7 @@ import {
 import Papa from "papaparse";
 import { router } from "@inertiajs/react";
 import CreditWarning from "./components/CreditWarning";
+import { useFeature, UpgradeModal } from "./components/FeatureGate";
 
 const ITEMS_PER_PAGE = 25;
 
@@ -35,6 +36,8 @@ export default function BarcodeImport({
     hasUnlimitedCredits = false,
     creditCostPerBarcode = 1,
 }) {
+    const csvImport = useFeature("barcode-csv-import");
+    const [showUpgrade, setShowUpgrade] = useState(false);
     const [file, setFile] = useState(null);
     const [dragActive, setDragActive] = useState(false);
     const [parsing, setParsing] = useState(false);
@@ -372,6 +375,11 @@ export default function BarcodeImport({
     }, []);
 
     const handleImport = () => {
+        if (!csvImport.enabled) {
+            setShowUpgrade(true);
+            return;
+        }
+
         const validItems =
             validation?.preview?.filter((i) => i.status === "success") || [];
         if (validItems.length === 0) return;
@@ -462,9 +470,13 @@ export default function BarcodeImport({
                 onAction: () => router.visit("/barcode-generator"),
             }}
             primaryAction={{
-                content: uploading ? "Processing..." : "Start Import",
+                content: uploading
+                    ? "Processing..."
+                    : csvImport.enabled
+                      ? "Start Import"
+                      : `Start Import (${csvImport.requiredPlan || "PRO"})`,
                 loading: uploading,
-                disabled: !canStartImport(),
+                disabled: csvImport.enabled ? !canStartImport() : false,
                 onAction: handleImport,
             }}
             secondaryActions={[
@@ -475,7 +487,32 @@ export default function BarcodeImport({
                 },
             ]}
         >
+            <UpgradeModal
+                open={showUpgrade}
+                onClose={() => setShowUpgrade(false)}
+                feature={csvImport}
+            />
+
             <Layout>
+                {!csvImport.enabled && (
+                    <Layout.Section>
+                        <Banner
+                            title={`CSV Barcode Import is included in the ${
+                                csvImport.requiredPlan || "higher"
+                            } plan`}
+                            tone="info"
+                            action={{
+                                content: "View plans",
+                                onAction: () => router.visit("/pricing"),
+                            }}
+                        >
+                            <Text as="p">
+                                You can preview your CSV here — upgrade to
+                                apply the barcodes to your products.
+                            </Text>
+                        </Banner>
+                    </Layout.Section>
+                )}
                 {shouldShowCreditWarning() && (
                     <Layout.Section>
                         <CreditWarning

@@ -1,5 +1,5 @@
 // resources/js/Pages/components/SkuHeader.jsx
-import React from "react";
+import React, { useState } from "react";
 import {
     InlineStack,
     Text,
@@ -16,6 +16,7 @@ import {
 } from "@shopify/polaris-icons";
 import { Link } from "@inertiajs/react";
 import { triggerProductSync } from "../../Components/SyncProducts";
+import { useFeature, PlanBadge, UpgradeModal } from "./FeatureGate";
 
 const SMART_PRESETS = [
     {
@@ -67,6 +68,9 @@ const SMART_PRESETS = [
 ];
 
 export default function SkuHeader({ onPreset, onExport }) {
+    const csvExport = useFeature("csv-export");
+    const [showUpgrade, setShowUpgrade] = useState(false);
+
     const applyRandomPreset = () => {
         const random =
             SMART_PRESETS[Math.floor(Math.random() * SMART_PRESETS.length)];
@@ -119,17 +123,33 @@ export default function SkuHeader({ onPreset, onExport }) {
                         </Button>
                     </Tooltip>
 
-                    {/* Export Button — hidden temporarily */}
-                    {/* <Button
-                        size="large"
-                        tone="critical"
-                        icon={<Icon source={ExportIcon} />}
-                        onClick={onExport}
+                    <Tooltip
+                        content="Export the generated SKUs as a CSV file"
+                        preferredPosition="below"
                     >
-                        Export CSV
-                    </Button> */}
+                        <Button
+                            size="large"
+                            icon={<Icon source={ExportIcon} />}
+                            onClick={
+                                csvExport.enabled
+                                    ? onExport
+                                    : () => setShowUpgrade(true)
+                            }
+                        >
+                            <InlineStack gap="150" blockAlign="center">
+                                <span>Export CSV</span>
+                                <PlanBadge feature={csvExport} />
+                            </InlineStack>
+                        </Button>
+                    </Tooltip>
                 </InlineStack>
             </InlineStack>
+
+            <UpgradeModal
+                open={showUpgrade}
+                onClose={() => setShowUpgrade(false)}
+                feature={csvExport}
+            />
         </Box>
     );
 }

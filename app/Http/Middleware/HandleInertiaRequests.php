@@ -34,6 +34,11 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            // Plan-gated feature map for the frontend badges/upgrade prompts:
+            // { slug: { enabled, label, required_plan } }
+            'features' => fn () => $request->user() instanceof \App\Models\User
+                ? $request->user()->featureGates()
+                : null,
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

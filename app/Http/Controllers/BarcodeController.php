@@ -46,6 +46,12 @@ class BarcodeController extends Controller
 
     public function export(Request $request)
     {
+        /** @var \App\Models\User $user */
+        $user = auth()->user();
+        if (!$user->hasFeature('csv-export')) {
+            return $user->featureLockedResponse('csv-export');
+        }
+
         $id = \Illuminate\Support\Str::uuid()->toString();
         Cache::put("barcode_export_{$id}", $request->all(), now()->addMinutes(5));
 
@@ -698,6 +704,10 @@ class BarcodeController extends Controller
     {
         /** @var \App\Models\User $shop */
         $shop = Auth::user();
+
+        if (!$shop->hasFeature('barcode-csv-import')) {
+            return $shop->featureLockedResponse('barcode-csv-import');
+        }
 
         $validated = $request->validate([
             'custom_barcodes' => 'required|array|min:1',

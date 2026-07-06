@@ -91,8 +91,17 @@ class PrinterController extends Controller
     public function updateSetting(Request $request, $id)
     {
         try {
+            /** @var \App\Models\User $user */
             $user = auth()->user();
             $setting = $user->barcodePrinterSettings()->findOrFail($id);
+
+            // QR / Data Matrix labels are plan-gated. Block turning them on;
+            // everything else in the payload is unaffected.
+            $wantsQr = in_array($request->input('barcode_type'), ['qr', 'datamatrix'], true)
+                || $request->boolean('show_qr_code');
+            if ($wantsQr && !$user->hasFeature('qr-labels')) {
+                return $user->featureLockedResponse('qr-labels');
+            }
 
             $validated = $request->validate([
                 // Label Design
@@ -189,7 +198,12 @@ class PrinterController extends Controller
     public function saveTemplate(Request $request)
     {
         try {
+            /** @var \App\Models\User $user */
             $user = auth()->user();
+
+            if (!$user->hasFeature('custom-templates')) {
+                return $user->featureLockedResponse('custom-templates');
+            }
 
             $validated = $request->validate([
                 'name' => 'required|string|max:255',
@@ -230,10 +244,19 @@ class PrinterController extends Controller
             $user = auth()->user();
             $template = $user->labelTemplates()->findOrFail($id);
 
-            // Update active settings from template
+            // Update active settings from template. Strip plan-gated QR
+            // settings if the store's plan doesn't include them.
+            $settings = $template->settings;
+            if (!$user->hasFeature('qr-labels')) {
+                if (in_array($settings['barcode_type'] ?? null, ['qr', 'datamatrix'], true)) {
+                    $settings['barcode_type'] = 'code128';
+                }
+                $settings['show_qr_code'] = false;
+            }
+
             $activeSetting = $user->barcodePrinterSettings()->first();
             if ($activeSetting) {
-                $activeSetting->update($template->settings);
+                $activeSetting->update($settings);
             }
 
             if ($request->header('X-Inertia')) {
@@ -242,7 +265,7 @@ class PrinterController extends Controller
 
             return response()->json([
                 'success' => true,
-                'settings' => $template->settings,
+                'settings' => $settings,
                 'template' => $template
             ]);
         } catch (\Exception $e) {
@@ -255,7 +278,13 @@ class PrinterController extends Controller
     public function updateTemplate(Request $request, $id)
     {
         try {
+            /** @var \App\Models\User $user */
             $user = auth()->user();
+
+            if (!$user->hasFeature('custom-templates')) {
+                return $user->featureLockedResponse('custom-templates');
+            }
+
             $template = $user->labelTemplates()->findOrFail($id);
 
             $validated = $request->validate([
@@ -368,6 +397,35 @@ class PrinterController extends Controller
 
     // ========== PDF GENERATION ==========
 
+    /**
+     * QR / Data Matrix labels are plan-gated. Settings saved before gating
+     * existed may still have them enabled — normalize (and persist) so both
+     * the sync render and the queued job (which re-fetches the row) obey the
+     * store's plan.
+     */
+    protected function stripGatedQrSettings($user, $setting): void
+    {
+        if ($user->hasFeature('qr-labels')) {
+            return;
+        }
+
+        $dirty = false;
+
+        if (in_array($setting->barcode_type, ['qr', 'datamatrix'], true)) {
+            $setting->barcode_type = 'code128';
+            $dirty = true;
+        }
+
+        if ($setting->show_qr_code) {
+            $setting->show_qr_code = false;
+            $dirty = true;
+        }
+
+        if ($dirty) {
+            $setting->save();
+        }
+    }
+
     public function generatePdf(Request $request)
     {
         try {
@@ -385,6 +443,7 @@ class PrinterController extends Controller
                 ->barcodePrinterSettings()
                 ->findOrFail($validated['setting_id']);
             $setting->refresh();
+            $this->stripGatedQrSettings($user, $setting);
 
             // Validate credits
             $totalItems = count($validated['variant_ids']) * ($validated['quantity_per_variant'] ?? 1);
@@ -457,9 +516,11 @@ class PrinterController extends Controller
                 'quantity_per_variant' => 'nullable|integer|min:1|max:100',
             ]);
 
-            // Refresh settings
+            // Refresh settings (the queued job re-fetches this row, so the
+            // QR strip below persists to the DB, not just in memory)
             $setting = $user->barcodePrinterSettings()->findOrFail($validated['setting_id']);
             $setting->refresh();
+            $this->stripGatedQrSettings($user, $setting);
 
             // Validate credits
             $totalItems = count($validated['variant_ids']) * ($validated['quantity_per_variant'] ?? 1);

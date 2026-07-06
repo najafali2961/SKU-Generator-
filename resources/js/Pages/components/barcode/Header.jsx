@@ -1,5 +1,5 @@
 // resources/js/Pages/components/BarcodeHeader.jsx
-import React from "react";
+import React, { useState } from "react";
 import {
     InlineStack,
     Text,
@@ -11,8 +11,12 @@ import {
 import { ArrowLeftIcon, ExportIcon, RefreshIcon } from "@shopify/polaris-icons";
 import { Link } from "@inertiajs/react";
 import { triggerProductSync } from "../../../Components/SyncProducts";
+import { useFeature, PlanBadge, UpgradeModal } from "../FeatureGate";
 
 export default function BarcodeHeader({ onImport, onExport }) {
+    const csvExport = useFeature("csv-export");
+    const [showUpgrade, setShowUpgrade] = useState(false);
+
     return (
         <Box paddingBlockStart="100" paddingBlockEnd="10">
             <InlineStack align="space-between" blockAlign="center" gap="400">
@@ -48,22 +52,33 @@ export default function BarcodeHeader({ onImport, onExport }) {
                         </Button>
                     </Tooltip>
 
-                    {/* Export Button — hidden temporarily */}
-                    {/* <Tooltip
+                    <Tooltip
                         content="Export generated/imported barcodes as CSV"
                         preferredPosition="below"
                     >
                         <Button
                             size="large"
-                            tone="critical"
                             icon={<Icon source={ExportIcon} />}
-                            onClick={onExport}
+                            onClick={
+                                csvExport.enabled
+                                    ? onExport
+                                    : () => setShowUpgrade(true)
+                            }
                         >
-                            Export CSV
+                            <InlineStack gap="150" blockAlign="center">
+                                <span>Export CSV</span>
+                                <PlanBadge feature={csvExport} />
+                            </InlineStack>
                         </Button>
-                    </Tooltip> */}
+                    </Tooltip>
                 </InlineStack>
             </InlineStack>
+
+            <UpgradeModal
+                open={showUpgrade}
+                onClose={() => setShowUpgrade(false)}
+                feature={csvExport}
+            />
         </Box>
     );
 }

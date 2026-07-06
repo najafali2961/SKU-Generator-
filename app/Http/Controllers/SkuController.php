@@ -102,6 +102,12 @@ class SkuController extends Controller
 
     public function export(Request $request)
     {
+        /** @var \App\Models\User $user */
+        $user = auth()->user();
+        if (!$user->hasFeature('csv-export')) {
+            return $user->featureLockedResponse('csv-export');
+        }
+
         $id = \Illuminate\Support\Str::uuid()->toString();
         Cache::put("sku_export_{$id}", $request->all(), now()->addMinutes(5));
 

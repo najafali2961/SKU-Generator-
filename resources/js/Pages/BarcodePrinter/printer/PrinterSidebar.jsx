@@ -34,6 +34,11 @@ import {
     DuplicateIcon,
 } from "@shopify/polaris-icons";
 import { router } from "@inertiajs/react";
+import {
+    useFeature,
+    PlanBadge,
+    UpgradeModal,
+} from "../../components/FeatureGate";
 
 export default function PrinterSidebar({
     config,
@@ -43,6 +48,10 @@ export default function PrinterSidebar({
     printerPresets = [],
     onTemplatesUpdate,
 }) {
+    const customTemplates = useFeature("custom-templates");
+    const qrLabels = useFeature("qr-labels");
+    const [upgradeFeature, setUpgradeFeature] = useState(null);
+
     const [expandedSections, setExpandedSections] = useState({
         printerSetup: true,
         templates: true,
@@ -501,9 +510,16 @@ export default function PrinterSidebar({
                             <Button
                                 size="slim"
                                 icon={SaveIcon}
-                                onClick={() => setShowSaveModal(true)}
+                                onClick={() =>
+                                    customTemplates.enabled
+                                        ? setShowSaveModal(true)
+                                        : setUpgradeFeature(customTemplates)
+                                }
                             >
-                                Save
+                                <InlineStack gap="100" blockAlign="center">
+                                    <span>Save</span>
+                                    <PlanBadge feature={customTemplates} />
+                                </InlineStack>
                             </Button>
                         </InlineStack>
 
@@ -714,9 +730,20 @@ export default function PrinterSidebar({
                                         <Select
                                             label="Format"
                                             value={config.barcode_type}
-                                            onChange={(v) =>
-                                                handleChange("barcode_type", v)
-                                            }
+                                            onChange={(v) => {
+                                                if (
+                                                    (v === "qr" ||
+                                                        v === "datamatrix") &&
+                                                    !qrLabels.enabled
+                                                ) {
+                                                    setUpgradeFeature(qrLabels);
+                                                    return;
+                                                }
+                                                handleChange(
+                                                    "barcode_type",
+                                                    v,
+                                                );
+                                            }}
                                             options={[
                                                 {
                                                     label: "CODE 128 (Standard)",
@@ -731,11 +758,15 @@ export default function PrinterSidebar({
                                                     value: "upca",
                                                 },
                                                 {
-                                                    label: "QR Code",
+                                                    label: qrLabels.enabled
+                                                        ? "QR Code"
+                                                        : `QR Code (${qrLabels.requiredPlan || "PRO"})`,
                                                     value: "qr",
                                                 },
                                                 {
-                                                    label: "Data Matrix",
+                                                    label: qrLabels.enabled
+                                                        ? "Data Matrix"
+                                                        : `Data Matrix (${qrLabels.requiredPlan || "PRO"})`,
                                                     value: "datamatrix",
                                                 },
                                             ]}
@@ -1298,6 +1329,12 @@ export default function PrinterSidebar({
             </Card>
 
             {/* MODALS */}
+            <UpgradeModal
+                open={Boolean(upgradeFeature)}
+                onClose={() => setUpgradeFeature(null)}
+                feature={upgradeFeature || customTemplates}
+            />
+
             <Modal
                 open={showSaveModal}
                 onClose={() => {
