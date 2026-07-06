@@ -17,9 +17,14 @@ class PricingController extends Controller
     {
         $user = Auth::user();
 
-        // Get all plans with their features
+        // Get all plans with their features. Auto-generated custom plans
+        // ("Custom Plan (N Credits)" rows created by the credits calculator)
+        // are NEVER shown as pricing cards, whatever their visibility flag —
+        // a subscriber still sees theirs in the Active Subscription bar and
+        // on the dashboard credits card.
         $plans = Plan::with('features')
             ->where('is_visible', true)
+            ->where('name', 'not like', 'Custom Plan (%')
             ->orderBy('price', 'asc')
             ->get()
             ->map(fn($plan) => [
@@ -152,6 +157,7 @@ class PricingController extends Controller
                 'type' => 'RECURRING',
                 'test' => false,
                 'on_install' => 0,
+                'is_visible' => false,
                 'capped_amount' => 0,
                 'terms' => "Monthly custom allocation of {$credits} credits",
             ]

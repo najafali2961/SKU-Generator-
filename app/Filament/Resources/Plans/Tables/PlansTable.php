@@ -44,7 +44,11 @@ class PlansTable
                     ->alignCenter(),
 
                 ToggleColumn::make('is_visible')
-                    ->label('Visible'),
+                    ->label('Visible')
+                    ->disabled(fn ($record): bool => str_starts_with((string) $record->name, 'Custom Plan ('))
+                    ->tooltip(fn ($record): ?string => str_starts_with((string) $record->name, 'Custom Plan (')
+                        ? 'Auto-generated custom plans never appear on the pricing page.'
+                        : null),
 
                 BooleanColumn::make('test')
                     ->label('Test'),
