@@ -35,7 +35,8 @@ class SubscriptionResource extends Resource
 
     protected static function statusColor(?string $status): string
     {
-        return match ($status) {
+        // The package stores statuses uppercase (ChargeStatus enum).
+        return match (strtolower((string) $status)) {
             'active', 'accepted' => 'success',
             'pending' => 'warning',
             'declined', 'cancelled', 'expired', 'frozen' => 'danger',
@@ -70,7 +71,7 @@ class SubscriptionResource extends Resource
                 TextColumn::make('status')
                     ->badge()
                     ->color(fn (?string $state): string => static::statusColor($state))
-                    ->formatStateUsing(fn (?string $state): string => $state ? ucfirst($state) : '—'),
+                    ->formatStateUsing(fn (?string $state): string => $state ? ucfirst(strtolower($state)) : '—'),
 
                 TextColumn::make('type'),
 

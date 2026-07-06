@@ -4,7 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use Osiset\ShopifyApp\Storage\Models\Plan;
+use App\Models\Plan;
 
 class PlanSeeder extends Seeder
 {

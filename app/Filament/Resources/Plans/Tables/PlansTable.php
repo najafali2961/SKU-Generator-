@@ -24,12 +24,12 @@ class PlansTable
 
                 TextColumn::make('type')
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
+                    ->color(fn(string $state): string => match (strtolower($state)) {
                         'recurring' => 'success',
                         'onetime'   => 'info',
                         default     => 'gray',
                     })
-                    ->formatStateUsing(fn(string $state): string => ucfirst($state)),
+                    ->formatStateUsing(fn(string $state): string => ucfirst(strtolower($state))),
 
                 TextColumn::make('price')
                     ->money('usd')
@@ -55,8 +55,8 @@ class PlansTable
             ->filters([
                 SelectFilter::make('type')
                     ->options([
-                        'recurring' => 'Recurring',
-                        'onetime'   => 'Onetime',
+                        'RECURRING' => 'Recurring',
+                        'ONETIME'   => 'Onetime',
                     ]),
             ])
             ->recordActions([

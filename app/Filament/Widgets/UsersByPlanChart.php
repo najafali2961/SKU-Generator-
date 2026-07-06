@@ -3,7 +3,7 @@
 namespace App\Filament\Widgets;
 
 use Filament\Widgets\ChartWidget;
-use Osiset\ShopifyApp\Storage\Models\Plan;
+use App\Models\Plan;
 
 class UsersByPlanChart extends ChartWidget
 {

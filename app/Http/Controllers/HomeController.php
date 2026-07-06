@@ -3,9 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\JobLog;
-use Osiset\ShopifyApp\Messaging\Jobs\WebhookInstaller;
 use App\Models\User;
-use Osiset\ShopifyApp\Objects\Values\ShopId;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
 use App\Models\Product;
@@ -60,14 +58,19 @@ class HomeController extends Controller
 
         $plan = $shop->plan;
         $planName = $plan ? $plan->name : ($shop->isFreemium() ? 'Free' : 'None');
-        $monthlyCredits = $plan ? $plan->monthly_credits : 0; // Adjust as needed for freemium via config if >0
 
         $credits = [
             'plan_name' => $planName,
-            'available' => $shop->getAvailableCredits(),
+            // Monthly allowance: plan credits for subscribers, the free
+            // starting credits for freemium stores (was hardcoded 0).
+            'monthly' => $plan
+                ? (int) $plan->monthly_credits
+                : (int) \App\Models\Setting::getValue('free_plan_credits', 500),
+            'available' => $shop->hasUnlimitedCredits() ? null : $shop->getAvailableCredits(),
             'used' => $shop->credits_used,
             'total' => $shop->credits,
             'unlimited' => $shop->hasUnlimitedCredits(),
+            'next_reset_at' => $shop->plan_id ? $shop->credits_reset_at?->toIso8601String() : null,
         ];
 
         return Inertia::render('Home', [
@@ -75,58 +78,14 @@ class HomeController extends Controller
             'credits' => $credits,
             'recentJobs' => JobLog::where('user_id', $shop->id)->latest()->limit(10)->get(),
             'has_claimed_giveaway' => (bool) $shop->has_claimed_giveaway,
+            'giveaway_credits' => (int) \App\Models\Setting::getValue('giveaway_credits', 500),
         ]);
     }
 
-
-     public function handleShopifyCall()
-    {
-        $user = User::where('id',1)->first();
-        // $query = <<<'GQL'
-        // query {
-        //   webhookSubscriptions(first: 20) {
-        //     edges {
-        //       node {
-        //         id
-        //         topic
-        //         endpoint {
-        //           __typename
-        //           ... on WebhookHttpEndpoint {
-        //             callbackUrl
-        //           }
-        //         }
-        //       }
-        //     }
-        //   } 
-        // }
-        // GQL;
-        // $query = <<<'GQL'
-        // query {
-        //   webhookSubscriptionsCount(query: "") {
-        //     count
-        //     precision
-        //   } 
-        // }
-        // GQL;
-        // $response = $this->user->api()->graph($query);
-        // dd($response);
-        // $this->user = User::where('id',1)->first();
-        $this->installWebhooks();
-    }
-
-    public function installWebhooks()
-    {
-        $user = User::where('id',1)->first();
-        $shopId = ShopId::fromNative($user->id);
-        $webhooks = config('shopify-app.webhooks');
-        // dd($webhooks);
-        info("Webhooks: " . json_encode($webhooks, JSON_PRETTY_PRINT));
-        WebhookInstaller::dispatch($shopId, $webhooks);
-        dd("Webhooks installed");
-    }
-
     /**
-     * Giveaway Route for Support Team
+     * Giveaway Route for Support Team — one-shot per store, amount comes from
+     * the admin "giveaway_credits" setting, grant is written through
+     * addCredits() so it lands in the credit usage log.
      */
     public function supportAddCredits($domain)
     {
@@ -136,15 +95,20 @@ class HomeController extends Controller
             return response("Error: Store domain '{$domain}' not found in database.", 404);
         }
 
-        if ($user->has_claimed_giveaway) {
+        // Atomic one-shot claim: the guarded UPDATE flips the flag only if it
+        // is still unset, so concurrent requests can't double-grant.
+        $claimed = User::whereKey($user->id)
+            ->where('has_claimed_giveaway', false)
+            ->update(['has_claimed_giveaway' => true]);
+
+        if (!$claimed) {
             return response("Error: Store '{$domain}' has already claimed the giveaway.", 400);
         }
 
-        // Add 500 free giveaway credits
-        $giveawayAmount = 500;
-        $user->credits += $giveawayAmount;
-        $user->has_claimed_giveaway = true;
-        $user->save();
+        $giveawayAmount = (int) \App\Models\Setting::getValue('giveaway_credits', 500);
+
+        $user->refresh();
+        $user->addCredits($giveawayAmount, 'Support giveaway');
 
         \App\Services\EmailService::sendCreditsAdded($user, 'giveaway', $giveawayAmount, (int) $user->credits);
 
@@ -152,10 +116,19 @@ class HomeController extends Controller
     }
 
     /**
-     * Support Route: Give custom credits to a store (separate from giveaway)
+     * Support Route: Give custom credits to a store (separate from giveaway).
+     * Works with a plain URL so agents can use it directly from chat, exactly
+     * as before. Optionally, setting a "Support grant key" in Credit Settings
+     * makes ?key=... required on this link.
      */
-    public function supportGiveCredits($domain, $credits)
+    public function supportGiveCredits(Request $request, $domain, $credits)
     {
+        $supportKey = (string) \App\Models\Setting::getValue('support_giveaway_key', '');
+
+        if ($supportKey !== '' && ! hash_equals($supportKey, (string) $request->query('key', ''))) {
+            return response("Error: Invalid or missing support key.", 403);
+        }
+
         $credits = (int) $credits;
 
         if ($credits <= 0) {
@@ -168,8 +141,7 @@ class HomeController extends Controller
             return response("Error: Store domain '{$domain}' not found in database.", 404);
         }
 
-        $user->credits += $credits;
-        $user->save();
+        $user->addCredits($credits, 'Support credit grant');
 
         return response("Success! ✅ Added {$credits} credits to {$user->name}. New total credits: {$user->credits}.");
     }

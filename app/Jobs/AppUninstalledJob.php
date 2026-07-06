@@ -68,9 +68,22 @@ class AppUninstalledJob implements ShouldQueue
                 $farewellName = $shop->storeDetails?->shop_name ?: $shop->name;
                 \App\Services\EmailService::sendUninstall($shop, $farewellEmail, $farewellName);
 
-                // Delete all user logs
+                // Record the plan drop before the package clears plan_id, so
+                // billing history stays complete.
+                if ($shop->plan_id) {
+                    \App\Models\PlanChangeLog::record(
+                        $shop,
+                        \App\Models\Plan::find($shop->plan_id),
+                        null,
+                        \App\Models\PlanChangeLog::SOURCE_UNINSTALL,
+                        notes: 'App uninstalled'
+                    );
+                }
+
+                // Delete all user logs. CreditUsageLog is intentionally KEPT:
+                // it is the billing/usage audit trail (ShopRedactJob still
+                // removes it on a GDPR redact request).
                 \App\Models\JobLog::where('user_id', $shop->id)->delete();
-                \App\Models\CreditUsageLog::where('user_id', $shop->id)->delete();
 
                 // Delete all user data
                 \App\Models\Product::where('user_id', $shop->id)->delete();

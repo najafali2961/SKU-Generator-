@@ -365,8 +365,12 @@ return [
     */
 
     'listen' => [
+        // AssignDefaultPlanOnInstall and PlanActivatedListener live in
+        // App\Listeners and are auto-discovered by Laravel 11+. Registering
+        // them here too made each fire TWICE (double emails, double credit
+        // resets) — see the note above. Keep these arrays empty.
         \Osiset\ShopifyApp\Messaging\Events\AppInstalledEvent::class => [
-            \App\Listeners\AssignDefaultPlanOnInstall::class,
+            // \App\Listeners\AssignDefaultPlanOnInstall::class (auto-discovered)
         ],
         \Osiset\ShopifyApp\Messaging\Events\ShopAuthenticatedEvent::class => [
             // \App\Listeners\MyListener::class,
@@ -378,7 +382,7 @@ return [
             // \App\Listeners\MyListener::class,
         ],
         \Osiset\ShopifyApp\Messaging\Events\PlanActivatedEvent::class => [
-            \App\Listeners\PlanActivatedListener::class,
+            // \App\Listeners\PlanActivatedListener::class (auto-discovered)
         ],
     ],
 
@@ -537,8 +541,9 @@ return [
 
         /*
         * The fully qualified class name of the Plan model.
+        * App subclass adds credits/visibility columns + relations.
         */
-        'plan' => Osiset\ShopifyApp\Storage\Models\Plan::class,
+        'plan' => App\Models\Plan::class,
     ],
 
     'table_names' => [

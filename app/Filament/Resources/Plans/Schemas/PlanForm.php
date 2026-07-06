@@ -45,7 +45,7 @@ class PlanForm
                     ->schema([
                         Toggle::make('test')
                             ->label('Test Plan')
-                            ->helperText('Only visible in test mode'),
+                            ->helperText('IGNORED for billing: charge mode is decided per store — only development stores ever get test charges, real stores are always billed live.'),
 
                         Toggle::make('on_install')
                             ->label('Charge on Install')

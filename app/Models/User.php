@@ -113,4 +113,40 @@ class User extends Authenticatable implements IShopModel
     {
         return $this->hasOne(StoreDetail::class);
     }
+
+    /**
+     * Plan change history (billing activations, cancels, admin overrides).
+     */
+    public function planChangeLogs()
+    {
+        return $this->hasMany(PlanChangeLog::class);
+    }
+
+    /**
+     * Is this a Shopify development/partner-test store?
+     *
+     * Dev stores are the ONLY stores allowed to receive test billing charges
+     * (see DevAwareChargeHelper). Primary signal is Shopify's own
+     * plan.partnerDevelopment flag synced into store_details; rows synced
+     * before that column existed fall back to a plan-name match.
+     */
+    public function isDevStore(): bool
+    {
+        $detail = $this->storeDetails;
+
+        if ($detail && $detail->partner_development !== null) {
+            return (bool) $detail->partner_development;
+        }
+
+        $planName = strtolower(trim((string) ($detail?->plan_name ?? '')));
+
+        return in_array($planName, [
+            'developer preview',
+            'development',
+            'partner test',
+            'affiliate',
+            'staff',
+            'staff business',
+        ], true);
+    }
 }

@@ -10,7 +10,7 @@ use App\Filament\Resources\Plans\Tables\PlansTable;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
-use Osiset\ShopifyApp\Storage\Models\Plan as ShopifyPlan;
+use App\Models\Plan as ShopifyPlan;
 use Illuminate\Database\Eloquent\Model;
 
 class PlanResource extends Resource

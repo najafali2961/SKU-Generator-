@@ -72,7 +72,7 @@ trait HasCredits
         $costPerUnit = $costs[$feature] ?? 1;
         $totalCost = $costPerUnit * $quantity;
 
-        return $this->credits >= $totalCost;
+        return $this->getAvailableCredits() >= $totalCost;
     }
 
     /**
@@ -158,26 +158,29 @@ trait HasCredits
         $costPerUnit = $costs[$feature] ?? 1;
         $totalCost = $costPerUnit * $quantity;
 
-        // Calculate remaining credits
-        $remaining = $this->credits - $this->credits_used;
+        // Atomic, guarded deduction: the WHERE clause re-checks the balance in
+        // the same statement, so concurrent jobs (Octane workers, queued jobs)
+        // can never double-spend past the allowance.
+        $availableBefore = $this->credits - $this->credits_used;
+        $updated = static::query()
+            ->whereKey($this->id)
+            ->whereRaw('(credits - credits_used) >= ?', [$totalCost])
+            ->increment('credits_used', $totalCost);
 
-        if ($remaining < $totalCost) {
+        if (!$updated) {
             Log::warning('Insufficient credits', [
                 'user_id' => $this->id,
                 'feature' => $feature,
                 'required' => $totalCost,
-                'available' => $remaining
+                'available' => $availableBefore,
             ]);
             return false;
         }
 
-        // Increment credits_used
-        $creditsBefore = $this->credits_used;
-        $this->credits_used += $totalCost;
-        $this->save();
+        $this->refresh();
 
         // Log the usage
-        $this->logCreditUsage($feature, $totalCost, $description, $metadata, $creditsBefore);
+        $this->logCreditUsage($feature, $totalCost, $description, $metadata, $availableBefore);
 
         // Notify the merchant once when they fully exhaust their credits.
         if (($this->credits - $this->credits_used) <= 0) {
@@ -209,7 +212,12 @@ trait HasCredits
     }
 
     /**
-     * Reset monthly credits based on plan
+     * Reset monthly credits based on plan.
+     *
+     * credits_reset_at always holds the NEXT scheduled refill time (the
+     * credits:reset-monthly command picks up rows where it is in the past).
+     * Credits refill every 30 days regardless of billing interval, so annual
+     * plans get their monthly allowance too.
      */
     public function resetMonthlyCredits(): void
     {
@@ -220,11 +228,12 @@ trait HasCredits
         }
 
         $oldCredits = $this->credits;
-        $newCredits = $plan->monthly_credits;
+        // Keep the unlimited sentinel in sync with PlanActivatedListener.
+        $newCredits = $plan->unlimited_credits ? 999999 : (int) $plan->monthly_credits;
 
         $this->credits = $newCredits;
         $this->credits_used = 0;
-        $this->credits_reset_at = Carbon::now();
+        $this->credits_reset_at = Carbon::now()->addDays(30);
         $this->save();
 
         CreditUsageLog::create([
@@ -245,15 +254,19 @@ trait HasCredits
     }
 
     /**
-     * Check if credits need to be reset
+     * Check if credits need to be reset.
+     *
+     * credits_reset_at is the next scheduled refill timestamp; due when it
+     * has passed. Stores without a paid plan never refill.
      */
     public function shouldResetCredits(): bool
     {
-        if (!$this->plan || !$this->credits_reset_at) {
-            return true;
+        if (!$this->plan) {
+            return false;
         }
 
-        return Carbon::now()->diffInDays($this->credits_reset_at) >= 30;
+        return $this->credits_reset_at === null
+            || Carbon::now()->gte($this->credits_reset_at);
     }
 
     /**
@@ -299,16 +312,19 @@ trait HasCredits
     }
 
     /**
-     * Log credit usage
+     * Log credit usage. credits_before/credits_after hold the AVAILABLE
+     * balance around the deduction so the log reads as a running balance.
      */
     protected function logCreditUsage(string $feature, int $creditsUsed, ?string $description = null, ?array $metadata = null, ?int $creditsBefore = null): void
     {
+        $availableAfter = $this->credits - $this->credits_used;
+
         CreditUsageLog::create([
             'user_id' => $this->id,
             'feature' => $feature,
             'credits_used' => $creditsUsed,
-            'credits_before' => $creditsBefore ?? $this->credits + $creditsUsed,
-            'credits_after' => $this->credits,
+            'credits_before' => $creditsBefore ?? $availableAfter + $creditsUsed,
+            'credits_after' => $availableAfter,
             'description' => $description,
             'metadata' => $metadata
         ]);
@@ -331,6 +347,6 @@ trait HasCredits
             return false;
         }
 
-        return $this->credits <= 0;
+        return $this->getAvailableCredits() <= 0;
     }
 }

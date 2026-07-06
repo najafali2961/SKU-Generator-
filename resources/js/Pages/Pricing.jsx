@@ -16,6 +16,8 @@ import {
     ButtonGroup,
     RangeSlider,
     TextField,
+    Modal,
+    Banner,
 } from "@shopify/polaris";
 import { CheckIcon, XIcon } from "@shopify/polaris-icons";
 
@@ -30,6 +32,10 @@ export default function Pricing({
 
     const [isLoading, setIsLoading] = useState(false);
     const [billingInterval, setBillingInterval] = useState("monthly");
+    // alert()/confirm() are blocked inside the Shopify admin iframe, so all
+    // feedback goes through a Polaris banner + modal instead.
+    const [errorMessage, setErrorMessage] = useState(null);
+    const [showCancelModal, setShowCancelModal] = useState(false);
 
     // Custom Calculator State
     const customCreditMin =
@@ -44,11 +50,19 @@ export default function Pricing({
     };
 
     const handleCustomSubscribe = async () => {
+        if (customCredits < customCreditMin) {
+            setErrorMessage(
+                `Custom plans start at ${customCreditMin} credits.`,
+            );
+            return;
+        }
+        setErrorMessage(null);
         setIsLoading("custom");
         try {
+            // Price is computed server-side from the configured rate; the
+            // credits amount is all the backend needs.
             const response = await axios.post(route("pricing.select.custom"), {
                 credits: customCredits,
-                price: calculatedPrice,
             });
             if (response.data.success && response.data.redirectUrl) {
                 window.top.location.href = response.data.redirectUrl;
@@ -58,7 +72,34 @@ export default function Pricing({
             }
         } catch (error) {
             console.error("Custom plan error", error);
-            alert("Could not process custom plan request.");
+            setErrorMessage(
+                error?.response?.data?.message ||
+                    "Could not process custom plan request.",
+            );
+            setIsLoading(false);
+        }
+    };
+
+    const handleCancelSubscription = async () => {
+        setShowCancelModal(false);
+        setErrorMessage(null);
+        setIsLoading("cancel");
+        try {
+            const response = await axios.post("/pricing/cancel");
+            if (response.data.success) {
+                window.location.reload();
+            } else {
+                setErrorMessage(
+                    response.data.message || "Could not cancel subscription.",
+                );
+                setIsLoading(false);
+            }
+        } catch (error) {
+            console.error("Cancel error", error);
+            setErrorMessage(
+                error?.response?.data?.message ||
+                    "Could not cancel subscription. Please contact support.",
+            );
             setIsLoading(false);
         }
     };
@@ -220,6 +261,14 @@ export default function Pricing({
 
             <Page>
                 <BlockStack gap="600">
+                    {errorMessage && (
+                        <Banner
+                            title={errorMessage}
+                            tone="critical"
+                            onDismiss={() => setErrorMessage(null)}
+                        />
+                    )}
+
                     {/* Billing Cycle Toggle */}
                     <InlineStack align="center" gap="200" blockAlign="center">
                         <ButtonGroup variant="segmented">
@@ -628,6 +677,61 @@ export default function Pricing({
                                     </>
                                 )}
 
+                                {/* Active Subscription Section */}
+                                {currentPlan.id && (
+                                    <>
+                                        <InlineStack
+                                            align="space-between"
+                                            blockAlign="center"
+                                            wrap={false}
+                                        >
+                                            <InlineStack
+                                                gap="400"
+                                                blockAlign="center"
+                                            >
+                                                <Badge
+                                                    tone="success"
+                                                    size="large"
+                                                >
+                                                    {currentPlan.name}
+                                                </Badge>
+                                                <Text
+                                                    variant="bodyMd"
+                                                    tone="subdued"
+                                                >
+                                                    Active subscription — $
+                                                    {currentPlan.price}/
+                                                    {currentPlan.interval ===
+                                                    "ANNUAL"
+                                                        ? "year"
+                                                        : "month"}
+                                                </Text>
+                                            </InlineStack>
+                                            <div className="flex-shrink-0">
+                                                <Button
+                                                    tone="critical"
+                                                    variant="secondary"
+                                                    onClick={() =>
+                                                        setShowCancelModal(
+                                                            true,
+                                                        )
+                                                    }
+                                                    loading={
+                                                        isLoading === "cancel"
+                                                    }
+                                                    disabled={
+                                                        Boolean(isLoading) &&
+                                                        isLoading !== "cancel"
+                                                    }
+                                                >
+                                                    Cancel subscription
+                                                </Button>
+                                            </div>
+                                        </InlineStack>
+                                        <Divider />
+                                    </>
+                                )}
+
                                 {/* Custom Credits Calculator */}
                                 <InlineStack
                                     align="start"
@@ -732,7 +836,7 @@ export default function Pricing({
                                                         isLoading === "custom"
                                                     }
                                                     disabled={
-                                                        isLoading !== false &&
+                                                        Boolean(isLoading) &&
                                                         isLoading !== "custom"
                                                     }
                                                 >
@@ -747,6 +851,31 @@ export default function Pricing({
                         </Card>
                     </Box>
                 </BlockStack>
+
+                <Modal
+                    open={showCancelModal}
+                    onClose={() => setShowCancelModal(false)}
+                    title="Cancel subscription?"
+                    primaryAction={{
+                        content: "Cancel subscription",
+                        destructive: true,
+                        onAction: handleCancelSubscription,
+                    }}
+                    secondaryActions={[
+                        {
+                            content: "Keep my plan",
+                            onAction: () => setShowCancelModal(false),
+                        },
+                    ]}
+                >
+                    <Modal.Section>
+                        <Text as="p">
+                            Your store will move back to the free tier and
+                            monthly credits will stop refilling. Credits
+                            remaining from a paid billing cycle are kept.
+                        </Text>
+                    </Modal.Section>
+                </Modal>
             </Page>
         </>
     );

@@ -222,7 +222,7 @@ class StoreResource extends Resource
                     ->form([
                         Select::make('plan_id')
                             ->label('App plan')
-                            ->options(fn (): array => \Osiset\ShopifyApp\Storage\Models\Plan::orderBy('name')->pluck('name', 'id')->all())
+                            ->options(fn (): array => \App\Models\Plan::orderBy('name')->pluck('name', 'id')->all())
                             ->placeholder('Free (no plan)')
                             ->searchable(),
 
@@ -237,18 +237,37 @@ class StoreResource extends Resource
                             ->default(false),
                     ])
                     ->action(function (array $data, User $record): void {
-                        $record->plan_id = $data['plan_id'] ?: null;
+                        $previousPlan = $record->plan_id ? \App\Models\Plan::find($record->plan_id) : null;
+                        $newPlan = $data['plan_id'] ? \App\Models\Plan::find($data['plan_id']) : null;
+
+                        $record->plan_id = $newPlan?->id;
+                        // Keep the freemium flag in sync: a paid plan means
+                        // not freemium; no plan drops back to the free tier.
+                        $record->shopify_freemium = $newPlan ? 0 : 1;
+
+                        // Always restart the refill schedule on a plan change
+                        // (credits_reset_at = NEXT refill): a stale past
+                        // timestamp would let the hourly reset command refill
+                        // the store within the hour, overriding the balance
+                        // chosen here.
+                        $record->credits_reset_at = $newPlan ? now()->addDays(30) : null;
 
                         if (! empty($data['reset_credits'])) {
-                            $plan = $data['plan_id']
-                                ? \Osiset\ShopifyApp\Storage\Models\Plan::find($data['plan_id'])
-                                : null;
-                            $record->credits = (int) ($plan->monthly_credits ?? 0);
+                            $record->credits = $newPlan?->unlimited_credits
+                                ? 999999
+                                : (int) ($newPlan->monthly_credits ?? 0);
                             $record->credits_used = 0;
-                            $record->credits_reset_at = now();
                         }
 
                         $record->save();
+
+                        \App\Models\PlanChangeLog::record(
+                            $record,
+                            $previousPlan,
+                            $newPlan,
+                            \App\Models\PlanChangeLog::SOURCE_ADMIN,
+                            notes: 'Plan changed from the admin panel'
+                        );
 
                         if (! empty($data['cancel_shopify_charge']) && ! $record->deleted_at) {
                             static::cancelShopifyCharges($record);
@@ -401,7 +420,7 @@ class StoreResource extends Resource
                                 ? '∞'
                                 : number_format(max(0, (int) $record->credits - (int) $record->credits_used)))
                             ->color('success'),
-                        TextEntry::make('credits_reset_at')->label('Last reset')->dateTime()->placeholder('Never'),
+                        TextEntry::make('credits_reset_at')->label('Next refill')->dateTime()->placeholder('—'),
                     ]),
             ]);
     }
@@ -413,7 +432,7 @@ class StoreResource extends Resource
     {
         try {
             $charges = $record->charges()
-                ->whereIn('status', ['active', 'accepted'])
+                ->whereIn('status', ['ACTIVE', 'ACCEPTED', 'active', 'accepted'])
                 ->whereNull('cancelled_on')
                 ->get();
 
@@ -423,7 +442,7 @@ class StoreResource extends Resource
                     'mutation cancel($id: ID!) { appSubscriptionCancel(id: $id) { userErrors { message } } }',
                     ['id' => $gid]
                 );
-                $charge->update(['status' => 'cancelled', 'cancelled_on' => now()]);
+                $charge->update(['status' => 'CANCELLED', 'cancelled_on' => now()]);
                 $charge->delete();
             }
         } catch (\Throwable $e) {

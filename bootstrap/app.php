@@ -24,7 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Middleware alias registration (IMPORTANT: must be outside web())
         $middleware->alias([
-            // 'check.credits' => \App\Http\Middleware\CheckCredits::class, // removed
+            'check.credits' => \App\Http\Middleware\CheckCredits::class,
         ]);
 
         // CSRF disabled for all routes (your previous config)

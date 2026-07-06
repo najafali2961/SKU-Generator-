@@ -16,7 +16,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Per-store billing test mode: dev stores get test charges, every
+        // real store gets a live charge. This bind overrides the package's
+        // own ChargeHelper binding (app providers register after packages).
+        // NOTE: requires an Octane restart on deploy to take effect.
+        $this->app->bind(
+            \Osiset\ShopifyApp\Services\ChargeHelper::class,
+            \App\Services\DevAwareChargeHelper::class
+        );
     }
 
     /**

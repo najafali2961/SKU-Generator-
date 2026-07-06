@@ -2,13 +2,14 @@
 
 namespace App\Listeners;
 
+use App\Models\Plan;
+use App\Models\PlanChangeLog;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Osiset\ShopifyApp\Messaging\Events\PlanActivatedEvent;
-use Osiset\ShopifyApp\Storage\Models\Plan;
 use Carbon\Carbon;
 
 class PlanActivatedListener implements ShouldQueue
@@ -56,6 +57,9 @@ class PlanActivatedListener implements ShouldQueue
                 return;
             }
 
+            // Snapshot the outgoing plan before we overwrite it (history).
+            $previousPlan = $shop->plan_id ? Plan::find($shop->plan_id) : null;
+
             // Calculate credits
             $credits = $plan->unlimited_credits ? 999999 : ($plan->monthly_credits ?? 0);
 
@@ -70,6 +74,23 @@ class PlanActivatedListener implements ShouldQueue
             ]);
 
             if ($updated) {
+                // Keep a permanent record of the plan transition, including
+                // whether Shopify billed it as a test or a live charge.
+                $charge = $shop->charges()
+                    ->where('plan_id', $plan->id)
+                    ->orderByDesc('id')
+                    ->first();
+
+                PlanChangeLog::record(
+                    $shop,
+                    $previousPlan,
+                    $plan,
+                    PlanChangeLog::SOURCE_BILLING,
+                    (bool) ($charge?->test ?? false),
+                    $charge?->charge_id !== null ? (string) $charge->charge_id : null,
+                    'Subscription activated via Shopify billing'
+                );
+
                 // Refresh model so any future code sees correct values
                 $shop->refresh();
 

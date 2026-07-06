@@ -15,41 +15,42 @@ use App\Http\Controllers\WebhookController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-// Support Giveaway Route (No Auth required so agents can use it directly via URL)
+// Support giveaway routes (no auth: support agents open them directly via
+// URL from chat). Claim is one-shot per store with the amount from the
+// giveaway_credits setting; custom grants work with a plain URL, and only
+// require ?key=... if a Support grant key is set in Credit Settings.
 Route::get('/support/giveaway/{domain}', [HomeController::class, 'supportAddCredits']);
 Route::get('/support/giveaway/{domain}/{credits}', [HomeController::class, 'supportGiveCredits']);
 
-// Protected routes - removed check.credits from group
 Route::middleware(['verify.shopify', 'billable'])->group(function () {
     Route::get('/', [HomeController::class, 'index'])->name('home');
 
     // SKU Generator
-    Route::get('/sku-generator', [SkuController::class, 'index'])->name('sku-generator');
+    Route::get('/sku-generator', [SkuController::class, 'index'])
+        ->middleware('check.credits:sku_generation')
+        ->name('sku-generator');
     Route::post('/sku-generator/preview', [SkuController::class, 'preview']);
     Route::post('/sku-generator/export', [SkuController::class, 'export']);
     Route::get('/sku-generator/download-export', [SkuController::class, 'downloadExport'])->name('sku-generator.download-export');
     Route::post('/sku-generator/apply', [SkuController::class, 'apply']);
-    Route::get('/sku-generator/progress', [SkuController::class, 'progress']);
 
-    // Barcode Printer
-    Route::get('/barcode-printer', [PrinterController::class, 'index']);
+    // Barcode Printer page lives in the barcode-printer prefix group below
+    // (registering it twice would override the credit check).
 
     // Barcode Generator
     Route::get('/barcode-generator', [BarcodeController::class, 'index'])
+        ->middleware('check.credits:barcode_generation')
         ->name('barcode');
 
     Route::post('/barcode-generator/preview', [BarcodeController::class, 'preview']);
-    Route::post('/barcode/generate', [BarcodeController::class, 'generate']);
     Route::post('/barcode-generator/apply', [BarcodeController::class, 'apply']);
     Route::post('/barcode-generator/export', [BarcodeController::class, 'export']);
     Route::get('/barcode-generator/download-export', [BarcodeController::class, 'downloadExport'])->name('barcode-generator.download-export');
-    Route::get('/barcode-generator/progress', [BarcodeController::class, 'progress']);
-    Route::post('/barcode/import', [BarcodeController::class, 'import']);
-    Route::post('/barcode/fetch-variants', [BarcodeController::class, 'fetchVariants']);
     Route::post('/barcode/import-preview', [BarcodeController::class, 'importPreview']);
     Route::post('/barcode/import-apply', [BarcodeController::class, 'importApply']);
 
     Route::get('/barcode-import', [BarcodeController::class, 'importPage'])
+        ->middleware('check.credits:barcode_import')
         ->name('barcode.import');
 
     // Jobs
@@ -60,7 +61,9 @@ Route::middleware(['verify.shopify', 'billable'])->group(function () {
 
     // Printer templates & presets
     Route::prefix('barcode-printer')->name('barcode-printer.')->group(function () {
-        Route::get('/', [PrinterController::class, 'index'])->name('index');
+        Route::get('/', [PrinterController::class, 'index'])
+            ->middleware('check.credits:label_printing')
+            ->name('index');
         Route::get('/variants', [PrinterController::class, 'variants'])->name('variants');
 
         // Printer settings
@@ -107,5 +110,3 @@ Route::middleware(['auth.webhook'])->group(function () {
 Route::middleware(['auth:admin'])->group(function () {
     Route::get('logs', [\Rap2hpoutre\LaravelLogViewer\LogViewerController::class, 'index']);
 });
-
-Route::get('/test/shopify', [HomeController::class, 'handleShopifyCall']);

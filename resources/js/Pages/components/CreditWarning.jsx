@@ -40,39 +40,47 @@ export default function CreditWarning({
                 <strong>{maxAllowed}</strong>
             </Text>
 
-            <div style={{ marginTop: "2px" }}>
-                <button
-                    onClick={() => {
-                        if (window.$crisp) {
-                            window.$crisp.push(["do", "chat:open"]);
-                            window.$crisp.push([
-                                "do",
-                                "message:send",
-                                [
-                                    "text",
-                                    "Hi! I need more credits to process my items. Can you help?",
-                                ],
-                            ]);
-                        } else {
-                            window.open(
-                                "mailto:sku@airoapps.com?subject=Need More Credits",
-                                "_blank",
-                            );
-                        }
-                    }}
-                    style={{
-                        background: "transparent",
-                        border: "none",
-                        padding: 0,
-                        color: "#005bd3",
-                        fontWeight: "bold",
-                        cursor: "pointer",
-                        textDecoration: "underline",
-                        fontSize: "13px",
-                    }}
-                >
-                    Chat with Support
-                </button>
+            <div style={{ marginTop: "8px" }}>
+                <InlineStack gap="300" blockAlign="center">
+                    <Button
+                        variant="primary"
+                        onClick={() => router.visit("/pricing")}
+                    >
+                        Upgrade plan
+                    </Button>
+                    <button
+                        onClick={() => {
+                            if (window.$crisp) {
+                                window.$crisp.push(["do", "chat:open"]);
+                                window.$crisp.push([
+                                    "do",
+                                    "message:send",
+                                    [
+                                        "text",
+                                        "Hi! I need more credits to process my items. Can you help?",
+                                    ],
+                                ]);
+                            } else {
+                                window.open(
+                                    "mailto:sku@airoapps.com?subject=Need More Credits",
+                                    "_blank",
+                                );
+                            }
+                        }}
+                        style={{
+                            background: "transparent",
+                            border: "none",
+                            padding: 0,
+                            color: "#005bd3",
+                            fontWeight: "bold",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                            fontSize: "13px",
+                        }}
+                    >
+                        Chat with Support
+                    </button>
+                </InlineStack>
             </div>
         </Banner>
     );

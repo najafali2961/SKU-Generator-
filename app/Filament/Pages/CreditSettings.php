@@ -49,6 +49,7 @@ class CreditSettings extends Page
         'limit_reached_message' => 'You have used all of your credits for this billing period. Upgrade your plan to keep editing.',
         'support_email' => '',
         'giveaway_credits' => 100,
+        'support_giveaway_key' => '',
     ];
 
     public function mount(): void
@@ -122,6 +123,11 @@ class CreditSettings extends Page
                             ->label('Free credits per giveaway')
                             ->numeric()
                             ->minValue(0),
+
+                        TextInput::make('support_giveaway_key')
+                            ->label('Support grant key (optional)')
+                            ->helperText('Leave empty and the /support/giveaway/{domain}/{credits} link works with a plain URL, as always. Set a key to require ?key=... on that link.')
+                            ->maxLength(64),
                     ]),
             ])
             ->statePath('data');

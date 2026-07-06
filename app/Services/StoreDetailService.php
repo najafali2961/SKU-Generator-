@@ -25,6 +25,7 @@ query GetStoreDetails {
         plan {
             displayName
             shopifyPlus
+            partnerDevelopment
         }
         myshopifyDomain
         primaryDomain {
@@ -93,6 +94,7 @@ GRAPHQL;
                 'phone' => $data['billingAddress']['phone'] ?? '',
                 'description' => $data['description'] ?? '',
                 'plan_name' => $data['plan']['displayName'] ?? '',
+                'partner_development' => $data['plan']['partnerDevelopment'] ?? null,
                 'shopify_plus' => $data['plan']['shopifyPlus'] ?? false,
                 'shopify_domain' => $data['myshopifyDomain'] ?? '',
                 'primary_domain' => $data['primaryDomain']['url'] ?? '',

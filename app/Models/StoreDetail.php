@@ -16,6 +16,7 @@ class StoreDetail extends Model
         'phone',
         'description',
         'plan_name',
+        'partner_development',
         'shopify_plus',
         'shopify_domain',
         'primary_domain',
@@ -27,6 +28,7 @@ class StoreDetail extends Model
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'partner_development' => 'boolean',
     ];
 
     /**

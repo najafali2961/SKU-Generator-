@@ -365,6 +365,7 @@ export default function Home({
     credits = {},
     recentJobs = [],
     has_claimed_giveaway = false,
+    giveaway_credits = 500,
 }) {
     const data = {
         total_variants: stats.total_variants || 0,
@@ -473,8 +474,8 @@ export default function Home({
                     </InlineStack>
                 </div>
 
-                {/* ── Credits Speedometer ── */}
-                {/* <div className="airo-top-grid">
+                {/* ── Giveaway banner + Credits Speedometer ── */}
+                <div className="airo-top-grid">
                     <div style={{ display: "flex", flex: 1 }}>
                         {!isGiveawayDismissed && !has_claimed_giveaway ? (
                             <div className="airo-giveaway">
@@ -484,7 +485,7 @@ export default function Home({
                                 >
                                     <Icon source={XIcon} />
                                 </button>
-                                
+
                                 <div className="airo-giveaway-icon-container">
                                     <svg className="airo-giveaway-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <polyline points="20 12 20 22 4 22 4 12"></polyline>
@@ -497,16 +498,16 @@ export default function Home({
 
                                 <div className="airo-giveaway-content">
                                     <h2 className="airo-giveaway-title">
-                                        Exclusive <span>Giveaway</span>
+                                        Free <span>Credits Giveaway</span>
                                     </h2>
                                     <p className="airo-giveaway-subtitle">
-                                        Chat with our support team to claim your reward <b>instantly</b>.
+                                        Get <b>{giveaway_credits.toLocaleString()} free credits</b> for your store — chat with our support team to claim them <b>instantly</b>.
                                     </p>
-                                    
+
                                     <div className="airo-trust-badges">
                                         <div className="airo-trust-item">
                                             <svg className="airo-trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                                            100% Secure
+                                            100% Free
                                         </div>
                                         <div className="airo-trust-item">
                                             <svg className="airo-trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
@@ -514,7 +515,7 @@ export default function Home({
                                         </div>
                                         <div className="airo-trust-item">
                                             <svg className="airo-trust-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                                            Trusted Support
+                                            One per store
                                         </div>
                                     </div>
                                 </div>
@@ -534,16 +535,6 @@ export default function Home({
                                         Chat to Claim Now
                                         <Icon source={ArrowRightIcon} />
                                     </button>
-                                    
-                                    <div className="airo-winners">
-                                        <div className="airo-avatars">
-                                            <img src="https://i.pravatar.cc/150?u=11" className="airo-avatar" />
-                                            <img src="https://i.pravatar.cc/150?u=22" className="airo-avatar" />
-                                            <img src="https://i.pravatar.cc/150?u=33" className="airo-avatar" />
-                                            <img src="https://i.pravatar.cc/150?u=44" className="airo-avatar" />
-                                        </div>
-                                        <span className="airo-winners-text">Join 10,000+ happy winners</span>
-                                    </div>
                                 </div>
                             </div>
                         ) : (
@@ -553,7 +544,7 @@ export default function Home({
                     <div style={{ display: "flex", flex: 1 }}>
                         <CreditsSpeedometerCard credits={credits} />
                     </div>
-                </div> */}
+                </div>
 
 
                 {/* ── Stats Grid ── */}
