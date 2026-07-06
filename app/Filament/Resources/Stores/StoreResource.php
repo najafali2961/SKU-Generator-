@@ -96,6 +96,12 @@ class StoreResource extends Resource
                     ->color('gray')
                     ->placeholder('—'),
 
+                IconColumn::make('dev_store')
+                    ->label('Dev')
+                    ->boolean()
+                    ->state(fn (User $record): bool => $record->isDevStore())
+                    ->tooltip('Dev stores get TEST charges; real stores are billed live. Synced from Shopify via "Sync details".'),
+
                 TextColumn::make('plan.name')
                     ->label('App plan')
                     ->badge()
@@ -401,6 +407,10 @@ class StoreResource extends Resource
                     ->schema([
                         TextEntry::make('plan.name')->label('App plan')->badge()->color('success')->placeholder('Free'),
                         TextEntry::make('storeDetails.plan_name')->label('Shopify plan')->badge()->color('gray')->placeholder('—'),
+                        IconEntry::make('dev_store')
+                            ->label('Dev store (test charges)')
+                            ->state(fn (User $record): bool => $record->isDevStore())
+                            ->boolean(),
                         TextEntry::make('job_logs_count')->label('Bulk jobs run')->state(fn (User $record): int => $record->jobLogs()->count()),
                         TextEntry::make('products_count')->label('Products synced')->state(fn (User $record): int => $record->products()->count()),
                     ]),
