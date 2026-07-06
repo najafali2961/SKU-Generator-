@@ -37,6 +37,7 @@ class PlanChangeLog extends Model
     public const SOURCE_MERCHANT_CANCEL = 'merchant_cancel';
     public const SOURCE_ADMIN = 'admin';
     public const SOURCE_UNINSTALL = 'uninstall';
+    public const SOURCE_LAUNCH_RESET = 'launch_reset';
 
     public function user(): BelongsTo
     {

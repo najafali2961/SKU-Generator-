@@ -8,6 +8,7 @@ use App\Mail\CreditsExhaustedMail;
 use App\Mail\FreeCreditsUpdatedMail;
 use App\Mail\JobCompletedMail;
 use App\Mail\JobFailedMail;
+use App\Mail\PaidLaunchMail;
 use App\Mail\PlanActivatedMail;
 use App\Mail\TrialStartedMail;
 use App\Mail\WelcomeMail;
@@ -248,6 +249,26 @@ class EmailService
      * Sent when credits are added/refilled/reset.
      * $type: 'giveaway' | 'reset' | 'refill'
      */
+    /**
+     * One-time paid-launch announcement. Pass an explicit $email for the
+     * --test-to preview (skips shop resolution).
+     */
+    public static function sendPaidLaunch(?User $user, int $freeCredits, array $plans, ?string $email = null): void
+    {
+        $email = $email ?: self::resolveEmail($user);
+        $costs = [
+            'sku' => (int) \App\Models\Setting::getValue('credit_cost_sku_generation', 1),
+            'label' => (int) \App\Models\Setting::getValue('credit_cost_label_printing', 2),
+        ];
+
+        self::send(
+            $email,
+            new PaidLaunchMail($freeCredits, $plans, self::shopName($user), $costs['sku'], $costs['label']),
+            'paid-launch announcement',
+            $user
+        );
+    }
+
     public static function sendCreditsAdded(?User $user, string $type, ?int $amount, int $newBalance): void
     {
         $email = self::resolveEmail($user);

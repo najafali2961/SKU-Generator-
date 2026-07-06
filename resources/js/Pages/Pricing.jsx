@@ -664,7 +664,7 @@ export default function Pricing({
                                                     Currently enjoying Free Tier
                                                     benefits (
                                                     {user.credits || 0} Credits
-                                                    / Forever)
+                                                    / 30 days)
                                                 </Text>
                                             </InlineStack>
                                             <div className="flex-shrink-0">

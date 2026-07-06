@@ -266,7 +266,8 @@ class PricingController extends Controller
 
             $user->plan_id = null;
             $user->shopify_freemium = 1;
-            $user->credits_reset_at = null;
+            // Free plan keeps a 30-day refill cycle after cancelling.
+            $user->credits_reset_at = now()->addDays(30);
             $user->save();
 
             return response()->json([
@@ -308,7 +309,7 @@ class PricingController extends Controller
                 'total' => $user->credits,
                 'used' => $user->credits_used,
                 'available' => $user->hasUnlimitedCredits() ? null : $user->getAvailableCredits(),
-                'next_reset_at' => $user->plan_id ? $user->credits_reset_at?->toIso8601String() : null,
+                'next_reset_at' => $user->credits_reset_at?->toIso8601String(),
             ],
             'last_30_days' => [
                 'total_used' => $stats['total_used'],

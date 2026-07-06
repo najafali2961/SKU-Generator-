@@ -115,6 +115,7 @@ class PlanChangeLogResource extends Resource
                         PlanChangeLog::SOURCE_MERCHANT_CANCEL => 'Merchant cancel',
                         PlanChangeLog::SOURCE_ADMIN => 'Admin',
                         PlanChangeLog::SOURCE_UNINSTALL => 'Uninstall',
+                        PlanChangeLog::SOURCE_LAUNCH_RESET => 'Launch reset',
                     ]),
 
                 TernaryFilter::make('test')

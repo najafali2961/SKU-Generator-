@@ -255,8 +255,8 @@ class StoreResource extends Resource
                         // (credits_reset_at = NEXT refill): a stale past
                         // timestamp would let the hourly reset command refill
                         // the store within the hour, overriding the balance
-                        // chosen here.
-                        $record->credits_reset_at = $newPlan ? now()->addDays(30) : null;
+                        // chosen here. The Free plan refills monthly too.
+                        $record->credits_reset_at = now()->addDays(30);
 
                         if (! empty($data['reset_credits'])) {
                             $record->credits = $newPlan?->unlimited_credits

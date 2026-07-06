@@ -70,7 +70,7 @@ class HomeController extends Controller
             'used' => $shop->credits_used,
             'total' => $shop->credits,
             'unlimited' => $shop->hasUnlimitedCredits(),
-            'next_reset_at' => $shop->plan_id ? $shop->credits_reset_at?->toIso8601String() : null,
+            'next_reset_at' => $shop->credits_reset_at?->toIso8601String(),
         ];
 
         return Inertia::render('Home', [
