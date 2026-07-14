@@ -21,30 +21,29 @@
 
 @section('scripts')
     @parent
+    @php($crisp = \App\Support\CrispSession::for(Auth::user()))
     <script type="text/javascript" defer>
         window.$crisp = [];
         window.CRISP_WEBSITE_ID = "8305e843-f408-4c73-8b4d-c65666845987";
         window.$crisp.push(["config", "position:reverse", [true]]);
         window.$crisp.push(["config", "color:theme", ["black"]]);
-        window.$crisp.push(["set", "user:avatar",
+        window.$crisp.push(["set", "user:avatar", [
             "https://cdn.shopify.com/s/files/1/0718/7723/0786/files/SKU.png?v=1772877734"
-        ]);
-        window.$crisp.push(["set", "session:data", [
-            [
-                ["store_id", "{{ Auth::user()->id ?? null }}"],
-                ["store_name", "{{ Auth::user()->name ?? null }}"],
-                ["store_domain", "{{ Auth::user()->storeDetails->primary_domain ?? null }}"],
-                ["store_plan", "{{ Auth::user()->storeDetails->plan_name ?? null }}"],
-                ["app_name", "AiroSKU"],
-                ["app_plan", "{{ Auth::user()->plan->name ?? null }}"],
-                ["giveaway_link",
-                    "{{ url('/support/giveaway/' . str_replace(['https://', 'http://'], '', Auth::user()->storeDetails->primary_domain ?? Auth::user()->name)) }}"
-                ],
-                ["custom_credits",
-                    "{{ url('/support/giveaway/' . str_replace(['https://', 'http://'], '', Auth::user()->storeDetails->primary_domain ?? Auth::user()->name) . '/100') }}"
-                ],
-            ]
         ]]);
+        @if ($crisp)
+            // Name the visitor after their store — support should see the shop,
+            // not "visitor276444". The giveaway/custom-credit links support uses
+            // are still in session:data, built exactly as before.
+            window.$crisp.push(["set", "user:nickname", [@json($crisp['nickname'])]]);
+            @if ($crisp['email'])
+                window.$crisp.push(["set", "user:email", [@json($crisp['email'])]]);
+            @endif
+            @if ($crisp['company'])
+                window.$crisp.push(["set", "user:company", @json($crisp['company'])]);
+            @endif
+            window.$crisp.push(["set", "session:data", [@json($crisp['data'])]]);
+            window.$crisp.push(["set", "session:segments", [@json($crisp['segments'])]]);
+        @endif
         (function() {
             d = document;
             s = d.createElement("script");
