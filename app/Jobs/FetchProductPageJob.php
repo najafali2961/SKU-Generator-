@@ -65,7 +65,6 @@ class FetchProductPageJob implements ShouldQueue
                         id
                         title
                         handle
-                        bodyHtml
                         status
                         vendor
                         productType
@@ -157,9 +156,6 @@ class FetchProductPageJob implements ShouldQueue
                 // Title
                 $title = $this->toString($node['title'] ?? 'Untitled Product');
 
-                // Body HTML
-                $bodyHtml = $this->toString($node['bodyHtml'] ?? null);
-
                 // Status
                 $status = strtolower($this->toString($node['status'] ?? 'draft'));
 
@@ -214,7 +210,6 @@ class FetchProductPageJob implements ShouldQueue
                     [
                         'title'            => $title,
                         'handle'           => $this->toString($node['handle'] ?? null),
-                        'description_html' => $bodyHtml,
                         'status'           => $status,
                         'vendor'           => $vendor,
                         'product_type'     => $productType,

@@ -48,7 +48,7 @@ class ProductsCreateJob implements ShouldQueue
             } elseif (!empty($payload['admin_graphql_api_id'])) {
                 $gid = $payload['admin_graphql_api_id'];
                 $fresh = $shop->api()->graph(
-                    'query($id: ID!) { product(id: $id) { id title handle descriptionHtml status vendor productType tags images(first:20){edges{node{id url altText}}} variants(first:100){edges{node{id title sku barcode price{amount} inventoryQuantity image{url altText} imageId selectedOptions{name value}}}}}}',
+                    'query($id: ID!) { product(id: $id) { id title handle status vendor productType tags images(first:20){edges{node{id url altText}}} variants(first:100){edges{node{id title sku barcode price{amount} inventoryQuantity image{url altText} imageId selectedOptions{name value}}}}}}',
                     ['id' => $gid]
                 );
                 $productData = $fresh['body']['data']['product'] ?? null;
@@ -75,7 +75,6 @@ class ProductsCreateJob implements ShouldQueue
                 [
                     'title' => $productData['title'] ?? 'Untitled Product',
                     'handle' => $productData['handle'] ?? null,
-                    'description_html' => $productData['descriptionHtml'] ?? $productData['body_html'] ?? null,
                     'status' => strtoupper($productData['status'] ?? 'DRAFT'),
                     'vendor' => $productData['vendor'] ?? null,
                     'product_type' => $productData['productType'] ?? $productData['product_type'] ?? null,

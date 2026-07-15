@@ -69,7 +69,6 @@ class ProductsUpdateJob implements ShouldQueue
                 [
                     'title'            => $productData['title'] ?? 'Untitled',
                     'handle'           => $productData['handle'] ?? null,
-                    'description_html' => $productData['descriptionHtml'] ?? $productData['body_html'] ?? null,
                     'status'           => strtoupper($productData['status'] ?? 'DRAFT'),
                     'vendor'           => $productData['vendor'] ?? null,
                     'product_type'     => $productData['productType'] ?? $productData['product_type'] ?? null,

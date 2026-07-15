@@ -108,7 +108,6 @@ class ProcessProductUpdateBuffer implements ShouldQueue
                     'shopify_id'       => $shopifyProductId,
                     'user_id'          => $shop->id,
                     'title'            => $productData['title'] ?? 'Untitled',
-                    'description_html' => $productData['descriptionHtml'] ?? $productData['body_html'] ?? null,
                     'status'           => strtoupper($productData['status'] ?? 'DRAFT'),
                     'vendor'           => $productData['vendor'] ?? null,
                     'product_type'     => $productData['productType'] ?? $productData['product_type'] ?? null,
@@ -156,7 +155,7 @@ class ProcessProductUpdateBuffer implements ShouldQueue
             Product::upsert(
                 $productUpserts,
                 ['shopify_id', 'user_id'],
-                ['title', 'description_html', 'status', 'vendor', 'product_type', 'tags', 'images', 'updated_at']
+                ['title', 'status', 'vendor', 'product_type', 'tags', 'images', 'updated_at']
             );
 
             // 2. Fetch IDs (The "Map" Step)

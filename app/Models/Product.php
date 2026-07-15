@@ -13,7 +13,6 @@ class Product extends Model
         'shopify_id',
         'title',
         'handle',
-        'description_html',
         'status',
         'vendor',
         'product_type',
